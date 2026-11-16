@@ -86,7 +86,7 @@ flowchart TD
 
     %% Outbound Cloud Transmission
     BATCH_DISPATCH -->|HTTPS / 443| FIREWALL
-    FIREWALL -->|WAN / Internet (mTLS)| CLOUD_INGRESS
+    FIREWALL -->|"WAN / Internet (mTLS)"| CLOUD_INGRESS
 
     %% Cloud Ingestion Flow
     CLOUD_INGRESS --> FASTAPI

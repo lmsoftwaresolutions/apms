@@ -90,12 +90,12 @@ flowchart TD
     JSON_RESP -->|HTTP 200 OK| Client
 
     %% Error Handling Connections
-    ROUTER -.->|Validation Failed (422)| ERR_422["RFC 7807 Error Envelope"]
-    MW_JWT -.->|Invalid/Expired Token (401)| ERR_401["RFC 7807 Error Envelope"]
-    ROUTER -.->|Unauthorized Role (403)| ERR_403["RFC 7807 Error Envelope"]
-    SERVICE -.->|Entity Missing (404)| ERR_404["RFC 7807 Error Envelope"]
-    SERVICE -.->|Invariant Failure (400)| ERR_400["RFC 7807 Error Envelope"]
-    AppLayers -.->|Unhandled Crash (500)| ERR_500["RFC 7807 Error Envelope"]
+    ROUTER -.->|"Validation Failed (422)"| ERR_422["RFC 7807 Error Envelope"]
+    MW_JWT -.->|"Invalid/Expired Token (401)"| ERR_401["RFC 7807 Error Envelope"]
+    ROUTER -.->|"Unauthorized Role (403)"| ERR_403["RFC 7807 Error Envelope"]
+    SERVICE -.->|"Entity Missing (404)"| ERR_404["RFC 7807 Error Envelope"]
+    SERVICE -.->|"Invariant Failure (400)"| ERR_400["RFC 7807 Error Envelope"]
+    AppLayers -.->|"Unhandled Crash (500)"| ERR_500["RFC 7807 Error Envelope"]
     ERR_422 & ERR_401 & ERR_403 & ERR_404 & ERR_400 & ERR_500 -.-> Client
 
     classDef client fill:#3b82f6,color:#fff,stroke:#1d4ed8;

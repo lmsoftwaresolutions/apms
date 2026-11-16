@@ -88,8 +88,8 @@ sequenceDiagram
     end
 
     %% Response Delivery
-    AuthAPI-->>Nginx: 200 OK + Set-Cookie: refresh_token=... (HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth)
-    Nginx-->>User: 200 OK {\n  "access_token": "eyJhbGciOiJSUzI1NiIs...",\n  "token_type": "Bearer",\n  "expires_in": 900,\n  "user": {"id": "usr_01", "tenant_id": "ten_01", "role": "EMPLOYEE"}\n}
+    AuthAPI-->>Nginx: 200 OK + Set-Cookie: refresh_token (HttpOnly, Secure, SameSite=Strict)
+    Nginx-->>User: 200 OK (access_token: RS256 Bearer JWT 15m, user claims)
 ```
 
 ---

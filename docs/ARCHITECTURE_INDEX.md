@@ -174,3 +174,4 @@ Every document and diagram in this catalog satisfies the APMS Engineering Standa
 2. **Text-Based Version Control**: All diagrams are authored in pure Markdown with standard Mermaid.js blocks or declarative DBML/Structurizr DSL — ensuring versioning in Git with zero binary bloat.
 3. **Multi-Tenant Invariants**: Every schema, data flow, and API endpoint incorporates mandatory `tenant_id` scoping and RLS policy verification.
 4. **Reproducibility**: Source models can be rendered in real-time in any standard Markdown viewer, GitHub preview, or CI/CD documentation builder.
+

@@ -120,8 +120,8 @@ flowchart LR
     M15 --> M21
 
     %% ─── CRITICAL PATH (Punch-to-Payroll Golden Path) ─────────────────
-    M08 ==>|1. Raw Ingest & Normalization| M09
-    M09 ==>|2. Finalized Attendance Ledger (LOP/Days)| M15
+    M08 ==>|"1. Raw Ingest & Normalization"| M09
+    M09 ==>|"2. Finalized Attendance Ledger (LOP/Days)"| M15
 
     %% Critical Path Visual Highlighting
     linkStyle 36 stroke:#d32f2f,stroke-width:4px;

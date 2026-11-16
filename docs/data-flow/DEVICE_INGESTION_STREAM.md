@@ -76,7 +76,7 @@ flowchart TD
     INGEST_API --> AUTH_VAL
     AUTH_VAL <--> IDEMP_CACHE
     AUTH_VAL -->|Direct INSERT| RAW_TABLE
-    INGEST_API -->>|202 Accepted| NGINX
+    INGEST_API -->|"202 Accepted"| NGINX
 
     %% Async Transition
     RAW_TABLE -.->|Enqueue Event ID| CELERY_REDIS

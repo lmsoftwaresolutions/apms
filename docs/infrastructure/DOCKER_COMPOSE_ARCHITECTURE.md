@@ -76,7 +76,7 @@ flowchart TD
     NGINX -->|Route: /s3/*\nProxy Pass: http://minio:9000| MINIO
 
     %% Backend Service Interactions
-    API -->|Async Connection Pool (asyncpg)\nSET LOCAL app.current_tenant_id| DB
+    API -->|"Async Connection Pool (asyncpg)\nSET LOCAL app.current_tenant_id"| DB
     API -->|Enqueue Jobs / Rate Limiting| REDIS
     API -->|Upload / Download PDFs & Templates| MINIO
     API -.->|Writes Logs| VOL_LOGS

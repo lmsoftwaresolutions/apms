@@ -43,18 +43,18 @@ sequenceDiagram
         activate Pool
         Pool-->>Middleware: Async Connection Session Checked Out
         
-        Middleware->>Postgres: BEGIN TRANSACTION;<br/>SET LOCAL app.current_tenant_id = '018f3a5b-9a8c...';
+        Middleware->>Postgres: BEGIN TRANSACTION and SET LOCAL app.current_tenant_id = '018f3a5b-9a8c...'
         activate Postgres
         Note over Postgres: Session-scoped config variable set strictly<br/>for duration of current transaction (SET LOCAL)
         
-        Middleware->>Postgres: Execute Query: SELECT * FROM employees;
+        Middleware->>Postgres: Execute Query: SELECT * FROM employees
         Note over Postgres: RLS Policy Activated:<br/>WHERE tenant_id = current_setting('app.current_tenant_id')::uuid
         
         Postgres->>Tables: Filtered Table Scan / Index Scan
         Tables-->>Postgres: Rows matching current_tenant_id only
         Postgres-->>Middleware: Query Result Set (Zero cross-tenant bleed)
         
-        Middleware->>Postgres: COMMIT TRANSACTION;
+        Middleware->>Postgres: COMMIT TRANSACTION
         deactivate Postgres
         Note over Postgres: app.current_tenant_id is discarded on COMMIT/ROLLBACK
         
