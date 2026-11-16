@@ -58,6 +58,7 @@ This catalog is the definitive repository of functional and non-functional requi
 | `SHF-03` | Multi-Session Shift | Split shifts with 2+ scheduled sessions (e.g., 08:00-12:00 and 16:00-20:00). Mid-gap excluded. | M07 | P0 | CONFIRMED |
 | `SHF-04` | Flexible Window Shift | Core presence hours combined with flexible total worked duration requirements. | M07 | P1 | CONFIRMED |
 | `SHF-05` | Continuous Multi-Day Shift | Duty windows spanning 24h, 36h, or 48h continuous medical/plant duty anchored to start date. | M07 | P0 | CONFIRMED |
+| `SHF-06` | Dynamic Shift Matching & Pooling | Assign multiple candidate shifts; engine dynamically resolves shift from punch timestamps. | M07 | P0 | CONFIRMED |
 | `ROS-01` | Recurring Rotation Patterns | Pattern-based roster generation (e.g., 6 days work / 1 day off; weekly shift rotation). | M08 | P0 | CONFIRMED |
 | `ROS-02` | Continuous 24/7 Rostering | Automated cyclical 3-shift assignment ensuring statutory rest periods between turns. | M08 | P1 | CONFIRMED |
 | `ROS-03` | Dated Shift Instances | Materialization of roster patterns into immutable `dated_shift_instance` rows. | M08 | P0 | CONFIRMED |

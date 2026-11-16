@@ -139,6 +139,12 @@ Every capability in APMS is governed by three decoupled layers:
   - **Overnight Shifts**: Cross-midnight shifts (e.g., 22:00 to 06:00 next day) with unambiguous boundary attribution to the start date.
   - **Multi-Session Split Shifts**: Multiple scheduled working blocks (e.g., 08:00–12:00 and 16:00–20:00) with N65 mid-shift gap exclusion.
   - **Continuous Multi-Day Duties (>24h / 36h / 48h)**: Long-duration medical and emergency plant shifts anchored to the starting calendar date.
+- **Auto-Shift Allocation & Dynamic Shift Matching (Shift Pooling)**:
+  - **Multi-Shift Pool Assignment**: Assign an employee or department a pool of multiple eligible shifts (e.g., `[Morning: 06:00–14:00, Afternoon: 14:00–22:00, Night: 22:00–06:00]`).
+  - **Dynamic In/Out Punch Resolution**: When the employee punches, the engine automatically matches their clock-in/out timestamps against candidate shift ingestion windows with the lowest arrival delta ($\Delta = |P_{in} - T_{start}|$).
+  - Eliminates manual daily rostering for floating, rotating, or unscheduled shift workers.
+  - Tie-breaking: Evaluates OUT punch duration or maximum shift overlap; unresolved punches route to the exception queue.
+  - Full audit logging: Explanation trace records `resolution_mode = "AUTO_DYNAMIC_MATCH"` with candidate shift evaluations.
 - **Tolerances & Penalty Thresholds**:
   - Arrival grace window (e.g., 15 mins).
   - Late arrival penalty bands (e.g., 3 late arrivals in a month = 0.5-day leave deduction).
