@@ -47,11 +47,29 @@ This document serves as the **single source of truth** for all business logic, m
 ### BR-ATT-04: Single-Punch Anomaly Treatment (Confirmed Q4)
 - When only a single punch exists for a scheduled session/day:
   - The attendance record defaults to status `NEEDS_REVIEW`.
-  - It is flagged with anomaly code `SINGLE_PUNCH_ANOMALY`.
+  - It is flagged with anomaly code `LONE_PUNCH_ANOMALY`.
   - Resolution paths:
     1. Tenant Admin / HR creates a manual punch with reason code (`ATT-06`).
     2. Employee submits an Attendance Regularization request (`ATT-10`) via ESS, approved by Supervisor.
   - If unresolved at payroll cut-off, tenant policy dictates fallback: `HALF_DAY` deduction or `ABSENT` (Loss of Pay).
+
+### BR-ATT-15: Continuous Multi-Day Duty Attribution (>24h / 36h / 48h)
+- For continuous duty windows spanning across 2 or 3 calendar dates (e.g. 36h or 48h emergency medical calls):
+  - The entire worked duration is attributed to the **shift start calendar date** ($D$).
+  - Calendar dates $D+1$ and $D+2$ covered by the duty window or mandatory post-duty recovery rest are marked `POST_DUTY_REST` with full attendance credit (1.0).
+  - Continuous duty exceeding 16 hours automatically qualifies for Long-Duty Allowance.
+
+### BR-ATT-16: Lone-Punch Guardrails
+- Under no circumstances may a lone punch calculate overtime or unearned full-day pay.
+- If unregularized by period close, the record strictly defaults to the tenant's chosen fallback (Default: `ABSENT` with LOP).
+
+### BR-ATT-17: Split WFH Cumulative Minute Accounting
+- For telecommuting and work-from-home shifts, total daily credit is derived from the cumulative sum of verified active session minutes.
+- Capped at the scheduled shift maximum unless pre-approved overtime exists.
+
+### BR-ATT-18: Read-vs-Write Decoupling & Display Side-Effect Ban
+- Accessing or rendering attendance views, muster rolls, or payroll previews must execute strictly in read-only mode (`SELECT`).
+- No query or viewing operation may mutate persisted attendance records or explanation traces.
 
 ---
 
@@ -166,3 +184,60 @@ Tenant policy bands map ratio $R$ to daily attendance status:
 - Calculates monthly tax deduction by projecting annualized estimated taxable income.
 - Default tax regime: Section 115BAC (New Tax Regime) with statutory rebate under Section 87A (income up to ₹7,00,000 tax-free), unless employee formally submits an Old Regime declaration with verified exemptions (Section 80C, 80D, HRA Section 10(13A)).
 
+### BR-PAY-12: Strict Period Lock & Next-Cycle Arrears Routing
+- Once a pay run status is marked `LOCKED`:
+  - Attendance summaries, leave transactions, and payslip line items for that pay period become permanently immutable.
+  - Any backdated attendance regularizations, late punches, or retroactive pay increments generate an **Arrears Adjustment entry in the next open pay cycle**.
+  - Historical closed pay runs are never modified.
+
+---
+
+## 7. Employee Lifecycle & Auto-Promotion Rules (`BR-LFC`)
+
+### BR-LFC-01: Automated Status Progression
+- Onboarding sets employee initial status (`Trainee`, `Probationary`, `Contract`) and defined target duration.
+- System initiates confirmation reviews at T-30, T-15, and T-7 days before scheduled confirmation date.
+- Upon supervisor approval (or tenant auto-confirm policy timeout), status moves automatically to `CONFIRMED`.
+
+### BR-LFC-02: Probation End Date Extension on Unpaid Leave
+- If configured by tenant policy, unpaid leave days (`LOSS_OF_PAY`) taken during probation automatically extend the probation end date by the exact count of LOP days:
+  $$\text{Adjusted Probation End} = \text{Original Probation End} + \text{LOP Days}$$
+
+### BR-LFC-03: Confirmation Impact on Leave & Notice
+- Confirmation immediately triggers updated leave entitlement policies (e.g., unlocking annual earned leave accrual) and transitions the employee to standard full-time notice period bands.
+
+---
+
+## 8. Field Workforce Tracking & Privacy Rules (`BR-FLD`)
+
+### BR-FLD-01: Tiered Geolocation Capture
+- **Level 1 (Punch GPS)**: Coordinates are captured strictly at the instant of Clock-In / Clock-Out.
+- **Level 2 (Geofenced Site Visits)**: Logs boundary arrival/departure events at predefined client or facility coordinates.
+- **Level 3 (Visit Check-Ins)**: Check-in records time, location, notes, and photo proof-of-work.
+- **Level 4 (Duty-Hours Route Tracking)**: Continuous periodic GPS coordinate logging active **strictly during scheduled shift hours**.
+
+### BR-FLD-02: Omnipresent On-Duty Transparency Banner & Zero Off-Hours Tracking
+- Level 4 tracking is impossible when off-duty or after Clock-Out.
+- The mobile application displays an omnipresent persistent system notification whenever location tracking is active.
+
+---
+
+## 9. Hardware & Edge Biometrics Rules (`BR-BIO`, `BR-DEV`)
+
+### BR-BIO-01: Infrastructure Cost Cap & Edge Matching
+- Total hosting/infrastructure cost must remain $\le ₹80\text{ per employee/month}$.
+- Facial recognition matching runs on the client device or local edge kiosk. Third-party cloud vision per-punch APIs are prohibited.
+- Raw biometric templates must remain on edge hardware; never uploaded in plain-text to cloud databases.
+
+### BR-DEV-01: Device Heartbeat & Clock Drift Enforcement
+- Devices must send a heartbeat every 60 seconds.
+- If hardware clock drifts $> 5\text{ minutes}$ from NTP, new punches are tagged `CLOCK_DRIFT_WARNING` and an alert is issued to the system administrator.
+
+---
+
+## 10. DPDP Act 2023 & Minor / Student Rules (`BR-PRV`)
+
+### BR-PRV-03: Verifiable Parental Consent for Minors
+- For students or employees under 18 years of age:
+  - System requires digitally verifiable consent from a parent or legal guardian prior to collecting biometric or personal data.
+  - Consent records are stored append-only with timestamp, parent identity token, and purpose specification.
