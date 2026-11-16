@@ -52,3 +52,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Temporary / Scratch files & office lock files
+scratch/
+*.bak
+~$*
+
+
