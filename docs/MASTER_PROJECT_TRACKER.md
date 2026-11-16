@@ -133,3 +133,4 @@ The following matrix tracks the technical mechanisms preventing regression to le
 | 14 | Manual migrations & no automated tests | Alembic versioned migrations + Pytest CI suite | `TEST-CI-01` |
 | 15 | Secrets stored in browser local storage | Secure HTTP-only cookies + JWT rotation | `TEST-SEC-01` |
 | 16 | Unofficial WhatsApp tool on customer PC | Official WhatsApp BSP Cloud API | `TEST-NTF-01` |
+
