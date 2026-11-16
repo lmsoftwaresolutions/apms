@@ -43,9 +43,15 @@ flowchart TD
     end
 
     subgraph APMSCloudIngress["APMS Cloud Ingestion Service (FastAPI)"]
-        INGEST_API["POST /api/v1/devices/push\n(Synchronous Fast-Path < 50ms)"]
+        INGEST_API["POST /api/v1/devices/push\n(Synchronous Fast-Path < 15ms)"]
         AUTH_VAL["Device Token & Checksum Validator\n(HMAC / SHA-256 Signature)"]
         IDEMP_CACHE["Redis Short-Lived Cache\n(60s Deduplication Hash)"]
+        REDIS_STREAM[("Redis Ingestion Stream\nKey: punch_ingest_stream\n(XADD Buffer)")]
+    end
+
+    subgraph BatchPersistenceEngine["Batch Persistence Layer"]
+        BULK_FLUSHER["Async Bulk Ingestion Worker\n(Batch size: 500 records / 200ms)"]
+        BULK_COPY["PostgreSQL Multi-Row / COPY\nINSERT INTO raw_envelope"]
     end
 
     subgraph PersistenceLayer["Storage Layer (PostgreSQL 16+)"]
@@ -71,12 +77,17 @@ flowchart TD
     HEARTBEAT_GEN -->|Heartbeat| CIRCUIT
     FIREWALL -->|WAN / Internet| NGINX
 
-    %% Cloud Ingress
+    %% Cloud Ingress & Redis Stream Fast-Path
     NGINX --> INGEST_API
     INGEST_API --> AUTH_VAL
     AUTH_VAL <--> IDEMP_CACHE
-    AUTH_VAL -->|Direct INSERT| RAW_TABLE
+    AUTH_VAL -->|XADD Stream| REDIS_STREAM
     INGEST_API -->|"202 Accepted"| NGINX
+
+    %% Batch Persistence Flow
+    REDIS_STREAM -->|XREADGROUP 500 msgs| BULK_FLUSHER
+    BULK_FLUSHER --> BULK_COPY
+    BULK_COPY --> RAW_TABLE
 
     %% Async Transition
     RAW_TABLE -.->|Enqueue Event ID| CELERY_REDIS

@@ -94,7 +94,7 @@ docs/
 ### B. Database Architecture & Data Isolation
 | Document | Diagram Type | Scope / Description |
 |---|---|---|
-| [schema.dbml](file:///d:/APMS_Rebuild/docs/database/schema.dbml) | DBML (dbdiagram.io) | **Complete Relational Schema** — All 30 tables, primary/foreign composite keys, enums, nullability, and RLS metadata. |
+| [schema.dbml](file:///d:/APMS_Rebuild/docs/database/schema.dbml) | DBML (dbdiagram.io) | **Complete Relational Schema** — All 31 tables, primary/foreign composite keys, enums, nullability, Tier 3 monthly summaries, and RLS metadata. |
 | [MULTI_TENANT_ISOLATION.md](file:///d:/APMS_Rebuild/docs/database/MULTI_TENANT_ISOLATION.md) | Mermaid `sequenceDiagram` | **Row-Level Security (RLS) Architecture** — JWT claim decoding, `SET LOCAL app.current_tenant_id`, fail-closed kernel evaluation. |
 | [ATTENDANCE_SHIFT_ERD.md](file:///d:/APMS_Rebuild/docs/database/erd/ATTENDANCE_SHIFT_ERD.md) | Mermaid `erDiagram` | **Attendance & Shifts Sub-ERD** — Shift templates, dynamic pools, roster patterns, dated instances, raw punches, and daily records. |
 | [LEAVE_PAYROLL_ERD.md](file:///d:/APMS_Rebuild/docs/database/erd/LEAVE_PAYROLL_ERD.md) | Mermaid `erDiagram` | **Leave & Payroll Sub-ERD** — Double-entry `leave_transactions`, pay groups, salary structures, immutable pay runs, and employee snapshots. |

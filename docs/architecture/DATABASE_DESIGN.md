@@ -150,3 +150,61 @@ CREATE TABLE pay_run_employee_snapshots (
 );
 ```
 
+### 4.4 Tier 3 Precomputed Monthly Attendance Summaries
+To support sub-50ms muster roll rendering and rapid payroll calculation without scanning 30 daily records per employee, APMS materializes monthly aggregations:
+
+```sql
+CREATE TABLE attendance_monthly_summaries (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    employee_id UUID NOT NULL,
+    year_month VARCHAR(7) NOT NULL, -- 'YYYY-MM'
+    total_scheduled_days INT NOT NULL DEFAULT 0,
+    present_days NUMERIC(4, 1) NOT NULL DEFAULT 0.0,
+    half_days INT NOT NULL DEFAULT 0,
+    absent_days NUMERIC(4, 1) NOT NULL DEFAULT 0.0,
+    weekly_off_days INT NOT NULL DEFAULT 0,
+    holiday_days INT NOT NULL DEFAULT 0,
+    paid_leave_days NUMERIC(4, 1) NOT NULL DEFAULT 0.0,
+    unpaid_leave_days NUMERIC(4, 1) NOT NULL DEFAULT 0.0,
+    loss_of_pay_days NUMERIC(4, 1) NOT NULL DEFAULT 0.0,
+    total_worked_minutes INT NOT NULL DEFAULT 0,
+    total_overtime_minutes INT NOT NULL DEFAULT 0,
+    late_arrival_count INT NOT NULL DEFAULT 0,
+    early_exit_count INT NOT NULL DEFAULT 0,
+    is_frozen BOOLEAN NOT NULL DEFAULT FALSE,
+    version INT NOT NULL DEFAULT 1,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY (tenant_id, employee_id, year_month)
+);
+
+CREATE INDEX idx_monthly_summary_period_lookup 
+    ON attendance_monthly_summaries (tenant_id, year_month) 
+    INCLUDE (present_days, loss_of_pay_days, total_overtime_minutes);
+```
+
+### 4.5 Tamper-Evident Partitioned Audit Trail
+Enforcing WORM immutability and cryptographic forward hash chaining across all tenant state mutations:
+
+```sql
+CREATE TABLE audit_logs (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    sequence_number BIGSERIAL NOT NULL,
+    prev_entry_hash VARCHAR(64) NOT NULL,
+    entry_hash VARCHAR(64) NOT NULL, -- SHA-256(prev_entry_hash || tenant_id || payload)
+    user_id UUID,
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id UUID,
+    client_ip INET,
+    before_value JSONB,
+    after_value JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY (created_at, tenant_id, id)
+) PARTITION BY RANGE (created_at);
+
+-- Forbid destructive mutations
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM apms_app_role;
+```
+

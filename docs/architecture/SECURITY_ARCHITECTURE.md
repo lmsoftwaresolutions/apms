@@ -12,9 +12,15 @@ The paramount security requirement in APMS is complete, leak-proof tenant isolat
 2. **Policy Enforcement**: Every table scoped to a tenant has `ENABLE ROW LEVEL SECURITY` and `FORCE ROW LEVEL SECURITY`.
 3. **Automated Cross-Tenant Testing**: Continuous integration runs automated isolation tests attempting to query Tenant B's data while authenticated as Tenant A. Any leaked row fails the build immediately.
 
+### 1.2 Celery Background Worker Fail-Closed Context Manager
+Celery workers operate outside the HTTP FastAPI request lifecycle. To prevent pooled connection cross-tenant context leaks or silent unauthenticated queries, all tenant-scoped background tasks enforce a mandatory context manager:
+- Every task receives an explicit `tenant_id` parameter.
+- The database session factory runs `SET LOCAL app.current_tenant_id = :tenant_id` at transaction start.
+- On task completion (or error), the transaction is committed or rolled back, resetting the session configuration variable before returning the connection to the asyncpg connection pool.
+
 ---
 
-## 2. Field-Level Envelope Encryption
+## 2. Field-Level Envelope Encryption & Cryptographic Integrity
 
 Sensitive Personal Identifiable Information (PII) and financial records must be encrypted before persistence to protect against database dump exposures.
 
@@ -28,6 +34,16 @@ Sensitive Personal Identifiable Information (PII) and financial records must be 
 - **Key Hierarchy**: Master Key (stored in AWS KMS / HashiCorp Vault) encrypts Tenant Data Encryption Keys (DEKs).
 - **Algorithm**: AES-256-GCM authenticated encryption with random initialization vectors (IV).
 - **Masking on Display**: In UI and standard API responses, sensitive fields are masked (e.g. `XXXX-XXXX-1234`), unmasked only upon explicit privileged admin action with audit logging.
+
+### 2.3 Biometric Hardware Attestation & Ingestion Security
+- **Edge Sync Agent**: Mutual TLS (mTLS) with pinned client certificates and HMAC-SHA256 request payload signatures (`X-Device-Signature: HMAC_SHA256(secret, payload + timestamp)`).
+- **Legacy Devices**: Standalone push terminals without TLS/HMAC support are isolated to local factory LANs and terminated exclusively via the on-premises Edge Sync Agent.
+- **Mobile Clock-In**: Device hardware integrity attestation (Google Play Integrity / Apple DeviceCheck) paired with ray-casting geofence validation.
+
+### 2.4 Centralized Tamper-Evident Audit Trail (WORM Enforcement)
+- **Forward Cryptographic Hash Chaining**: Every `audit_logs` entry computes `SHA-256(prev_entry_hash || tenant_id || payload)`. Any alteration breaks the cryptographic verification chain.
+- **Database Privilege Revocation**: The application database role has `REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs`, guaranteeing append-only Write-Once-Read-Many (WORM) storage.
+- **Yearly Partitioning & Cold Storage**: Yearly range partitioning with automated 8-year archival to S3/MinIO Parquet cold vaults.
 
 ---
 

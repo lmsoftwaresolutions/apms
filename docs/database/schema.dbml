@@ -322,6 +322,7 @@ Table punch_events [note: 'Normalized punch stream. PCH-02. PARTITION BY RANGE (
     indexes {
         (punch_time, tenant_id, id) [pk]
         (tenant_id, employee_id, punch_time) [name: 'idx_punch_events_emp_time']
+        (tenant_id, employee_id, punch_time) [name: 'idx_punch_events_emp_time_covered', note: 'Covered index with INCLUDE (source, flag, is_geofence_valid)']
     }
 }
 
@@ -624,9 +625,12 @@ Table statutory_parameter_versions [note: 'Versioned EPF/ESI/PT/TDS parameters. 
 // ─────────────────────────────────────────────────────────────
 // TABLE 27: audit_logs  (APPEND-ONLY)
 // ─────────────────────────────────────────────────────────────
-Table audit_logs [note: 'Immutable audit trail. PLT-04, PRV-01, SEC-02. Append-only. RLS: tenant_id. NFR-02: 8-year retention.'] {
-    id              UUID        [pk, default: `gen_random_uuid()`]
+Table audit_logs [note: 'Immutable cryptographic audit trail. PLT-04, PRV-01, SEC-02. PARTITION BY RANGE (created_at) yearly. Append-only WORM enforced. RLS: tenant_id. NFR-02: 8-year retention.'] {
+    id              UUID        [not null, default: `gen_random_uuid()`]
     tenant_id       UUID        [ref: > tenants.id, note: 'RLS column; NULL for SUPER_ADMIN platform actions']
+    sequence_number BIGSERIAL   [not null]
+    prev_entry_hash VARCHAR(64) [not null, note: 'SHA-256 hash of previous log entry for tamper evidence']
+    entry_hash      VARCHAR(64) [not null, note: 'SHA-256(prev_entry_hash || tenant_id || payload)']
     user_id         UUID        [ref: > users.id]
     action          VARCHAR(100) [not null, note: 'e.g. PAYSLIP_UNMASKED, PAY_RUN_LOCKED, PUNCH_MANUAL_OVERRIDE']
     entity_type     VARCHAR(100) [not null, note: 'Table/resource affected']
@@ -634,9 +638,10 @@ Table audit_logs [note: 'Immutable audit trail. PLT-04, PRV-01, SEC-02. Append-o
     ip_address      INET
     before_value    JSONB        [note: 'State snapshot before mutation']
     after_value     JSONB        [note: 'State snapshot after mutation']
-    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`, note: 'Partition key (yearly range partition)']
 
     indexes {
+        (created_at, tenant_id, id) [pk]
         (tenant_id, entity_type, entity_id, created_at) [name: 'idx_audit_logs_entity']
         (tenant_id, user_id, created_at)                [name: 'idx_audit_logs_user']
     }
@@ -696,6 +701,37 @@ Table overtime_requests [note: 'OT pre/post-approval workflow. OTC-01, N20. // i
 
     indexes {
         (tenant_id, employee_id, attendance_date) [name: 'idx_ot_req_emp_date']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 31: attendance_monthly_summaries (TIER 3 PRECOMPUTED READ-MODEL)
+// ─────────────────────────────────────────────────────────────
+Table attendance_monthly_summaries [note: 'Tier 3 precomputed monthly attendance aggregations for rapid muster roll rendering and payroll inputs. RLS: tenant_id.'] {
+    id                      UUID            [not null, default: `gen_random_uuid()`]
+    tenant_id               UUID            [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id             UUID            [not null, ref: > employees.id]
+    year_month              VARCHAR(7)      [not null, note: 'YYYY-MM partition period']
+    total_scheduled_days    INT             [not null, default: 0]
+    present_days            NUMERIC(4,1)    [not null, default: 0.0]
+    half_days               INT             [not null, default: 0]
+    absent_days             NUMERIC(4,1)    [not null, default: 0.0]
+    weekly_off_days         INT             [not null, default: 0]
+    holiday_days            INT             [not null, default: 0]
+    paid_leave_days         NUMERIC(4,1)    [not null, default: 0.0]
+    unpaid_leave_days       NUMERIC(4,1)    [not null, default: 0.0]
+    loss_of_pay_days        NUMERIC(4,1)    [not null, default: 0.0]
+    total_worked_minutes    INT             [not null, default: 0]
+    total_overtime_minutes  INT             [not null, default: 0]
+    late_arrival_count      INT             [not null, default: 0]
+    early_exit_count        INT             [not null, default: 0]
+    is_frozen               BOOLEAN         [not null, default: false, note: 'True when monthly payroll locks']
+    version                 INT             [not null, default: 1, note: 'Optimistic locking for recalculation updates']
+    updated_at              TIMESTAMPTZ     [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, year_month) [pk]
+        (tenant_id, year_month) [name: 'idx_monthly_summary_period_lookup']
     }
 }
 

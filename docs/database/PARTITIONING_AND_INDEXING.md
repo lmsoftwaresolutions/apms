@@ -106,6 +106,27 @@ CREATE TABLE attendance_daily_records (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
     PRIMARY KEY (attendance_date, tenant_id, id)
 ) PARTITION BY RANGE (attendance_date);
+
+-- 4. AUDIT LOGS (Centralized Tamper-Evident Audit Trail - Yearly Partitioning)
+CREATE TABLE audit_logs (
+    id UUID NOT NULL DEFAULT gen_random_uuid(),
+    tenant_id UUID NOT NULL,
+    sequence_number BIGSERIAL NOT NULL,
+    prev_entry_hash VARCHAR(64) NOT NULL,
+    entry_hash VARCHAR(64) NOT NULL,
+    user_id UUID,
+    action VARCHAR(100) NOT NULL,
+    entity_type VARCHAR(100) NOT NULL,
+    entity_id UUID,
+    client_ip INET,
+    before_value JSONB,
+    after_value JSONB,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT clock_timestamp(),
+    PRIMARY KEY (created_at, tenant_id, id)
+) PARTITION BY RANGE (created_at);
+
+-- Strictly revoke destructive actions to enforce WORM immutability
+REVOKE UPDATE, DELETE, TRUNCATE ON audit_logs FROM apms_app_role;
 ```
 
 ### 2.3 Row-Level Security on Partitioned Tables
@@ -283,6 +304,21 @@ CREATE UNIQUE INDEX uq_emp_attendance_date
 ON attendance_daily_records (tenant_id, employee_id, attendance_date);
 ```
 
+#### Layer 4: Covered Compound Indexing & Tier 3 Precomputed Summaries
+To optimize high-frequency mobile and muster queries without triggering costly heap scans, `punch_events` uses a covered index:
+```sql
+CREATE INDEX idx_punch_events_emp_time_covered 
+ON punch_events (tenant_id, employee_id, punch_time) 
+INCLUDE (source, flag, is_geofence_valid);
+```
+
+For instantaneous monthly muster roll queries, the materialized Tier 3 table `attendance_monthly_summaries` is indexed on the period lookup:
+```sql
+CREATE INDEX idx_monthly_summary_period_lookup 
+ON attendance_monthly_summaries (tenant_id, year_month) 
+INCLUDE (present_days, loss_of_pay_days, total_overtime_minutes);
+```
+
 ---
 
 ## 5. Complete Database Index Catalog (All 30 Tables)
@@ -345,7 +381,7 @@ ON attendance_daily_records (tenant_id, employee_id, attendance_date);
 | 25 | `pay_run_employee_snapshots` | `uq_payrun_emp` | B-tree | `(tenant_id, pay_run_id, employee_id)` | UNIQUE |
 | 26 | `statutory_parameter_versions` | `pk_stat_versions` | B-tree | `(id)` | PRIMARY KEY |
 | 26 | `statutory_parameter_versions` | `uq_stat_param` | B-tree | `(parameter_type, state_code, effective_from)` | UNIQUE |
-| 27 | `audit_logs` | `pk_audit_logs` | B-tree | `(id)` | PRIMARY KEY |
+| 27 | `audit_logs` | `pk_audit_logs` | B-tree | `(created_at, tenant_id, id)` | PRIMARY KEY |
 | 27 | `audit_logs` | `idx_audit_entity` | B-tree | `(tenant_id, entity_type, entity_id, created_at)` | PERFORMANCE |
 | 27 | `audit_logs` | `idx_audit_user` | B-tree | `(tenant_id, user_id, created_at)` | PERFORMANCE |
 | 28 | `salary_structures` | `pk_salary_struct` | B-tree | `(id)` | PRIMARY KEY |
@@ -354,6 +390,8 @@ ON attendance_daily_records (tenant_id, employee_id, attendance_date);
 | 29 | `employee_salary_assignments` | `uq_emp_sal_eff` | B-tree | `(tenant_id, employee_id, effective_from)` | UNIQUE |
 | 30 | `overtime_requests` | `pk_overtime_req` | B-tree | `(id)` | PRIMARY KEY |
 | 30 | `overtime_requests` | `idx_ot_req_emp` | B-tree | `(tenant_id, employee_id, attendance_date)` | PERFORMANCE |
+| 31 | `attendance_monthly_summaries` | `pk_att_monthly_summary` | B-tree | `(tenant_id, employee_id, year_month)` | PRIMARY KEY |
+| 31 | `attendance_monthly_summaries` | `idx_att_monthly_period` | B-tree | `(tenant_id, year_month)` | PERFORMANCE |
 
 ---
 
