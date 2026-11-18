@@ -63,6 +63,11 @@ docs/
 │   ├── EDGE_SYNC_AGENT.md
 │   ├── ENVIRONMENTS.md
 │   └── OBSERVABILITY_ARCHITECTURE.md
+├── product/               # Product requirements, vision, and strategic HRMS roadmap
+│   ├── HRMS_EXTENSION_ROADMAP.md
+│   ├── MVP_SCOPE.md
+│   ├── PRD.md
+│   └── VISION.md
 ├── security/              # RBAC matrix, envelope encryption, JWT sessions, STRIDE threat model
 │   ├── ENVELOPE_ENCRYPTION.md
 │   ├── JWT_SESSION_SECURITY.md
@@ -164,6 +169,16 @@ docs/
 | [E2E_PUNCH_TO_PAYSLIP.md](file:///d:/APMS_Rebuild/docs/data-flow/E2E_PUNCH_TO_PAYSLIP.md) | Mermaid `flowchart TD` | **Master Data Pipeline** — The full journey: Biometric Terminal -> Edge Agent -> Ingestion -> Pairing -> Rollup -> Leave -> Payroll -> Payslip. |
 | [DEVICE_INGESTION_STREAM.md](file:///d:/APMS_Rebuild/docs/data-flow/DEVICE_INGESTION_STREAM.md) | Mermaid `flowchart TD` | **Biometric Push Ingestion Stream** — High-throughput push parsing, SHA-256 checksums, append-only `raw_envelope`, and debounce normalization. |
 | [PAYROLL_CALCULATION_PIPELINE.md](file:///d:/APMS_Rebuild/docs/data-flow/PAYROLL_CALCULATION_PIPELINE.md) | Mermaid `flowchart TD` | **10-Step Statutory Payroll Engine** — Mathematical flowchart computing Gross -> EPF (₹15,000 ceiling) -> ESI (₹21,000 threshold) -> PT -> TDS -> Net Pay. |
+
+---
+
+### H. Product Strategy & HRMS Strategic Extension Roadmap
+| Document | Diagram Type | Scope / Description |
+|---|---|---|
+| [HRMS_EXTENSION_ROADMAP.md](file:///d:/APMS_Rebuild/docs/product/HRMS_EXTENSION_ROADMAP.md) | Mermaid `classDiagram` + Specs | **Full HRMS Extension Roadmap (H01–H10)** — Architectural blueprint expanding APMS into enterprise HRMS: ATS & Recruitment (H01), 360° PMS & OKRs (H02), LMS & POSH Training (H03), Corporate Travel & OCR Expenses (H04), Asset Lifecycle (H05), Mood Bot & Engagement (H06), HR Helpdesk & POSH Grievances (H07), Visitor & Gate Pass (H08), Alumni Portal & Exit Clearance (H09), and Psychometric Testing (H10). |
+| [VISION.md](file:///d:/APMS_Rebuild/docs/product/VISION.md) | Strategy Spec | **Product Vision & Evolution** — Two-stage product journey: Base APMS Engine (M01–M21) to Full Enterprise HRMS Suite. |
+| [PRD.md](file:///d:/APMS_Rebuild/docs/product/PRD.md) | Product Requirements | **Product Requirements Document** — Enterprise workforce scheduling, biometric attendance, double-entry leave, and Indian statutory payroll. |
+| [MODULES_AND_FEATURES.md](file:///d:/APMS_Rebuild/docs/MODULES_AND_FEATURES.md) | Specification Matrix | **APMS & HRMS Master Modules Catalog** — Detailed breakdown of base APMS modules (M01–M21) and future HRMS extension modules (H01–H10). |
 
 ---
 

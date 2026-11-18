@@ -96,4 +96,21 @@ APMS is governed by ten core architectural invariants that guide all design and 
 - **Phase 3 (Payroll & Statutory Engine)**: 10-step wizard, statutory engine (EPF, ESI, PT, TDS), server-side payslips, muster rolls.
 - **Phase 4 (Enterprise Hardening & GA)**: Shadow-run diff testing, advanced reporting, workflow engine with escalation, DPDP Act audit controls.
 - **Phase 5 (Mobile & Field Expansion)**: Offline-first geofenced mobile app, geotracking, facial verification.
+- **Phase 6+ (Full HRMS Strategic Expansion)**: Modular extension into end-to-end Enterprise HRMS (ATS, PMS, LMS, Expenses, Asset Management, Helpdesk/POSH, Visitor Management, Alumni Portal).
+
+---
+
+## 7. The Evolutionary Path: APMS Base Platform to Full HRMS Suite
+
+While the immediate product focus is **APMS** as the rock-solid base engine for workforce scheduling, biometric attendance pairing, double-entry leaves, and statutory payroll, the architecture is intentionally designed as an extensible Modular Monolith.
+
+Following the general availability (GA) of APMS, the platform expands into a comprehensive **Human Resource Management System (HRMS)** without rewriting core engines:
+
+| Dimension | Base Product: APMS (Active Focus) | Future Extension: Full HRMS Suite |
+| :--- | :--- | :--- |
+| **Core Domain** | Workforce Scheduling, Biometrics, Attendance, Leaves, Indian Statutory Payroll. | Complete Hire-to-Retire Employee Lifecycle & Talent Management. |
+| **Modules Covered** | `M01` through `M21` (P0 Foundation, P1 Business Ops, P2 Extensions). | `H01` through `H10` (ATS, PMS, LMS, Expenses, Assets, Engagement, POSH, Gate Pass, Alumni). |
+| **Architecture Boundary** | Core attendance and payroll engines act as independent, autonomous domains. | HRMS modules interact via exported service interfaces without touching raw punches or mutating closed payroll periods. |
+| **Authoritative Roadmap** | Documented in `PRD.md` and `MODULES_AND_FEATURES.md`. | Fully specified in [`docs/product/HRMS_EXTENSION_ROADMAP.md`](file:///d:/APMS_Rebuild/docs/product/HRMS_EXTENSION_ROADMAP.md). |
+
 

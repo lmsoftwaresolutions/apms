@@ -417,6 +417,27 @@ Every capability in APMS is governed by three decoupled layers:
 
 ---
 
+# P3: Future Strategic HRMS Extension Modules (H01–H10)
+
+APMS is built as the foundational workforce management engine. Following the launch and stabilization of the base platform (M01–M21), the system will extend into a full-suite Enterprise HRMS without disrupting core attendance or payroll invariants.
+
+The complete specifications, competitor benchmarks, and integration touchpoints for these 10 future modules are authoritatively documented in [`docs/product/HRMS_EXTENSION_ROADMAP.md`](file:///d:/APMS_Rebuild/docs/product/HRMS_EXTENSION_ROADMAP.md):
+
+| Module Code | Module Name | Primary Purpose | Base APMS Integration Touchpoint |
+| :--- | :--- | :--- | :--- |
+| **H01** | **Applicant Tracking System (ATS)** | Job requisitions, career sites, resume parsing, interview scorecards, and digital offer release. | Automatically creates employee record in `M04: Employee Master` and CTC structure in `M15: Payroll` upon candidate acceptance. |
+| **H02** | **Performance Management (PMS)** | OKRs, KRAs, continuous 1-on-1 check-ins, 360° reviews, 9-box talent matrix, bell-curve normalization. | Appraisal ratings directly drive annual salary increment calculations and variable pay bonus in `M15: Payroll`. |
+| **H03** | **Learning Management (LMS)** | Training course catalogs, SCORM compliance player, mandatory statutory training (POSH, OSH, Fire Safety). | Safety training certifications gate shift rostering in `M05/M06: Shifts` for hazardous industrial environments. |
+| **H04** | **Corporate Travel & Expense Desk** | Receipt OCR extraction, per-diem policy engine, travel booking requisitions, mileage tracking. | Approved reimbursement line items and travel advances feed directly into `M15: Payroll` monthly pay runs. |
+| **H05** | **IT & Physical Asset Management** | Hardware registry (laptops, SIMs, vehicles), serial tagging, return sign-off, asset damage recovery. | Asset return clearance blocks employee separation in `H09`; unreturned assets convert to recovery deductions in `M15: Payroll` Full & Final settlement. |
+| **H06** | **Employee Engagement & Mood Bot** | Morning clock-in mood check-in bot, anonymous pulse surveys, eNPS, peer recognition kudos wall. | Mood bot integrates directly into `M13/M14: ESS & Mobile` morning clock-in flow; kudos points convert to gift allowances. |
+| **H07** | **HR Helpdesk & POSH Grievances** | Category query ticketing (PF, tax, payroll), SLA escalation, confidential POSH Act 2013 ICC case logs. | Connects to `M10: Workflow Engine` SLA escalation timers; tickets link directly to relevant payslip snapshots or muster days. |
+| **H08** | **Visitor & Gate Pass Management** | Visitor pre-registration, QR code passes, badge printing, host notification, vehicle logging. | Operates on the same factory turnstiles and security hardware as `M07: Device & Ingestion Engine`. |
+| **H09** | **Alumni Portal & Exit Clearance** | Multi-department "No-Due" clearance (IT, Admin, Finance, HR), last working day, ex-employee tax portal. | Triggers separation in `M04`; purges future rosters in `M06`; drives Full & Final (F&F) settlement and gratuity in `M15: Payroll`. |
+| **H10** | **Psychometric Pre-Hire Testing** | Cognitive aptitude testing, workplace safety assessments, candidate competency fit scoring. | Test scores bind directly to candidate scorecards in `H01: ATS` for interviewer evaluation. |
+
+---
+
 ## Universal Non-Negotiable Guardrails
 
 1. **Multi-Tenant Row-Level Security (RLS)**: Every tenant-scoped table enforces PostgreSQL 16+ RLS on `tenant_id`.

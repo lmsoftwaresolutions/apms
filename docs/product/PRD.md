@@ -6,6 +6,11 @@
 
 The core objective is to eliminate error-prone manual spreadsheets, solve complex scheduling anomalies (overnight shifts, multi-day 24h/36h/48h duties, split sessions, rotating rosters), enforce an uncompromised audit trail, and guarantee statutory compliance down to the exact paisa (±₹0.00).
 
+### 1.1 Product Scope: Base APMS Engine vs. Future HRMS Extensions
+APMS is architected under a **two-horizon product strategy**:
+- **Base APMS Product (Active Implementation Scope)**: Modules `M01` through `M21` represent the complete industrial workforce management engine: Shift Templates, Dynamic Pool Matching, Biometric Push Ingestion, N65 Multi-Session Gap Pairing, Double-Entry Leave Ledgers, and 10-Step Indian Statutory Payroll (EPF, ESI, PT, TDS).
+- **Future HRMS Extensions (Strategic Horizon)**: Comprehensive hire-to-retire HRMS capabilities—including Applicant Tracking System (ATS), 360° Performance Appraisals (PMS), Learning Management (LMS), Corporate Travel & Expenses, IT Asset Tracking, Employee Engagement, and POSH Grievances—are fully cataloged and specified for phased post-APMS rollout in [`docs/product/HRMS_EXTENSION_ROADMAP.md`](file:///d:/APMS_Rebuild/docs/product/HRMS_EXTENSION_ROADMAP.md).
+
 ---
 
 ## 2. Core Architectural Principles & Invariants
