@@ -1,0 +1,95 @@
+{
+  "version": 1,
+  "skills": {
+    "architecting-solutions": {
+      "source": "zhaono1/agent-playbook",
+      "sourceType": "github",
+      "skillPath": "skills/architecting-solutions/SKILL.md",
+      "computedHash": "f9259c28e71521ee8b31d0e0423f91dd58a17f579a12c20a6c99706f7955724e"
+    },
+    "auth-implementation-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/developer-essentials/skills/auth-implementation-patterns/SKILL.md",
+      "computedHash": "3e535cf42479aa464707d59dc5c5a9d3afbb671dca61007528e62579ce2e812c"
+    },
+    "celery": {
+      "source": "bobmatnyc/claude-mpm-skills",
+      "sourceType": "github",
+      "skillPath": "toolchains/python/async/celery/SKILL.md",
+      "computedHash": "46518bcab00288bdd56b06c155809fc53e9b65264b62d46c19b33c15ce488c82"
+    },
+    "docker-patterns": {
+      "source": "affaan-m/ecc",
+      "sourceType": "github",
+      "skillPath": "skills/docker-patterns/SKILL.md",
+      "computedHash": "2518afd6ae1e1b91d7f8d2f8d9b7145fb08ec640b9624e3dffc0a21289417245"
+    },
+    "fastapi-async-patterns": {
+      "source": "thebushidocollective/han",
+      "sourceType": "github",
+      "skillPath": "plugins/frameworks/fastapi/skills/fastapi-async-patterns/SKILL.md",
+      "computedHash": "cd39488c82cb6f9db2a91489a57eb1f99f8333072fb4db5386a45d343fd07908"
+    },
+    "fastapi-templates": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/api-scaffolding/skills/fastapi-templates/SKILL.md",
+      "computedHash": "708046a283cd90c03bb4e160857eedcf9179244d4f0a36d3de8f266ffa472acc"
+    },
+    "impeccable": {
+      "source": "pbakaus/impeccable",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/impeccable/SKILL.md",
+      "computedHash": "8dc0dacacda3b5d7d1d64567189097ea21cc969fd84077fff5e3b60c6ccf72e8"
+    },
+    "mobile-app-design": {
+      "source": "xrhstosmour/macsify",
+      "sourceType": "github",
+      "skillPath": ".config/agentic/skills/mobile-app-design/SKILL.md",
+      "computedHash": "75358ee40cae1698d68fa7cdb7534bf92bc1f9a2c52bc1bf2a448fae096eeb9e"
+    },
+    "postgresql-optimization": {
+      "source": "github/awesome-copilot",
+      "sourceType": "github",
+      "skillPath": "skills/postgresql-optimization/SKILL.md",
+      "computedHash": "8022448de70ba9a485e3b5bce34c5bbc644f93eb39b68431c9f7dabcf03aeb09"
+    },
+    "postgresql-table-design": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/database-design/skills/postgresql-table-design/SKILL.md",
+      "computedHash": "c87d5cac33fbddc757fbb4b38a0098cff7dcf79201d40ddff2af76ec2724c5a1"
+    },
+    "python-testing-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/python-development/skills/python-testing-patterns/SKILL.md",
+      "computedHash": "cfec3cbf4023ac0336f37bb28991824d87cc9e92758e4615e1e5d85c5f2ceeed"
+    },
+    "reactnative-design": {
+      "source": "ulugbekeshnazarov409/reactnative-design",
+      "sourceType": "github",
+      "skillPath": "SKILL.md",
+      "computedHash": "5c9d17168529c8908596dc8bdd6857b4c1d4f8acf8077a7fccd0a2bbf82b84a8"
+    },
+    "security-and-hardening": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/security-and-hardening/SKILL.md",
+      "computedHash": "e637d98a4144f15bffeb29a00031d0e3a26bdd3364b8d6f4f3f635a8b97e71a7"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "ca7b0c0c6e5f2750043f7f0cd72d16ac4e2abc48f9b5500d047a4b77a2506212"
+    },
+    "vercel-react-native-skills": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-native-skills/SKILL.md",
+      "computedHash": "41d24eafa7c3d82e270439808f7cfbc4d51aeb2d14f2809a2267c16275784d06"
+    }
+  }
+}
