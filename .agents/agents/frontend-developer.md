@@ -22,9 +22,9 @@ You are responsible for building the modern, responsive, and accessible web inte
 
 ## 3. Context-Loading Protocol
 1. Read `AGENTS.md`.
-2. Read `docs/product/PRD.md` for user journeys and persona requirements.
-3. Read `docs/architecture/API_DESIGN.md` for endpoint contracts and error envelopes.
-4. Read `docs/engineering/CODING_STANDARDS.md#3-frontend-standards-react-18--typescript--vite`.
+2. Read `CONTEXT.md (and docs/product/SRS.md)` for user journeys and persona requirements.
+3. Read `docs/product/SRS.md + CONTEXT.md processor contracts` for endpoint contracts and error envelopes.
+4. Read `AGENTS.md + CONTEXT.md stack#3-frontend-standards-react-18--typescript--vite`.
 
 ## 4. Assigned Skills
 - `api-development`

@@ -22,7 +22,7 @@ As the Principal System Architect for APMS, you own the overall software archite
 ## 3. Context-Loading Protocol
 When beginning any architectural task, load context in this sequence:
 1. Read `AGENTS.md` (root invariants).
-2. Read `docs/architecture/SYSTEM_ARCHITECTURE.md` and `DATABASE_DESIGN.md`.
+2. Read `CONTEXT.md §2–3` and `DATABASE_DESIGN.md`.
 3. Read `docs/decisions/DECISION_REGISTER.md` to review existing ADRs.
 4. Read `docs/requirements/BUSINESS_RULES.md` and `OPEN_QUESTIONS.md`.
 

@@ -15,7 +15,7 @@ Guides agents in keeping all APMS technical and product documentation fully sync
 - During periodic documentation audits.
 
 ## 3. Required Documents to Read
-- `docs/requirements/REQUIREMENTS_CATALOG.md` — Central requirements catalog.
+- `docs/product/SRS.md` — Central requirements catalog.
 - `docs/requirements/BUSINESS_RULES.md` — Authoritative business rules.
 - `docs/decisions/DECISION_REGISTER.md` — Master ADR index.
 - `docs/decisions/adr/ADR_TEMPLATE.md` — Standard ADR template.
@@ -33,12 +33,13 @@ Guides agents in keeping all APMS technical and product documentation fully sync
 2. **Draft ADR (If architectural)**: Copy `ADR_TEMPLATE.md` to `docs/decisions/adr/ADR-XX-<title>.md`, populate context, options, decision, and trade-offs.
 3. **Update Decision Register**: Add the new ADR to `docs/decisions/DECISION_REGISTER.md`.
 4. **Update Business Rules**: If domain math or policy bands change, update `docs/requirements/BUSINESS_RULES.md` with explicit formulas.
-5. **Update Requirements Catalog**: Change requirement status in `docs/requirements/REQUIREMENTS_CATALOG.md` if the change moves a requirement from `CONFIRMED` to `IMPLEMENTED`.
-6. **Update Module Specs**: Update the relevant `docs/modules/<module>/SPEC.md` file.
+5. **Update SRS**: Change requirement status in `docs/product/SRS.md` when scope moves.
+6. **Update CONTEXT**: Keep module catalog / pricing / roadmap in `CONTEXT.md` synchronized — do not recreate deleted narrative specs.
 
 ## 7. Validation Checklist
 - [ ] Are all cross-document markdown links valid?
-- [ ] Do requirement IDs match across `REQUIREMENTS_CATALOG.md` and `BUSINESS_RULES.md`?
+- [ ] Do requirement IDs match across `docs/product/SRS.md` and `BUSINESS_RULES.md`?
+- [ ] Does `CONTEXT.md` remain the only product SSOT (no duplicate vision/PRD files)?
 - [ ] Are all newly confirmed decisions accurately indexed in `DECISION_REGISTER.md`?
 
 ## 8. Common Mistakes to Avoid

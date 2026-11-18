@@ -15,8 +15,8 @@ Guides agents in auditing, implementing, and verifying multi-tenant data isolati
 - When conducting security reviews.
 
 ## 3. Required Documents to Read
-- `docs/architecture/SECURITY_ARCHITECTURE.md` — Complete security architecture.
-- `docs/architecture/DATABASE_DESIGN.md` — Database RLS mechanisms.
+- `CONTEXT.md §3,7 + docs/product/SRS.md §4.7` — Complete security architecture.
+- `CONTEXT.md §3 (RLS invariants)` — Database RLS mechanisms.
 - `.agents/rules/security.md` — Workspace security invariants.
 
 ## 4. Relevant Requirement IDs

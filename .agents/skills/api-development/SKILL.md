@@ -14,8 +14,8 @@ Guides agents in creating clean, robust, asynchronous FastAPI REST endpoints adh
 - When implementing idempotency handling, keyset pagination, or webhook triggers.
 
 ## 3. Required Documents to Read
-- `docs/architecture/API_DESIGN.md` — REST API architecture and conventions.
-- `docs/engineering/CODING_STANDARDS.md` — Backend coding standards.
+- `docs/product/SRS.md + CONTEXT.md processor contracts` — REST API architecture and conventions.
+- `AGENTS.md + CONTEXT.md stack` — Backend coding standards.
 - `.agents/rules/architecture.md` — Architecture rules.
 
 ## 4. Relevant Requirement IDs

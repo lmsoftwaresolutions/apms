@@ -15,8 +15,8 @@ Guides agents in creating, running, and diagnosing tests across all layers of th
 - When verifying test coverage against Definition of Done thresholds.
 
 ## 3. Required Documents to Read
-- `docs/engineering/TESTING_STRATEGY.md` — Testing pyramid and coverage thresholds.
-- `docs/engineering/DEFINITION_OF_DONE.md` — Quality gates and pull request checklists.
+- `CONTEXT.md §9 + docs/product/SRS.md §5–6` — Testing pyramid and coverage thresholds.
+- `CONTEXT.md §9 MVP DoD + docs/product/SRS.md §6` — Quality gates and pull request checklists.
 - `docs/requirements/BUSINESS_RULES.md` — Expected formulas and mathematical behaviors.
 
 ## 4. Relevant Requirement IDs

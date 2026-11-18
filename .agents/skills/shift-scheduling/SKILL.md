@@ -15,7 +15,7 @@ Guides agents in building and maintaining the shift scheduling engine (`M3`), co
 - When debugging overnight boundary date attribution.
 
 ## 3. Required Documents to Read
-- `docs/modules/shifts/SPEC.md` — Complete shift module specification.
+- `CONTEXT.md §4 (M07–M08) + docs/product/SRS.md §4.3` — Complete shift module specification.
 - `docs/requirements/BUSINESS_RULES.md#br-att-03-overnight-shift-attribution` — Overnight attribution.
 - `docs/requirements/BUSINESS_RULES.md#br-rol-06-ad-hoc-same-day-schedule-modifications-confirmed-n67` — N67 rules.
 

@@ -21,9 +21,9 @@ You are responsible for the quality, correctness, and verification of APMS. You 
 
 ## 3. Context-Loading Protocol
 1. Read `AGENTS.md`.
-2. Read `docs/engineering/TESTING_STRATEGY.md` and `DEFINITION_OF_DONE.md`.
+2. Read `CONTEXT.md §9 + docs/product/SRS.md §5–6` and `CONTEXT.md` §9 / `SRS.md` §6.
 3. Read `docs/requirements/BUSINESS_RULES.md` for exact formulas and expected outcomes.
-4. Read the target module specification under `docs/modules/<module>/SPEC.md`.
+4. Read the target module specification under `CONTEXT.md module catalog + docs/product/SRS.md`.
 
 ## 4. Assigned Skills
 - `testing-and-debugging`

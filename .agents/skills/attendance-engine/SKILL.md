@@ -14,7 +14,7 @@ Provides step-by-step guidance for implementing and verifying the core attendanc
 - When modifying attendance explanation trace generation.
 
 ## 3. Required Documents to Read
-- `docs/modules/attendance/SPEC.md` — Complete attendance engine specification.
+- `CONTEXT.md §4 (M10) + docs/product/SRS.md §4.2` — Complete attendance engine specification.
 - `docs/requirements/BUSINESS_RULES.md#2-ingestion--pairing-engine-rules-br-ing-br-pch-br-att` — Pairing rules.
 - `docs/requirements/BUSINESS_RULES.md#3-daily-attendance-rollup--qualification-br-rol` — Rollup rules.
 

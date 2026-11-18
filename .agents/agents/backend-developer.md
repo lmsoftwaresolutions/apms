@@ -21,9 +21,9 @@ You are responsible for implementing core domain engines, REST API endpoints, da
 
 ## 3. Context-Loading Protocol
 1. Read `AGENTS.md` and `.agents/rules/apms-core.md`.
-2. Read the targeted module specification under `docs/modules/<module>/SPEC.md`.
+2. Read the targeted module specification under `CONTEXT.md module catalog + docs/product/SRS.md`.
 3. Read the relevant business rules in `docs/requirements/BUSINESS_RULES.md`.
-4. Read `docs/engineering/CODING_STANDARDS.md`.
+4. Read `AGENTS.md + CONTEXT.md stack`.
 
 ## 4. Assigned Skills
 - `attendance-engine`

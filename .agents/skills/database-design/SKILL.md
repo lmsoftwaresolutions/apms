@@ -15,8 +15,8 @@ Provides mandatory rules and step-by-step procedures for creating database schem
 - When diagnosing query performance or indexing issues.
 
 ## 3. Required Documents to Read
-- `docs/architecture/DATABASE_DESIGN.md` — Database architecture and schema specifications.
-- `docs/architecture/SECURITY_ARCHITECTURE.md` — RLS enforcement and encryption standards.
+- `CONTEXT.md §3 (RLS invariants)` — Database architecture and schema specifications.
+- `CONTEXT.md §3,7 + docs/product/SRS.md §4.7` — RLS enforcement and encryption standards.
 - `.agents/rules/security.md` — Workspace security rules.
 
 ## 4. Relevant Requirement IDs

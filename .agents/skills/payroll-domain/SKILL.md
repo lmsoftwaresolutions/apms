@@ -14,9 +14,9 @@ Provides authoritative guidance for developing and testing the payroll calculati
 - When writing tests for salary components, LOP deductions, or payslip PDF generation.
 
 ## 3. Required Documents to Read
-- `docs/modules/payroll/SPEC.md` — Payroll module specification and 10-step wizard.
+- `CONTEXT.md §4 (M14) + docs/product/SRS.md §4.5` — Payroll module specification and 10-step wizard.
 - `docs/requirements/BUSINESS_RULES.md#6-statutory-payroll-rules-br-pay-br-sta` — Statutory rules.
-- `docs/requirements/REQUIREMENTS_CATALOG.md` — `PAY-*`, `STA-*`, `PSL-*` requirements.
+- `docs/product/SRS.md` — `PAY-*`, `STA-*`, `PSL-*` requirements.
 
 ## 4. Relevant Requirement IDs
 - `PAY-01` to `PAY-05`, `STA-01` to `STA-05`, `PSL-01` to `PSL-03`, `N20` (Overtime authorization).

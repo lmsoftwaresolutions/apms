@@ -14,7 +14,7 @@ Guides agents in performing thorough peer code reviews on APMS branches, enforci
 - When checking for regressions against confirmed decisions (`N65`, `N66a–d`, `N67`, `Q4`, `Q6`, `N20`).
 
 ## 3. Required Documents to Read
-- `docs/engineering/DEFINITION_OF_DONE.md` — Mandatory PR checklist and quality gates.
+- `CONTEXT.md §9 MVP DoD + docs/product/SRS.md §6` — Mandatory PR checklist and quality gates.
 - `docs/requirements/BUSINESS_RULES.md` — Authoritative business rules.
 - `.agents/rules/apms-core.md` — Core business invariants.
 - `.agents/rules/security.md` — Security invariants.

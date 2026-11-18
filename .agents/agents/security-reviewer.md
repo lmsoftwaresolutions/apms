@@ -21,8 +21,8 @@ You act as the principal security gatekeeper for APMS. You audit pull requests, 
 
 ## 3. Context-Loading Protocol
 1. Read `AGENTS.md` and `.agents/rules/security.md`.
-2. Read `docs/architecture/SECURITY_ARCHITECTURE.md` and `DATABASE_DESIGN.md`.
-3. Read `docs/engineering/DEFINITION_OF_DONE.md`.
+2. Read `CONTEXT.md §3,7 + docs/product/SRS.md §4.7` and `DATABASE_DESIGN.md`.
+3. Read `CONTEXT.md §9 MVP DoD + docs/product/SRS.md §6`.
 
 ## 4. Assigned Skills
 - `multi-tenant-security`

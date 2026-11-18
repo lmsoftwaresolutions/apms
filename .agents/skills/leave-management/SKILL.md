@@ -15,7 +15,7 @@ Guides agents in developing and verifying the Leave & Holiday Engine (`M6`), cov
 - When implementing WFH quota auto-approvals (`Q6`).
 
 ## 3. Required Documents to Read
-- `docs/modules/leave/SPEC.md` — Leave module specification.
+- `CONTEXT.md §4 (M11) + docs/product/SRS.md §4.4` — Leave module specification.
 - `docs/requirements/BUSINESS_RULES.md#5-leave--holiday-rules-br-lve-br-hol` — Leave business rules.
 - `docs/requirements/BUSINESS_RULES.md#br-rol-04-session-targeted-half-day-leave-mapping-confirmed-n66c` — N66c rules.
 
