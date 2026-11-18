@@ -9,6 +9,7 @@
 | [`CONTEXT.md`](CONTEXT.md) | **Single source of truth** — vision, competitors, WTP, compliance, roadmap |
 | [`docs/market/MARKET_RESEARCH.md`](docs/market/MARKET_RESEARCH.md) | Global software + hardware market research (evidence) |
 | [`docs/product/SRS.md`](docs/product/SRS.md) | Software requirements (shall / should) |
+| [`docs/database/schema.dbml`](docs/database/schema.dbml) | Database schema (DBML) |
 | [`docs/requirements/BUSINESS_RULES.md`](docs/requirements/BUSINESS_RULES.md) | Attendance & payroll formulas |
 | [`docs/SANITATION_AUDIT.md`](docs/SANITATION_AUDIT.md) | What was removed and why |
 | [`AGENTS.md`](AGENTS.md) | Rules for coding agents |

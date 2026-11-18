@@ -281,7 +281,7 @@ Detail + sources: `docs/market/MARKET_RESEARCH.md`.
 | Topic | Research reading | APMS rule | Status |
 | :--- | :--- | :--- | :--- |
 | OSH Code 2020 | In force **21 Nov 2025**; OT wages ≥ **twice** ordinary (s.27); worker consent for OT | Default OT multiplier **2.0×**; N20 approval = consent evidence; versioned state caps | RECOMMENDED |
-| Registers | Electronic muster / wage / OT registers; preserve **5 years** | M17 electronic registers; retention job 5y | CONFIRMED |
+| Registers | Electronic muster / wage / OT registers; labour handbook cites **5 years**; catalog `NFR-02` cites **8 fiscal years** for attendance/payroll ledgers | Retain ledgers **8 fiscal years** (longer of the two); biometric templates deleted on exit | RECOMMENDED |
 | EPF/ESI/PT/TDS | Unchanged need for challan/ECR artifacts | Parameterized statutory tables; exact-paisa tests | CONFIRMED |
 | Old Factories Act OT lore | Do not hardcode pre-Code quarterly caps blindly | State rule packs; OPEN until counsel | OPEN |
 
@@ -327,7 +327,7 @@ Formulas: `docs/requirements/BUSINESS_RULES.md`. ADR index: `docs/decisions/DECI
 | :--- | :--- | :--- |
 | **0–1** | M01–M06, M09 adapters (eSSL/ZK/Edge/file), basic M07/M08 | Live punches, zero tenant leak |
 | **2** | M10, M11, M18 | Explainable attendance + leave |
-| **3** | M12–M14, M17 statutory + 5y registers | Exact-paisa India payroll |
+| **3** | M12–M14, M17 statutory + 8-year ledger retention | Exact-paisa India payroll |
 | **4 GA** | Hardening, arrears, escalation, DPDP notice/consent audits | Production GA |
 | **5** | M19–M20 L1–L3 | Mobile field |
 | **6** | CCTV + Suprema + SSO/SCIM + H01+ | Command / HRMS expand |
@@ -336,12 +336,33 @@ Formulas: `docs/requirements/BUSINESS_RULES.md`. ADR index: `docs/decisions/DECI
 
 ---
 
-## 11. Documentation map
+## 11. Stable requirement IDs (from PR #1 catalog — do not renumber)
+
+Normative prose lives in `docs/product/SRS.md`. These discovery IDs stay stable for traces and schema notes. Full narrative catalog was **not** restored (it duplicated SRS).
+
+| Prefix | IDs kept | Meaning |
+| :--- | :--- | :--- |
+| PLT | 01–07 | RLS tenancy, provisioning, hierarchy, audit, flags, policies |
+| IAM | 01–04 | RBAC, JWT, MFA; SSO deferred |
+| ORG / EMP | ORG-01–02, EMP-01–04 | Org tree, holidays, master, encrypted bank, pay group, **device user-id map** |
+| SHF / ROS | SHF-01–06, ROS-01–06, ROS-10 | Shift types, roster, N67, swaps; ROS-06 open shifts deferred |
+| DEV / PCH | DEV-01–04, PCH-01–06 | Device catalog, heartbeat, kiosk, drift, immutable ingest, edge, CSV, OOO |
+| ATT | 01–15 | Pairing through read/write decoupling |
+| LVE / HOL | leave ledger, sandwich, holidays | See BUSINESS_RULES |
+| PAY / STA | 10-step wizard, statutory tables | See BUSINESS_RULES |
+| PRV / NFR | PRV-01–03, NFR-01–03 | DPDP, erasure, **minor/guardian consent**, 10k punches/min, 8-year ledger retention, ₹80 infra cap |
+
+Schema (unique, not duplicated in prose): `docs/database/schema.dbml`. Punch sources include `CCTV_FRAME` and `RFID_CARD`.
+
+---
+
+## 12. Documentation map
 
 | File | Role |
 | :--- | :--- |
 | **`CONTEXT.md`** | Master SSOT (this file) |
 | `docs/market/MARKET_RESEARCH.md` | Competitor / hardware / WTP / legal evidence |
+| `docs/database/schema.dbml` | Relational schema (unique; from PR #1, punch sources extended) |
 | `docs/product/SRS.md` | Normative shall / should |
 | `docs/requirements/BUSINESS_RULES.md` | Math & policy formulas |
 | `docs/requirements/OPEN_QUESTIONS.md` | Q/N status board |

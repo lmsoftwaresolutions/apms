@@ -60,7 +60,17 @@ All pre-implementation narrative docs that restated the same invariants, C4 diag
 
 ---
 
-## 4. Cross-document sync rules (going forward)
+## 4. PR #1 review (`feat/apms-rebuild`)
+
+Reviewed https://github.com/lmsoftwaresolutions/apms/pull/1 (177 files, full pre-sanitation dump onto empty `main`).
+
+| Decision | Items |
+| :--- | :--- |
+| **Kept / merged** | `docs/database/schema.dbml` (unique model). Punch enum extended with `RFID_CARD`, `CCTV_FRAME`. Stable IDs summarized in `CONTEXT.md` §11. |
+| **Already on this branch** | `BUSINESS_RULES.md`, `OPEN_QUESTIONS.md` (plus Q21–Q23), `DECISION_REGISTER.md`, agent skills |
+| **Rejected as duplicates** | Architecture/API/workflow/security/module narrative, image gallery, `MODULES_AND_FEATURES`, product vision/PRD/MVP copies, `reserch_files/` binaries, requirements catalog prose (IDs preserved in CONTEXT §11) |
+
+## 5. Cross-document sync rules (going forward)
 
 1. Change a business formula → update `BUSINESS_RULES.md` only; link from SRS if new ID.  
 2. Change product scope/pricing/priority → update `CONTEXT.md` only.  

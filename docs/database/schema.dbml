@@ -1,0 +1,755 @@
+// ============================================================
+// APMS — Complete Database Schema (DBML / dbdiagram.io format)
+// Status: Authoritative | Last Updated: 2026-11-16
+// Source: Consolidated from DATABASE_DESIGN.md, module SPECs,
+//         SECURITY_ARCHITECTURE.md, REQUIREMENTS_CATALOG.md
+// ============================================================
+// Multi-Tenancy: Every tenant-scoped table carries a non-nullable
+// tenant_id UUID column. RLS policy pattern:
+//   ALTER TABLE <table> ENABLE ROW LEVEL SECURITY;
+//   ALTER TABLE <table> FORCE ROW LEVEL SECURITY;
+//   CREATE POLICY tenant_isolation_policy ON <table>
+//       FOR ALL USING (tenant_id = current_setting('app.current_tenant_id', true)::uuid)
+//       WITH CHECK (tenant_id = current_setting('app.current_tenant_id', true)::uuid);
+// ============================================================
+
+// ─────────────────────────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────────────────────────
+
+Enum shift_type_enum {
+    FIXED_STANDARD      // SHF-01: Configurable start/end with grace
+    OVERNIGHT           // SHF-02: Crosses midnight, start-date attribution
+    MULTI_SESSION       // SHF-03: 2+ sessions, mid-gap excluded (N65)
+    FLEXIBLE_WINDOW     // SHF-04: Core hours + flexible total duration
+    CONTINUOUS_MULTI_DAY // SHF-05: 24h/36h/48h hospital/plant duty
+    DYNAMIC_POOL        // SHF-06: Auto-match from shift pool
+}
+
+Enum attendance_status_enum {
+    PRESENT
+    HALF_DAY
+    ABSENT
+    ON_LEAVE
+    WEEKLY_OFF
+    HOLIDAY
+    NEEDS_REVIEW
+    POST_DUTY_REST      // After multi-day continuous duty (Q5)
+    CANCELLED_PAID      // Employer-cancelled sessions (N66d)
+}
+
+Enum punch_source_enum {
+    BIOMETRIC_DEVICE    // Hardware terminal (ZKTeco, eSSL, eTimeOffice)
+    RFID_CARD           // Card / proximity alternate (non-biometric)
+    MOBILE_APP          // GPS-stamped mobile punch
+    KIOSK               // Shared tablet / PIN kiosk (DEV-03)
+    CCTV_FRAME          // Edge CCTV walk-through event (no cloud template)
+    CSV_IMPORT          // Bulk historical upload (PCH-05)
+    MANUAL_ADMIN        // HR override with audit (ATT-12)
+    EDGE_AGENT          // On-premises edge sync relay (PCH-04)
+}
+
+Enum punch_flag_enum {
+    NORMAL
+    DUPLICATE_IGNORED   // Within debounce window (PCH-03)
+    CLOCK_DRIFT_WARNING // Device drift > 5 min (DEV-04)
+    LONE_PUNCH_ANOMALY  // Missing IN or OUT (ATT-06, Q4)
+    UNRESOLVED_SHIFT    // No matching shift window
+}
+
+Enum leave_transaction_type_enum {
+    ACCRUAL             // Periodic credit (LVE-03)
+    APPLICATION         // Debit from approved leave
+    CANCELLATION        // Credit reversal on cancel
+    ENCASHMENT          // Cash-out during payroll (LVE-05)
+    LAPSE               // Year-end non-carry expiry (LVE-05)
+    MANUAL_ADJUSTMENT   // HR manual correction with audit
+}
+
+Enum pay_run_status_enum {
+    DRAFT
+    ATTENDANCE_RECONCILED
+    LEAVE_FROZEN
+    VARIABLE_LOADED
+    OVERTIME_AUTHORIZED
+    GROSS_COMPUTED
+    STATUTORY_COMPUTED
+    AUDIT_PASSED
+    LOCKED              // Immutable after Step 8 (PAY-06)
+    DISBURSED
+}
+
+Enum approval_status_enum {
+    PENDING
+    AUTO_APPROVED       // WFH within quota (Q6)
+    APPROVED
+    REJECTED
+    CANCELLED
+    DELEGATED           // WFL-03 out-of-office delegation
+}
+
+Enum user_role_enum {
+    SUPER_ADMIN         // Platform-wide; cross-tenant (IAM-01)
+    TENANT_ADMIN        // Full tenant config
+    HR_PAYROLL          // Payroll wizard, leave admin
+    SUPERVISOR          // Roster, approvals
+    EMPLOYEE            // Self-service only
+}
+
+Enum device_status_enum {
+    ACTIVE
+    INACTIVE
+    MAINTENANCE
+    CLOCK_DRIFT_ALERT   // DEV-04
+}
+
+Enum webhook_event_enum {
+    PAY_RUN_LOCKED
+    ATTENDANCE_FINALIZED
+    EMPLOYEE_ONBOARDED
+    LEAVE_APPROVED
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 1: tenants  (platform root; NOT tenant-scoped)
+// ─────────────────────────────────────────────────────────────
+Table tenants [note: 'Platform root. No RLS — accessed only by SUPER_ADMIN. PLT-01, PLT-02.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`, note: 'Primary tenant identifier']
+    name            VARCHAR(200) [not null, note: 'Legal entity name']
+    subdomain       VARCHAR(100) [not null, unique, note: 'URL subdomain for tenant isolation. PLT-02']
+    plan_tier       VARCHAR(50)  [not null, default: 'STANDARD', note: 'Subscription plan: STARTER / STANDARD / ENTERPRISE']
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+    settings        JSONB        [not null, default: '{}', note: 'Feature flags & defaults. PLT-06']
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 2: branches
+// ─────────────────────────────────────────────────────────────
+Table branches [note: 'Physical branches / legal entities within a tenant. ORG-01. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    name            VARCHAR(200) [not null]
+    code            VARCHAR(20)  [not null, note: 'Short branch code']
+    address         TEXT
+    state_code      VARCHAR(5)   [note: 'ISO 3166-2 state code for PT slab lookup (STA-03)']
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, code) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 3: departments  // inferred
+// ─────────────────────────────────────────────────────────────
+Table departments [note: 'Departments / sub-departments under a branch. ORG-01. RLS: tenant_id. // inferred'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    branch_id       UUID        [not null, ref: > branches.id]
+    name            VARCHAR(200) [not null]
+    code            VARCHAR(20)  [not null]
+    parent_dept_id  UUID        [ref: > departments.id, note: 'Self-referential for sub-departments // inferred']
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, branch_id, code) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 4: users  (authentication & RBAC)
+// ─────────────────────────────────────────────────────────────
+Table users [note: 'Authentication identities. IAM-01, IAM-02. RLS: tenant_id (SUPER_ADMIN rows have null tenant_id).'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [ref: > tenants.id, note: 'RLS column; null for SUPER_ADMIN']
+    email           VARCHAR(255) [not null, unique]
+    hashed_password VARCHAR(255) [not null]
+    role            user_role_enum [not null]
+    totp_secret     VARCHAR(255) [note: 'AES-256 encrypted TOTP seed. IAM-03']
+    is_active       BOOLEAN      [not null, default: true]
+    last_login_at   TIMESTAMPTZ
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 5: employees
+// ─────────────────────────────────────────────────────────────
+Table employees [note: 'Core employee master. EMP-01, EMP-02, SEC-02. PII fields AES-256 encrypted. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    user_id             UUID        [ref: > users.id, note: 'Auth identity link']
+    branch_id           UUID        [not null, ref: > branches.id]
+    department_id       UUID        [ref: > departments.id]
+    employee_code       VARCHAR(50)  [not null, note: 'HR-assigned unique code per tenant']
+    full_name           VARCHAR(300) [not null]
+    designation         VARCHAR(200)
+    date_of_joining     DATE         [not null]
+    date_of_birth       DATE
+    employment_type     VARCHAR(50)  [not null, note: 'FULL_TIME / PART_TIME / CONTRACT / TRAINEE']
+    probation_end_date  DATE         [note: 'LFC-02: Extended by LOP days']
+    confirmation_date   DATE         [note: 'LFC-03: Triggers leave accrual update']
+    // ─── PII Encrypted Fields (SEC-02, EMP-02) ───
+    pan_encrypted       TEXT         [note: 'AES-256-GCM encrypted PAN. Masked as XXXXX1234 in API']
+    aadhaar_encrypted   TEXT         [note: 'AES-256-GCM encrypted Aadhaar (12-digit)']
+    bank_account_encrypted TEXT      [note: 'AES-256-GCM encrypted bank account number']
+    bank_ifsc_encrypted TEXT         [note: 'AES-256-GCM encrypted IFSC code']
+    epf_uan             VARCHAR(50)  [note: 'Universal Account Number for EPF (STA-01)']
+    esic_number         VARCHAR(50)  [note: 'ESIC insurance number (STA-02)']
+    is_active           BOOLEAN      [not null, default: true]
+    biometric_consent_at TIMESTAMPTZ [note: 'DPDP Act 2023 explicit biometric consent timestamp (PRV-01)']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+    updated_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_code) [unique]
+        (tenant_id, user_id) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 6: pay_groups
+// ─────────────────────────────────────────────────────────────
+Table pay_groups [note: 'Pay cycle configuration. PAY-04, EMP-03. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    name            VARCHAR(200) [not null]
+    pay_cycle       VARCHAR(20)  [not null, note: 'CALENDAR_MONTH | CUSTOM_CUTOFF']
+    cutoff_day      SMALLINT     [note: 'Day of month for custom cutoff (N18); NULL for calendar month']
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, name) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 7: employee_pay_group_assignments  // inferred
+// ─────────────────────────────────────────────────────────────
+Table employee_pay_group_assignments [note: 'Many-to-one: employee→pay_group with effective dating. EMP-03. // inferred. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id     UUID        [not null, ref: > employees.id]
+    pay_group_id    UUID        [not null, ref: > pay_groups.id]
+    effective_from  DATE         [not null]
+    effective_to    DATE         [note: 'NULL = current assignment']
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, effective_from) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 8: devices
+// ─────────────────────────────────────────────────────────────
+Table devices [note: 'Biometric terminal master catalog. DEV-01, DEV-02. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    branch_id       UUID        [not null, ref: > branches.id]
+    serial_number   VARCHAR(100) [not null]
+    brand           VARCHAR(100) [note: 'ZKTeco / eSSL / eTimeOffice / Custom']
+    protocol        VARCHAR(50)  [note: 'ADMS_PUSH / HTTP_WEBHOOK / USB_POLL / RS485']
+    ip_address      INET
+    location_label  VARCHAR(200)
+    device_token    VARCHAR(255) [not null, note: 'Secret auth token for push API (PCH-01)']
+    status          device_status_enum [not null, default: 'ACTIVE']
+    last_heartbeat_at TIMESTAMPTZ [note: 'DEV-02: Updated every 60 s']
+    clock_drift_seconds INT       [not null, default: 0, note: 'DEV-04: drift vs NTP']
+    firmware_version VARCHAR(50)
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, serial_number) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 9: employee_device_mappings
+// ─────────────────────────────────────────────────────────────
+Table employee_device_mappings [note: 'Links employee IDs to biometric device user IDs. EMP-04. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id     UUID        [not null, ref: > employees.id]
+    device_id       UUID        [not null, ref: > devices.id]
+    device_user_id  VARCHAR(50)  [not null, note: 'User ID on the hardware terminal']
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, device_id, device_user_id) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 10: raw_envelope  (APPEND-ONLY, PARTITIONED)
+// ─────────────────────────────────────────────────────────────
+Table raw_envelope [note: 'Immutable raw punch ingestion. PCH-01. PARTITION BY RANGE (received_at) monthly. RLS: tenant_id. APPEND-ONLY — no UPDATE/DELETE.'] {
+    id              UUID        [not null, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, note: 'RLS column; also part of composite PK partition key']
+    device_id       UUID        [ref: > devices.id, note: 'NULL for CSV imports']
+    raw_payload     JSONB        [not null, note: 'Exact device payload stored verbatim']
+    payload_hash    VARCHAR(64)  [not null, note: 'SHA-256(tenant_id || device_id || raw_payload). PCH-03 dedup key']
+    source          punch_source_enum [not null]
+    received_at     TIMESTAMPTZ  [not null, default: `clock_timestamp()`, note: 'Partition key (monthly range partition)']
+
+    // Composite PK includes partition key per PostgreSQL declarative partitioning
+    indexes {
+        (received_at, tenant_id, id) [pk]
+        (tenant_id, payload_hash, received_at) [name: 'uq_raw_envelope_hash', note: 'Idempotent dedup index (PCH-03)']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 11: punch_events  (PARTITIONED)
+// ─────────────────────────────────────────────────────────────
+Table punch_events [note: 'Normalized punch stream. PCH-02. PARTITION BY RANGE (punch_time) monthly. RLS: tenant_id.'] {
+    id                  UUID        [not null, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, note: 'RLS column; part of composite PK']
+    employee_id         UUID        [not null, ref: > employees.id]
+    device_id           UUID        [ref: > devices.id]
+    raw_envelope_id     UUID        [not null, note: 'Links to raw_envelope.id (non-FK across partitions)']
+    punch_time          TIMESTAMPTZ  [not null, note: 'UTC normalized punch timestamp; partition key']
+    punch_time_local    TIMESTAMPTZ  [not null, note: 'Tenant-timezone-converted punch timestamp']
+    source              punch_source_enum [not null]
+    flag                punch_flag_enum   [not null, default: 'NORMAL']
+    gps_latitude        NUMERIC(10,7)     [note: 'Mobile GPS coordinate (MOB-01)']
+    gps_longitude       NUMERIC(10,7)     [note: 'Mobile GPS coordinate (MOB-01)']
+    is_geofence_valid   BOOLEAN           [note: 'NULL for non-mobile sources']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (punch_time, tenant_id, id) [pk]
+        (tenant_id, employee_id, punch_time) [name: 'idx_punch_events_emp_time']
+        (tenant_id, employee_id, punch_time) [name: 'idx_punch_events_emp_time_covered', note: 'Covered index with INCLUDE (source, flag, is_geofence_valid)']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 12: shift_templates
+// ─────────────────────────────────────────────────────────────
+Table shift_templates [note: 'Reusable shift definition master. SHF-01..SHF-06. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    code                VARCHAR(30)  [not null]
+    name                VARCHAR(200) [not null]
+    type                shift_type_enum [not null]
+    session_definitions JSONB        [not null, note: 'Array of {session_index, start_time, end_time, min_presence_pct}. N65, N66b.']
+    grace_and_breaks    JSONB        [not null, note: '{grace_arrival_min, grace_exit_min, break_definitions[]}. ATT-04.']
+    half_day_threshold_minutes INT   [note: 'SHF-01: Minutes threshold for HALF_DAY status']
+    full_day_threshold_minutes INT   [note: 'SHF-01: Minutes threshold for FULL PRESENT status']
+    is_overnight        BOOLEAN      [not null, default: false, note: 'SHF-02']
+    is_active           BOOLEAN      [not null, default: true]
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+    updated_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, code) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 13: shift_pools  // inferred structure from SPEC
+// ─────────────────────────────────────────────────────────────
+Table shift_pools [note: 'Dynamic shift matching pools. SHF-06. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    name                VARCHAR(200) [not null]
+    eligible_shift_ids  UUID[]       [not null, note: 'Array of shift_template IDs in pool']
+    auto_match_strategy VARCHAR(50)  [not null, default: 'MIN_ARRIVAL_DELTA', note: 'AUTO_DYNAMIC_MATCH algorithm (SHF-06)']
+    is_active           BOOLEAN      [not null, default: true]
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, name) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 14: roster_patterns
+// ─────────────────────────────────────────────────────────────
+Table roster_patterns [note: 'Repeating roster rotation definitions. ROS-01, ROS-02. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    name                VARCHAR(200) [not null]
+    cycle_length_days   SMALLINT     [not null, note: 'e.g. 7 for weekly, 42 for 6-week cycle']
+    day_shift_mapping   JSONB        [not null, note: 'Array of {day_index, shift_template_id | null (OFF)}']
+    is_active           BOOLEAN      [not null, default: true]
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, name) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 15: dated_shift_instances
+// ─────────────────────────────────────────────────────────────
+Table dated_shift_instances [note: 'Materialized concrete shift instance per employee per date. ROS-03, N67. RLS: tenant_id. Composite FK source for attendance_daily_records.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    shift_date          DATE         [not null]
+    shift_template_id   UUID         [ref: > shift_templates.id, note: 'Source template; NULL for WEEKLY_OFF or REST days']
+    roster_pattern_id   UUID         [ref: > roster_patterns.id, note: 'NULL for ad-hoc or dynamic match']
+    resolution_mode     VARCHAR(50)  [not null, note: 'ROSTER_PATTERN | AUTO_DYNAMIC_MATCH | ADHOC_OVERRIDE | SHIFT_SWAP | MANUAL']
+    sessions            JSONB        [not null, note: 'Snapshot of session windows at materialization time (ADR-15)']
+    is_weekly_off       BOOLEAN      [not null, default: false]
+    is_adhoc_modified   BOOLEAN      [not null, default: false, note: 'N67 override flag']
+    override_reason     TEXT         [note: 'N67: Mandatory reason when is_adhoc_modified=true']
+    modified_by_user_id UUID         [ref: > users.id, note: 'N67 supervisor who performed override']
+    cancelled_sessions  JSONB        [note: 'N66d: Array of cancelled session indices with CANCELLED_PAID marker']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, shift_date) [unique, name: 'uq_shift_instance_emp_date']
+        (tenant_id, id)                      [unique, name: 'uq_dated_shift_instances_id_tenant', note: 'Composite FK target for attendance_daily_records (DATABASE_DESIGN.md §1.2)']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 16: attendance_daily_records
+// ─────────────────────────────────────────────────────────────
+Table attendance_daily_records [note: 'Daily attendance rollup per employee. ATT-07 (N66a). RLS: tenant_id. Read-only input to payroll (ADR-07). Composite FK to dated_shift_instances.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    attendance_date     DATE         [not null]
+    shift_instance_id   UUID         [note: 'Composite FK (tenant_id, shift_instance_id) → dated_shift_instances(tenant_id, id)']
+    status              attendance_status_enum [not null]
+    worked_minutes      INT          [not null, default: 0]
+    scheduled_minutes   INT          [not null, default: 0]
+    late_in_minutes     INT          [not null, default: 0]
+    early_exit_minutes  INT          [not null, default: 0]
+    overtime_minutes    INT          [not null, default: 0, note: 'Only approved OT (N20, OTC-01)']
+    is_regularized      BOOLEAN      [not null, default: false, note: 'ATT-10: Self-service regularization']
+    is_locked           BOOLEAN      [not null, default: false, note: 'PAY-06: Set true at payroll freeze']
+    updated_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, attendance_date) [unique, name: 'uq_emp_attendance_date']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 17: attendance_explanation_traces
+// ─────────────────────────────────────────────────────────────
+Table attendance_explanation_traces [note: 'Immutable JSON trace for every attendance calculation. ATT-11. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    attendance_record_id UUID       [not null, ref: > attendance_daily_records.id, note: 'CASCADE DELETE']
+    trace_payload       JSONB        [not null, note: 'Full calculation trace: sessions, gap_intervals, anomalies, rollup. See SPEC §7.']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 18: attendance_regularization_requests  // inferred
+// ─────────────────────────────────────────────────────────────
+Table attendance_regularization_requests [note: 'Employee punch-miss regularization workflow. ATT-10, WFL-01. // inferred. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    attendance_date     DATE         [not null]
+    requested_in_time   TIMESTAMPTZ  [note: 'Self-reported IN punch for missing punch']
+    requested_out_time  TIMESTAMPTZ  [note: 'Self-reported OUT punch']
+    reason              TEXT         [not null]
+    status              approval_status_enum [not null, default: 'PENDING']
+    reviewer_user_id    UUID         [ref: > users.id]
+    reviewer_note       TEXT
+    reviewed_at         TIMESTAMPTZ
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 19: holiday_calendars
+// ─────────────────────────────────────────────────────────────
+Table holiday_calendars [note: 'Branch-specific holiday master. HOL-01, ORG-02. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    branch_id       UUID        [not null, ref: > branches.id]
+    name            VARCHAR(200) [not null, note: 'e.g. "FY 2026-27 Holiday Calendar"']
+    fiscal_year     SMALLINT     [not null]
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, branch_id, fiscal_year) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 20: holiday_entries  // inferred
+// ─────────────────────────────────────────────────────────────
+Table holiday_entries [note: 'Individual holiday dates within a calendar. HOL-01. // inferred. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    holiday_calendar_id UUID        [not null, ref: > holiday_calendars.id]
+    holiday_date        DATE         [not null]
+    name                VARCHAR(200) [not null, note: 'e.g. "Diwali", "Republic Day"']
+    holiday_type        VARCHAR(20)  [not null, note: 'MANDATORY | OPTIONAL | RESTRICTED']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, holiday_calendar_id, holiday_date) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 21: leave_types
+// ─────────────────────────────────────────────────────────────
+Table leave_types [note: 'Configurable leave type master. LVE-02. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    code                VARCHAR(20)  [not null, note: 'AL, CL, SL, ML, PL, COMP_OFF, LOP, WFH']
+    name                VARCHAR(200) [not null]
+    is_paid             BOOLEAN      [not null, default: true]
+    accrual_frequency   VARCHAR(20)  [note: 'MONTHLY | ANNUAL | NULL (manual only)']
+    accrual_days        NUMERIC(4,2) [note: 'Days credited per accrual period']
+    max_carry_forward   NUMERIC(4,2) [note: 'LVE-05: Maximum carry-forward days at year-end']
+    allow_negative      BOOLEAN      [not null, default: false, note: 'LVE-06']
+    sandwich_rule_applies BOOLEAN    [not null, default: false, note: 'LVE-04: BR-LVE-02']
+    is_active           BOOLEAN      [not null, default: true]
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, code) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 22: leave_requests
+// ─────────────────────────────────────────────────────────────
+Table leave_requests [note: 'Employee leave applications. LVE-01, WFL-01. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    leave_type_id       UUID        [not null, ref: > leave_types.id]
+    start_date          DATE         [not null]
+    end_date            DATE         [not null]
+    total_days          NUMERIC(4,2) [not null]
+    session_target      VARCHAR(20)  [note: 'N66c: FIRST_HALF | SECOND_HALF | FULL_DAY']
+    reason              TEXT
+    status              approval_status_enum [not null, default: 'PENDING']
+    auto_approved       BOOLEAN      [not null, default: false, note: 'Q6: WFH auto-approval']
+    reviewer_user_id    UUID         [ref: > users.id]
+    reviewer_note       TEXT
+    reviewed_at         TIMESTAMPTZ
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 23: leave_transactions  (APPEND-ONLY double-entry ledger)
+// ─────────────────────────────────────────────────────────────
+Table leave_transactions [note: 'Append-only double-entry leave ledger. LVE-01, ADR-08. NEVER UPDATE/DELETE. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    leave_type_id       UUID        [not null, ref: > leave_types.id]
+    transaction_type    leave_transaction_type_enum [not null]
+    days                NUMERIC(4,2) [not null, note: 'Positive = credit, Negative = debit']
+    running_balance     NUMERIC(5,2) [not null, note: 'Balance after this transaction']
+    reference_id        UUID         [note: 'leave_request_id or pay_run_id contextual link']
+    notes               TEXT
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, leave_type_id, created_at) [name: 'idx_leave_txn_emp_type_time']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 24: pay_runs
+// ─────────────────────────────────────────────────────────────
+Table pay_runs [note: 'Pay run header / finite-state machine. PAY-01, PAY-04, PAY-06. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    pay_group_id        UUID        [not null, ref: > pay_groups.id]
+    period_start        DATE         [not null]
+    period_end          DATE         [not null]
+    status              pay_run_status_enum [not null, default: 'DRAFT']
+    initiated_by_user_id UUID        [not null, ref: > users.id]
+    locked_at           TIMESTAMPTZ  [note: 'Set when status transitions to LOCKED']
+    total_gross         NUMERIC(15,2) [note: 'Computed after Step 5']
+    total_net           NUMERIC(15,2) [note: 'Computed after Step 6']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+    updated_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, pay_group_id, period_start, period_end) [unique, name: 'uq_pay_run_period']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 25: pay_run_employee_snapshots  (IMMUTABLE after lock)
+// ─────────────────────────────────────────────────────────────
+Table pay_run_employee_snapshots [note: 'Immutable per-employee payroll snapshot. PAY-06, PSL-03. No retroactive mutation permitted. RLS: tenant_id.'] {
+    id                      UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id               UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    pay_run_id              UUID        [not null, ref: > pay_runs.id]
+    employee_id             UUID        [not null, ref: > employees.id]
+    gross_earnings          NUMERIC(12,2) [not null]
+    total_deductions        NUMERIC(12,2) [not null]
+    net_payable             NUMERIC(12,2) [not null]
+    lop_days                NUMERIC(4,2)  [not null]
+    paid_days               NUMERIC(4,2)  [not null]
+    earnings_breakdown      JSONB         [not null, note: 'Base, HRA, Allowances, Incentives per PAY-02']
+    deductions_breakdown    JSONB         [not null, note: 'EPF, ESI, PT, TDS, Advances, Loans']
+    statutory_inputs        JSONB         [not null, note: 'Version snapshot of EPF/ESI/PT slabs at run time (ADR-25)']
+    employee_master_snapshot JSONB        [not null, note: 'Designation, bank account, PAN, EPF UAN at run time']
+    payslip_pdf_url         TEXT          [note: 'PSL-01: Signed PDF URL after Step 10']
+    created_at              TIMESTAMPTZ   [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, pay_run_id, employee_id) [unique, name: 'uq_payrun_emp']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 26: statutory_parameter_versions
+// ─────────────────────────────────────────────────────────────
+Table statutory_parameter_versions [note: 'Versioned EPF/ESI/PT/TDS parameters. ADR-25, STA-01..STA-05. Never hardcoded in source. RLS: tenant_id NULL (platform-level table).'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    parameter_type  VARCHAR(20)  [not null, note: 'EPF | ESI | PT | TDS | LWF']
+    state_code      VARCHAR(5)   [note: 'ISO 3166-2 for PT/LWF; NULL for EPF/ESI (national)']
+    effective_from  DATE         [not null]
+    effective_to    DATE         [note: 'NULL = currently active version']
+    parameters      JSONB        [not null, note: 'Full parameter set: ceilings, slabs, rates, opt-in flags']
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (parameter_type, state_code, effective_from) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 27: audit_logs  (APPEND-ONLY)
+// ─────────────────────────────────────────────────────────────
+Table audit_logs [note: 'Immutable cryptographic audit trail. PLT-04, PRV-01, SEC-02. PARTITION BY RANGE (created_at) yearly. Append-only WORM enforced. RLS: tenant_id. NFR-02: 8-year retention.'] {
+    id              UUID        [not null, default: `gen_random_uuid()`]
+    tenant_id       UUID        [ref: > tenants.id, note: 'RLS column; NULL for SUPER_ADMIN platform actions']
+    sequence_number BIGSERIAL   [not null]
+    prev_entry_hash VARCHAR(64) [not null, note: 'SHA-256 hash of previous log entry for tamper evidence']
+    entry_hash      VARCHAR(64) [not null, note: 'SHA-256(prev_entry_hash || tenant_id || payload)']
+    user_id         UUID        [ref: > users.id]
+    action          VARCHAR(100) [not null, note: 'e.g. PAYSLIP_UNMASKED, PAY_RUN_LOCKED, PUNCH_MANUAL_OVERRIDE']
+    entity_type     VARCHAR(100) [not null, note: 'Table/resource affected']
+    entity_id       UUID
+    ip_address      INET
+    before_value    JSONB        [note: 'State snapshot before mutation']
+    after_value     JSONB        [note: 'State snapshot after mutation']
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`, note: 'Partition key (yearly range partition)']
+
+    indexes {
+        (created_at, tenant_id, id) [pk]
+        (tenant_id, entity_type, entity_id, created_at) [name: 'idx_audit_logs_entity']
+        (tenant_id, user_id, created_at)                [name: 'idx_audit_logs_user']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 28: salary_structures  // inferred
+// ─────────────────────────────────────────────────────────────
+Table salary_structures [note: 'Configurable earnings/deductions formula templates. PAY-02. // inferred. RLS: tenant_id.'] {
+    id              UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    name            VARCHAR(200) [not null]
+    description     TEXT
+    components      JSONB        [not null, note: 'Array of {component, type(EARNING|DEDUCTION), formula, is_statutory}']
+    is_active       BOOLEAN      [not null, default: true]
+    created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, name) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 29: employee_salary_assignments  // inferred
+// ─────────────────────────────────────────────────────────────
+Table employee_salary_assignments [note: 'Effective-dated CTC and salary structure per employee. EMP-02, PAY-02, LFC-05. // inferred. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    salary_structure_id UUID        [not null, ref: > salary_structures.id]
+    ctc_encrypted       TEXT         [not null, note: 'AES-256 encrypted annual CTC figure (EMP-02, SEC-02)']
+    effective_from      DATE         [not null]
+    effective_to        DATE         [note: 'NULL = current assignment']
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, effective_from) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 30: overtime_requests  // inferred
+// ─────────────────────────────────────────────────────────────
+Table overtime_requests [note: 'OT pre/post-approval workflow. OTC-01, N20. // inferred. RLS: tenant_id.'] {
+    id                  UUID        [pk, default: `gen_random_uuid()`]
+    tenant_id           UUID        [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id         UUID        [not null, ref: > employees.id]
+    attendance_date     DATE         [not null]
+    requested_minutes   INT          [not null, note: 'OT minutes requiring authorization']
+    approved_minutes    INT          [note: 'Actual approved OT minutes; NULL until approval']
+    status              approval_status_enum [not null, default: 'PENDING']
+    reviewer_user_id    UUID         [ref: > users.id]
+    reviewer_note       TEXT
+    is_comp_off         BOOLEAN      [not null, default: false, note: 'OTC-03: Credit as COMP_OFF instead of cash']
+    reviewed_at         TIMESTAMPTZ
+    created_at          TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, attendance_date) [name: 'idx_ot_req_emp_date']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 31: attendance_monthly_summaries (TIER 3 PRECOMPUTED READ-MODEL)
+// ─────────────────────────────────────────────────────────────
+Table attendance_monthly_summaries [note: 'Tier 3 precomputed monthly attendance aggregations for rapid muster roll rendering and payroll inputs. RLS: tenant_id.'] {
+    id                      UUID            [not null, default: `gen_random_uuid()`]
+    tenant_id               UUID            [not null, ref: > tenants.id, note: 'RLS column']
+    employee_id             UUID            [not null, ref: > employees.id]
+    year_month              VARCHAR(7)      [not null, note: 'YYYY-MM partition period']
+    total_scheduled_days    INT             [not null, default: 0]
+    present_days            NUMERIC(4,1)    [not null, default: 0.0]
+    half_days               INT             [not null, default: 0]
+    absent_days             NUMERIC(4,1)    [not null, default: 0.0]
+    weekly_off_days         INT             [not null, default: 0]
+    holiday_days            INT             [not null, default: 0]
+    paid_leave_days         NUMERIC(4,1)    [not null, default: 0.0]
+    unpaid_leave_days       NUMERIC(4,1)    [not null, default: 0.0]
+    loss_of_pay_days        NUMERIC(4,1)    [not null, default: 0.0]
+    total_worked_minutes    INT             [not null, default: 0]
+    total_overtime_minutes  INT             [not null, default: 0]
+    late_arrival_count      INT             [not null, default: 0]
+    early_exit_count        INT             [not null, default: 0]
+    is_frozen               BOOLEAN         [not null, default: false, note: 'True when monthly payroll locks']
+    version                 INT             [not null, default: 1, note: 'Optimistic locking for recalculation updates']
+    updated_at              TIMESTAMPTZ     [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, employee_id, year_month) [pk]
+        (tenant_id, year_month) [name: 'idx_monthly_summary_period_lookup']
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// RELATIONSHIP COMMENTS (Cardinality)
+// ─────────────────────────────────────────────────────────────
+// tenants            1 --< branches                 (one tenant has many branches)
+// tenants            1 --< employees                (one tenant employs many employees)
+// tenants            1 --< pay_groups               (one tenant has many pay groups)
+// branches           1 --< departments              (one branch has many departments)
+// departments        0..1 --< departments           (self-referential sub-departments)
+// employees          1 --< punch_events             (one employee has many punches)
+// employees          1 --< dated_shift_instances    (one employee has many shift instances)
+// dated_shift_instances 1 --< attendance_daily_records (each instance drives daily records)
+// attendance_daily_records 1 --1 attendance_explanation_traces (one trace per record)
+// employees          1 --< leave_transactions       (append-only ledger; never 1-1 balance)
+// pay_groups         1 --< pay_runs                 (one pay group executes many pay runs)
+// pay_runs           1 --< pay_run_employee_snapshots (one run freezes many employee snapshots)
+// raw_envelope       1 --< punch_events             (one raw payload normalizes to N events)
