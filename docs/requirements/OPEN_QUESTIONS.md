@@ -35,6 +35,9 @@ This document registers all product questions, architectural decisions, and doma
 | `Q18` | DPDP Act 2023 Compliance | How does APMS handle employee consent and data deletion? | Explicit biometric consent capture, purpose limitation tagging, and automated masking of PII after statutory retention expiry. | CONFIRMED |
 | `Q19` | Edge Sync Resilience | How does the on-premises Edge Agent handle network outages? | Local SQLite buffering retaining up to 7 days of punch logs, with automatic exponential backoff retry upon reconnect. | CONFIRMED |
 | `Q20` | International Payroll | When will multi-country statutory engines (US, UK, GCC) be supported? | International localization packs deferred to Phase 6. Core MVP focuses on India statutory engine. | DEFERRED |
+| `Q21` | OSH Code OT default | Post 21-Nov-2025 Labour Codes: default OT multiplier and state caps? | Default **2.0×** ordinary wage (OSH Code s.27); state caps in versioned tables; counsel to confirm state rules. | RECOMMENDED |
+| `Q22` | DPDP biometric basis | Consent ledger vs s.7(i) employment legitimate use for workplace biometrics? | Keep explicit consent ledger through SPDI→DPDP transition; notice always; counsel memo before GA privacy copy. | OPEN |
+| `Q23` | Vertical WTP validation | Confirm Capture ₹39 / Workforce ₹69 / Command ₹109 vs MSME floors ₹15–45? | Run 10 payroll-admin interviews (factory + hospital); adjust packs only after data. | OPEN |
 
 ---
 

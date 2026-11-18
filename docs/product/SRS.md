@@ -128,7 +128,9 @@ APMS shall provide multi-tenant workforce attendance, shift/roster management, l
 
 | ID | Requirement | Priority |
 | :--- | :--- | :--- |
-| SEC-01 | Shall capture explicit biometric consent with purpose & retention | P0 |
+| SEC-01 | Shall capture biometric notice + consent ledger (purpose, retention, withdraw) and offer non-biometric alternate punch path | P0 |
+| SEC-05 | Shall delete biometric templates from devices/edge on employee exit; retain punch events per labour retention (default 5 years) | P0 |
+| PAY-07 | Should default overtime multiplier to 2.0× ordinary wage per OSH Code s.27, with versioned state caps | P0 |
 | SEC-02 | Shall encrypt Aadhaar, PAN, bank, salary fields (AES-256 envelope) | P0 |
 | SEC-03 | Shall audit PII unmask and admin impersonation | P0 |
 | SEC-04 | Should support TOTP MFA for admin/payroll roles | P1 |

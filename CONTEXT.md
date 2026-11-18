@@ -2,6 +2,7 @@
 
 > **Status:** Authoritative | **Phase:** Discovery & Design | **Market:** India-first  
 > **Precedence:** `CONTEXT.md` > `docs/product/SRS.md` > `docs/requirements/BUSINESS_RULES.md` > other docs  
+> **Market evidence:** `docs/market/MARKET_RESEARCH.md` (secondary web research, 2026-11-18)  
 > **Rule:** Do not duplicate truths elsewhere. Link here. Mark OPEN / RECOMMENDED / CONFIRMED.
 
 ---
@@ -19,7 +20,7 @@
 | Capture | Phone (face/fingerprint + geo), biometric terminal (face/finger/RFID), kiosk, CCTV walk-through, file import — via **adapters**, not hardcoded SDKs in the attendance engine |
 | Compute | Deterministic attendance with immutable explanation traces |
 | Pay | Separate payroll processor; India EPF/ESI/PT/TDS; exact-paisa accuracy |
-| Trust | RLS multi-tenancy, DPDP biometric consent, on-device templates, alternate non-biometric punch path |
+| Trust | RLS multi-tenancy, DPDP notice/consent ledger, on-device templates, **mandatory** non-biometric alternate path |
 
 ### Target industries (priority)
 
@@ -72,7 +73,7 @@ Processors are **independently deployable workers** sharing contracts/events. Ad
 | Match | Edge/local face match → employee_id (templates stay on edge; cloud gets event only) |
 | Emit | Canonical punch (`source=CCTV`, `in|out|passage`) into raw ingestion |
 
-**CONFIRMED invariant (BR-BIO-01):** Raw biometric templates never stored in cloud. Cloud stores punch events + consent metadata only.
+**CONFIRMED invariant (BR-BIO-01):** Raw biometric templates never stored in cloud. Cloud stores punch events + consent/notice metadata only.
 
 ---
 
@@ -84,7 +85,7 @@ Processors are **independently deployable workers** sharing contracts/events. Ad
 4. **Explanation traces** — immutable JSON for every daily attendance & pay run.  
 5. **Double-entry leave** — balances derived from `leave_transactions`.  
 6. **N65** — mid-session gaps excluded from worked hours & OT.  
-7. **Statutory params** — EPF/ESI/PT ceilings in versioned DB tables, never hardcoded.  
+7. **Statutory params** — EPF/ESI/PT ceilings + OT rates in versioned DB tables, never hardcoded.  
 8. **Idempotent jobs** — idempotency keys + safe retries.  
 9. **Dated shift instances** — roster expands to immutable daily instances; ad-hoc = N67.  
 10. **Infra cost ceiling** — hosting ≤ **₹80 / active employee / month**.
@@ -127,12 +128,12 @@ Style: **Modular monolith** (ADR-01); scale by splitting workers (ingest / atten
 | ID | Module | Must ship |
 | :--- | :--- | :--- |
 | M11 | Leave & Holidays | Double-entry, sandwich, session half-day |
-| M12 | OT & Comp-Off | N20 approval-gated OT; 1.5x/2.0x; caps |
+| M12 | OT & Comp-Off | N20 approval-gated OT; **default 2.0× under OSH Code**; state caps versioned |
 | M13 | Allowances | Config ≠ calc; night/on-call/session pay |
 | M14 | Payroll | 10-step wizard; EPF/ESI/PT/LWF/TDS; bank/Tally; lock+arrears |
 | M15 | ESS | Calendar, regularization, leave, payslips |
 | M16 | Device Telemetry | Adapter health, Edge Agent, kiosk |
-| M17 | Analytics | Muster Form 25, dashboards, statutory schedules |
+| M17 | Analytics | Muster / OT registers (5-year retain), dashboards |
 | M18 | Workflows | Multi-tier approve, SLA escalate, WhatsApp/SMS/email |
 
 ### P2 — Field & mobile
@@ -145,64 +146,160 @@ Style: **Modular monolith** (ADR-01); scale by splitting workers (ingest / atten
 
 ### P3 — Full HRMS (post-GA only)
 
-H01–H10 (ATS, PMS, LMS, Expense, Assets, Engagement, POSH, Visitor, Alumni, Psychometrics) — see roadmap; **do not block APMS GA**.
+H01–H10 (ATS, PMS, LMS, Expense, Assets, Engagement, POSH, Visitor, Alumni, Psychometrics) — do not block APMS GA.
 
 ---
 
-## 5. Feature matrix — priority × pricing tier
+## 5. Competitor matrices (research-backed)
 
-**Billing unit:** Monthly Active Attendance-Tracked Users (**MAU**).  
-**India market bands (2026 verified):** SMB ~₹40–100 PEPM; mid-suite bases ~₹2.5k–₹7k/mo for 50 seats; enterprise quote-only.
+Detail + sources: `docs/market/MARKET_RESEARCH.md`.
 
-### Recommended APMS packs (CONFIRMED commercial strategy — PO)
+### 5.1 India software matrix (must-beat / must-integrate)
 
-| Pack | Target | Guide price (ex-GST) | Included | Upsells |
+| Competitor | Strength | Weakness vs APMS | Price signal |
+| :--- | :--- | :--- | :--- |
+| greytHR | Brand + payroll depth | Attendance gated to Growth; GPS live upsold | ₹2.5k–4.5k/50 |
+| HROne | Att+pay in Basic; WhatsApp | Less industrial overnight depth | ₹4.95k/50 |
+| Keka | Mid-market UX | 100-seat floors; overnight gaps admitted historically | Quote / 100-slab |
+| factoHR | Free≤20; AI face | Geo gated Premium | ₹5k/50 Core |
+| Ankastra / VelHR / OTOMATE / Navlakha | Cheap att→pay; multi-OEM | Thin explainability / enterprise RLS story | **₹15–45 PEPM** floor |
+| pagar karo / ZFour / Timelabs | Transparent PEPM; field | Less multi-session math branding | ₹31–90 PEPM |
+| Truein / Jibble | Face kiosk / global att | No full India statutory | Att-only |
+| Darwinbox / Workday+local pay | Enterprise | Overkill + dual vendor for India pay | Quote |
+
+**APMS wedge:** Multi-OEM adapters + N65/N66 explainable attendance + India payroll **in Workforce** (not upsold away) + Edge offline + RLS tenancy.
+
+### 5.2 Global software matrix (learn / later localize)
+
+| Region | Exemplars | Modalities to copy | Price band |
+| :--- | :--- | :--- | :--- |
+| Japan | KING OF TIME, Jobcan, Touch On Time, oziTime, Xronos | IC + finger-vein + iPad face + liveness + GPS | ¥200–300/user |
+| Korea | Suprema stack + AC suites | Face/fingerprint + mobile; on-device; AI VMS | Hardware+SaaS |
+| China | DingTalk, Feishu, Hikvision T&A | Face/GPS/Wi-Fi; FR Measures compliance | Suite-bundled |
+| SG/MY | StaffAny, Swingvy, brioHR, QuickHR | Face/QR/Wi-Fi/geo + roster | RM3–10+ / S$5+ |
+| GCC | Bayzat | Face+liveness + WPS payroll | Quote |
+| US/EU | UKG, ADP, Paycom, BambooHR, Factorial, Personio | Clocks + geo + kiosk; quote-heavy | $8–25+ PEPM / quote |
+
+### 5.3 Hardware OEM matrix (adapter priority)
+
+| Priority | OEM | Protocol | India street ₹ (ex-GST) | Adapter |
 | :--- | :--- | :--- | :--- | :--- |
-| **Capture** | Attendance-first SMBs / multi-site biometric | ₹49 PEPM · min 25 MAU **or** ₹1,999/mo for ≤40 | M01–M10, M11 basic, M15, M16 (2 adapters), M17 muster, M18 L1 approve | Extra adapter ₹499/mo; WhatsApp ₹15 PEPM |
-| **Workforce** | Factories, hospitals, retail chains | ₹79 PEPM · min 50 **or** ₹3,999/mo for ≤50 | Capture + full leave/OT/allowance + **Payroll India** + roster advanced + mobile L1–L2 geo | Face kiosk; GPS L3 ₹25 PEPM |
-| **Command** | Multi-entity / security / field force | ₹119 PEPM · min 100 | Workforce + L3/L4 field + CCTV adapter pack + SSO + dedicated cell option | Continuous CCTV streams priced per camera/site |
-| **Education** | Institutes | Workforce − ₹15 PEPM student MAU discount | Student/guardian roles; timetable; homework later (M20 edu) | — |
+| P0 | eSSL | ADMS / eTime / SDK | ~8–21k | `edge_poll` / push |
+| P0 | ZKTeco | ADMS / TCP / ZKBio | ~7.5–28k | `zkteco_adms` |
+| P0 | File/CSV | Any OEM export | — | `file_bulk` |
+| P1 | Matrix COSEC | HTTP push / CENTRA | ~18–70k | `matrix_cosec` |
+| P1 | Hikvision MinMoe | ISAPI | ~10–16k | `hikvision_isapi` |
+| P1 | Realtime / BioMax | Push / export | ~4–21k | `edge_poll` / file |
+| P2 | Suprema | BioStar 2 REST | ~30–80k | `suprema_biostar` |
+| P2 | CCTV overlay | RTSP/ONVIF edge | Cameras already owned | `cctv_frame` |
+| P3 | Vein/iris (Hitachi/NEC class) | Vendor SDK | Premium | `generic_biometrics` |
 
-**Competitive wedge:** Competitors gate geofence / split shifts / fraud tools to premium. APMS puts **complex attendance + explainable payroll** in Workforce (not upsold away). Capture plan is honest (no fake “free payroll”).
-
-**Hardware:** Software-only by default. Optional partner devices (ZKTeco/eSSL/face kiosk). Never lock software to one OEM.
+**Hardware policy (CONFIRMED):** Software-agnostic; never lock to one OEM; partner AMC optional; tablet kiosk is first-class.
 
 ---
 
-## 6. Punch sources & adapter roadmap
+## 6. India vertical WTP & pricing strategy
+
+### 6.1 Observed market floors (2026)
+
+| Band | PEPM / base | Who lives here |
+| :--- | :--- | :--- |
+| Ultra-low att+pay | ₹15–45 PEPM | OTOMATE, Navlakha, pagar Attendance/Payroll |
+| SMB suite base | ₹2.5k–6k / 50 seats | greytHR, VelHR, Ankastra, factoHR |
+| Mid HCM | ₹5k–10k / 50 + ₹85–130 extra | HROne, Pocket Pro, Timelabs |
+| Field / Pro | ₹79–150 PEPM | pagar Pro, AttendancePay Pro, suite add-ons |
+
+**No primary WTP survey exists** (OPEN). Vertical WTP below is **inferred** from vendors that win that segment + feature density.
+
+### 6.2 Vertical willingness-to-pay (RECOMMENDED planning bands)
+
+| Vertical | Priority | Inferred WTP | Buy trigger | APMS pack |
+| :--- | :--- | :--- | :--- | :--- |
+| Manufacturing MSME | P0 | **₹35–70 PEPM** | Night/OT/contract muster without Excel | Workforce (discount to ₹59 if ≤100 MAU Y1) |
+| Multi-plant factory | P0 | **₹70–110 PEPM** | Multi-OEM + Edge offline + arrears | Workforce → Command |
+| Healthcare | P0 | **₹60–100 PEPM** | Duty attribution + hygiene face | Workforce + duty engine |
+| Retail / hospitality | P1 | **₹40–75 PEPM** | Split shifts + multi-branch geo | Capture → Workforce |
+| Security / FM | P1 | **₹70–120 PEPM** | Multi-site open shifts + L2/L3 field | Command |
+| Education | P2 | **₹25–50 student; ₹50–80 staff** | Session faculty + guardian | Education discount |
+| IT / hybrid | P2 | **₹40–70 PEPM** | WFH quota + payroll | Capture + payroll add-on |
+
+### 6.3 APMS packs (RECOMMENDED — revise after interviews)
+
+| Pack | Guide price (ex-GST) | Position vs market | Includes |
+| :--- | :--- | :--- | :--- |
+| **Capture** | **₹39 PEPM** · min 25 · or ₹1,799/mo ≤40 | Above OTOMATE floor; below greytHR Growth | M01–M11 basic, M15–M18 L1, 2 OEM adapters, muster |
+| **Workforce** | **₹69 PEPM** · min 50 · or ₹3,499/mo ≤50 | In MSME WTP; undercuts HROne Basic PEPM math for complex shifts | Capture + full leave/OT/allowance + **India payroll** + advanced roster + mobile L1–L2 |
+| **Command** | **₹109 PEPM** · min 100 | Field/security Pro band | Workforce + L3/L4 + CCTV adapter pack + SSO + dedicated cell option |
+| **Education** | Workforce − ₹20 student MAU | Volume play | Student/guardian roles |
+
+**Upsells:** Extra adapter ₹399/mo · WhatsApp ₹12 PEPM · GPS L3 ₹20 PEPM · CCTV per camera/site.  
+**Infra ceiling remains ₹80 / active employee / month** — Command margin must absorb dedicated cells carefully.
+
+**CONFIRMED commercial rules:** Honest Capture (no fake free payroll); Workforce includes complex attendance+statutory pay; hardware optional.
+
+---
+
+## 7. Punch sources & adapter roadmap
 
 | Source | Adapter | Priority | Pack |
 | :--- | :--- | :--- | :--- |
 | ZKTeco ADMS push | `adapter.zkteco_adms` | P0 | Capture |
 | eTimeOffice / HTTP push | `adapter.etimeoffice` | P0 | Capture |
-| eSSL / generic SDK via Edge | `adapter.edge_poll` | P0 | Capture |
+| eSSL / generic via Edge | `adapter.edge_poll` | P0 | Capture |
 | CSV/XLSX import | `adapter.file_bulk` | P0 | Capture |
-| Mobile geo + optional on-device face/fingerprint | `adapter.mobile_geo` | P1 | Workforce |
-| Shared tablet kiosk (PIN/QR + edge face) | `adapter.kiosk` | P1 | Workforce |
+| Matrix COSEC | `adapter.matrix_cosec` | P1 | Workforce |
+| Hikvision ISAPI | `adapter.hikvision_isapi` | P1 | Workforce |
+| Mobile geo + on-device face/finger attest | `adapter.mobile_geo` | P1 | Workforce |
+| Shared tablet kiosk | `adapter.kiosk` | P1 | Workforce |
 | RFID / card | `adapter.rfid` | P1 | Workforce |
-| CCTV frame extract (vendor-agnostic) | `adapter.cctv_frame` | P2 | Command |
-| Vein / iris (Japan/Korea-class terminals) | `adapter.generic_biometrics` | P3 | Command+ |
+| Suprema BioStar 2 | `adapter.suprema_biostar` | P2 | Command |
+| CCTV frame extract | `adapter.cctv_frame` | P2 | Command |
+| Vein / iris | `adapter.generic_biometrics` | P3 | Command+ |
 
 **Canonical punch event (minimum):**  
 `tenant_id, employee_ref, event_at_utc, direction?, source, device_id, site_id, geo?, evidence_ref?, adapter_id, payload_hash`
 
 ---
 
-## 7. Global biometric patterns → APMS design rules
+## 8. Legal & biometric compliance (product rules)
+
+> **Counsel required** before locking privacy copy. Status tags below are product engineering defaults.
+
+### 8.1 India — data protection
+
+| Topic | Research reading | APMS rule | Status |
+| :--- | :--- | :--- | :--- |
+| DPDP Act 2023 | Biometrics = personal data; **no SPDI-style sensitive tier** in DPDP; employment may rely on s.7(i); notice + security still mandatory | Issue clear notice (purpose, retention, rights); purpose-limit to attendance/access | RECOMMENDED |
+| SPDI Rules 2011 (until DPDP commencement ~May 2027) | Written consent for biometrics still referenced by advisors | Maintain **explicit biometric consent ledger** + easy withdraw | CONFIRMED (transition) |
+| Proportionality / alternate path | Best practice; China/Korea require non-bio alternative | **Mandatory** RFID/PIN/card/app path per site; no sole-biometric coercion | CONFIRMED |
+| Template storage | Stronger “reasonable security” expected for biometrics | On-device / edge templates only; encrypt; delete on exit; never Aadhaar as punch key | CONFIRMED |
+| CCTV attendance | Footage + face match = personal data; retention limits | Edge match; cloud gets events; short evidence retention; policy flag before payroll-authoritative CCTV | CONFIRMED |
+| India residency | Market expectation / procurement | Default India primary + backups | CONFIRMED |
+
+### 8.2 India — labour / payroll compliance
+
+| Topic | Research reading | APMS rule | Status |
+| :--- | :--- | :--- | :--- |
+| OSH Code 2020 | In force **21 Nov 2025**; OT wages ≥ **twice** ordinary (s.27); worker consent for OT | Default OT multiplier **2.0×**; N20 approval = consent evidence; versioned state caps | RECOMMENDED |
+| Registers | Electronic muster / wage / OT registers; preserve **5 years** | M17 electronic registers; retention job 5y | CONFIRMED |
+| EPF/ESI/PT/TDS | Unchanged need for challan/ECR artifacts | Parameterized statutory tables; exact-paisa tests | CONFIRMED |
+| Old Factories Act OT lore | Do not hardcode pre-Code quarterly caps blindly | State rule packs; OPEN until counsel | OPEN |
+
+### 8.3 Global biometric patterns → design defaults
 
 | Region | Practice | APMS implication |
 | :--- | :--- | :--- |
-| **Japan** | Face / finger / **palm vein** / iris; IC-card still common; APPI treats biometrics as personal identifier codes; Work Style Reform needs **objective** time records | Prefer on-device match; always offer IC/RFID/PIN alternate; store events not templates |
-| **China** | Face attendance common; 2025 Facial Recognition Measures: separate consent, **non-face alternative**, minimize storage/transmission | Alternate punch path mandatory; purpose-limited retention; no sole-biometric coercion |
-| **Korea** | Biometrics = sensitive under PIPA; **separate consent**; prefer process-on-device; provide card/PIN alternative | Consent ledger + alternate modality; edge processing default |
-| **Singapore** | PDPC biometric guide; employment-management may be reasonable, **explicit consent still best practice** | Consent UX + retention limits; transparency in ESS |
-| **India** | DPDP Act 2023 sensitive personal data; Aadhaar not an attendance credential | Explicit biometric consent; India data residency; never use Aadhaar/MyNumber-class IDs as punch keys |
+| **Japan** | Vein/IC/face; APPI identifier codes; objective time records | Events-only cloud; IC alternate; vein adapter P3 |
+| **China** | Face common; 2025 FR Measures: consent + non-face alternative | Same SPI; no sole-face |
+| **Korea** | PIPA sensitive biometric; separate consent; on-device | Consent ledger + edge |
+| **Singapore** | PDPC; employment exception possible; consent recommended | Consent UX + retention |
+| **India** | DPDP notice + transition consent; OSH OT 2× | §§8.1–8.2 |
 
-**Futuristic defaults:** multimodal (face **or** finger **or** card **or** geo+selfie); liveness / anti-spoof on mobile; CCTV as soft attendance + exception evidence, not sole payroll authority without policy flag.
+**Futuristic defaults:** multimodal (face **or** finger **or** card **or** geo+selfie); mobile liveness; CCTV as soft attendance unless tenant policy marks authoritative.
 
 ---
 
-## 8. Confirmed domain decisions (index)
+## 9. Confirmed domain decisions (index)
 
 | ID | Decision | Status |
 | :--- | :--- | :--- |
@@ -210,49 +307,44 @@ H01–H10 (ATS, PMS, LMS, Expense, Assets, Engagement, POSH, Visitor, Alumni, Ps
 | Q2 | Append-only raw envelope | CONFIRMED |
 | Q3 | 4-tier policy hierarchy | CONFIRMED |
 | Q4 | Lone punch → `NEEDS_REVIEW` | CONFIRMED |
-| Q5 | Continuous multi-day duty attribution | RECOMMENDED (`start_date` / duty_units) |
+| Q5 | Continuous multi-day duty attribution | RECOMMENDED |
 | Q6 | WFH auto-approve within quota | CONFIRMED |
 | Q7 | 10-step pay wizard | CONFIRMED |
-| Q8 | Native protocols: ADMS, eTimeOffice, Edge, file | CONFIRMED |
+| Q8 | Native protocols: ADMS, eTimeOffice, Edge, file (+ Matrix/Hik P1) | CONFIRMED |
 | Q9 | Double-entry leave | CONFIRMED |
-| N65 | Mid-gap non-working | CONFIRMED |
-| N66a–d | Duration ratio, min presence, session leave, cancel-paid | CONFIRMED |
-| N67 | Dual-path same-day shift change | CONFIRMED |
-| N20 | OT approval-gated | CONFIRMED |
+| N65 / N66a–d / N67 / N20 | Gap, rollup, leave map, cancel-paid, dual-path, OT gate | CONFIRMED |
 | N18 | Pay cut-off vs calendar | RECOMMENDED |
 
 Formulas: `docs/requirements/BUSINESS_RULES.md`. ADR index: `docs/decisions/DECISION_REGISTER.md`.
 
-**OPEN (needs PO / legal):** Labour Codes OT post-Nov-2025 state rules; negative leave balance default; holiday pay for per-session workers; private-hospital continuous-duty interviews.
+**OPEN (PO / legal / interviews):** Primary vertical WTP survey; DPDP s.7(i) counsel memo; state OT caps under Codes; private-hospital duty lengths; negative leave balance; holiday pay for per-session workers.
 
 ---
 
-## 9. Release strategy
+## 10. Release strategy
 
 | Phase | Scope | Outcome |
 | :--- | :--- | :--- |
-| **0–1** | M01–M06, M09 adapters (ADMS/Edge/file), basic M07/M08 | Live punches, zero tenant leak |
+| **0–1** | M01–M06, M09 adapters (eSSL/ZK/Edge/file), basic M07/M08 | Live punches, zero tenant leak |
 | **2** | M10, M11, M18 | Explainable attendance + leave |
-| **3** | M12–M14, M17 statutory | Exact-paisa India payroll |
-| **4 GA** | Hardening, arrears, escalation, DPDP audits | Production GA |
+| **3** | M12–M14, M17 statutory + 5y registers | Exact-paisa India payroll |
+| **4 GA** | Hardening, arrears, escalation, DPDP notice/consent audits | Production GA |
 | **5** | M19–M20 L1–L3 | Mobile field |
-| **6** | CCTV adapter, SSO/SCIM, AI roster assist, H01+ | Command / HRMS expand |
+| **6** | CCTV + Suprema + SSO/SCIM + H01+ | Command / HRMS expand |
 
-**MVP DoD:** RLS isolation tests pass · no punch drops · deterministic recalculation · paisa-exact golden vectors · every day has explanation trace.
+**MVP DoD:** RLS isolation · no punch drops · deterministic recalc · paisa-exact vectors · explanation trace every day · alternate punch path enabled · biometric consent/notice logged.
 
 ---
 
-## 10. Documentation map (post-sanitation)
+## 11. Documentation map
 
 | File | Role |
 | :--- | :--- |
 | **`CONTEXT.md`** | Master SSOT (this file) |
-| `docs/product/SRS.md` | Normative requirements (shall / should) |
+| `docs/market/MARKET_RESEARCH.md` | Competitor / hardware / WTP / legal evidence |
+| `docs/product/SRS.md` | Normative shall / should |
 | `docs/requirements/BUSINESS_RULES.md` | Math & policy formulas |
 | `docs/requirements/OPEN_QUESTIONS.md` | Q/N status board |
 | `docs/decisions/DECISION_REGISTER.md` | ADR index |
-| `docs/SANITATION_AUDIT.md` | Drift log + removed redundancy |
-| `AGENTS.md` | Agent coding invariants |
-| `README.md` | Human onboarding |
-
-Archived / removed pre-sanitation drafts: see `docs/SANITATION_AUDIT.md`. Do not resurrect duplicates.
+| `docs/SANITATION_AUDIT.md` | Drift log |
+| `AGENTS.md` / `README.md` | Agent & human entry |

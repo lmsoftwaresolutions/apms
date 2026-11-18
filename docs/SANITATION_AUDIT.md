@@ -49,7 +49,8 @@ All pre-implementation narrative docs that restated the same invariants, C4 diag
 
 | Path | Why kept |
 | :--- | :--- |
-| `CONTEXT.md` | Master SSOT |
+| `CONTEXT.md` | Master SSOT (includes competitor / WTP / compliance sections) |
+| `docs/market/MARKET_RESEARCH.md` | Global software+hardware research evidence |
 | `docs/product/SRS.md` | Normative shall/should requirements |
 | `docs/requirements/BUSINESS_RULES.md` | Authoritative formulas |
 | `docs/requirements/OPEN_QUESTIONS.md` | Q/N status board |
