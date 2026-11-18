@@ -11,20 +11,21 @@
 ### 1.1 Purpose
 APMS shall provide multi-tenant workforce attendance, shift/roster management, leave accounting, India statutory payroll, and analytics, with vendor-agnostic punch capture.
 
-### 1.2 In scope (MVP → GA)
-- Multi-tenant org/IAM, policy engine, shifts/rosters  
-- Device adapters + immutable raw punch pipeline  
-- Attendance processor (pairing, rollup, anomalies, traces)  
-- Leave ledger, OT/comp-off, allowances  
-- Payroll processor (India statutory pack)  
-- Analytics processor (muster, operational KPIs)  
-- ESS web; mobile geo in Phase 5  
-- CCTV frame-adapter path designed in MVP, implemented Phase 6  
+### 1.2 In scope (V1)
+- Multi-tenant org, shifts/rosters, and an explainable paid day with muster export
+- Device adapters: eSSL, ZKTeco, CSV, CCTV frames, face-on-phone, RFID, kiosk, and further brands on the same SPI
+- Geofence, live GPS, and field tracking
+- Overnight, split-session, and hospital 24/36-hour duties
+- Coaching timetables and student attendance
+- Leave ledger, sandwich rule, and comp-off; weekly off and holiday as calendar flags
+- Immutable punches and missed-punch correction with recalculation
 
-### 1.3 Out of scope (until post-GA)
-- Full HRMS H01–H10 (ATS, PMS, LMS, etc.)  
-- Non-India statutory engines  
-- Using Aadhaar / national ID numbers as punch credentials  
+### 1.3 Out of scope for V1
+- Payroll, PF/ESI/PT/TDS, payslips, and bank files (V2)
+- Full HRMS H01–H10 (ATS, PMS, LMS, and the rest)
+- Non-India statutory engines
+- SSO, WhatsApp, and analytics beyond the muster
+- Using Aadhaar or other national ID numbers as punch credentials
 
 ---
 

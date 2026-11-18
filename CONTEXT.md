@@ -321,22 +321,38 @@ Formulas: `docs/requirements/BUSINESS_RULES.md`. ADR index: `docs/decisions/DECI
 
 ---
 
-## 10. Release strategy
+## 10. V1 scope (PO, factory-first muster)
+
+**Promise:** the paid day, with the reason, from whatever capture method the site already uses.
+
+### In V1
+- eSSL, ZKTeco, and CSV, **plus** CCTV frame punches, face-on-phone, RFID, kiosk, and other device brands through the adapter SPI
+- Geofence, live GPS, and field tracking
+- Dated shifts: fixed, overnight, split session (unpaid gap), and hospital 24/36-hour duties
+- Coaching timetables and student attendance
+- Paid-day result with a stored explanation; single punch stays in review
+- Missed-punch correction that recalculates the day and keeps the raw punch
+- Leave ledger, sandwich rule, and comp-off bank; weekly off and holiday are calendar flags on the day
+- Site muster export (status, hours, overtime hours, reason). No salary math
+
+### Cut from V1
+- Payroll, PF/ESI/PT/TDS, payslips, and bank files
+- Multi-entity, SSO, WhatsApp, and analytics beyond the muster
+- AI rostering and buddy-punch models beyond the single-punch review queue
+
+## 11. Release strategy
 
 | Phase | Scope | Outcome |
 | :--- | :--- | :--- |
-| **0–1** | M01–M06, M09 adapters (eSSL/ZK/Edge/file), basic M07/M08 | Live punches, zero tenant leak |
-| **2** | M10, M11, M18 | Explainable attendance + leave |
-| **3** | M12–M14, M17 statutory + 8-year ledger retention | Exact-paisa India payroll |
-| **4 GA** | Hardening, arrears, escalation, DPDP notice/consent audits | Production GA |
-| **5** | M19–M20 L1–L3 | Mobile field |
-| **6** | CCTV + Suprema + SSO/SCIM + H01+ | Command / HRMS expand |
+| **V1** | §10 in-scope capture, shifts, leave, field, education, hospital duty, muster | Explainable paid day on the customer’s own devices |
+| **V2** | M14 payroll, statutory files, payslips, bank export | Exact-paisa India payroll |
+| **Later** | SSO/SCIM, WhatsApp, analytics beyond muster, H01+ | Command / HRMS expand |
 
 **MVP DoD:** RLS isolation · no punch drops · deterministic recalc · paisa-exact vectors · explanation trace every day · alternate punch path enabled · biometric consent/notice logged.
 
 ---
 
-## 11. Stable requirement IDs (from PR #1 catalog — do not renumber)
+## 12. Stable requirement IDs (from PR #1 catalog — do not renumber)
 
 Normative prose lives in `docs/product/SRS.md`. These discovery IDs stay stable for traces and schema notes. Full narrative catalog was **not** restored (it duplicated SRS).
 
@@ -356,7 +372,7 @@ Schema (unique, not duplicated in prose): `docs/database/schema.dbml`. Punch sou
 
 ---
 
-## 12. Documentation map
+## 13. Documentation map
 
 | File | Role |
 | :--- | :--- |
