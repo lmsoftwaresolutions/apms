@@ -88,12 +88,14 @@ Enum approval_status_enum {
     DELEGATED           // WFL-03 out-of-office delegation
 }
 
+// Note: user_role_enum is DEPRECATED and superseded by dynamic Table roles, Table permissions,
+// Table role_permissions, and Table user_roles (ADR-31 & IAM-01). Preserved for legacy reference.
 Enum user_role_enum {
-    SUPER_ADMIN         // Platform-wide; cross-tenant (IAM-01)
-    TENANT_ADMIN        // Full tenant config
-    HR_PAYROLL          // Payroll wizard, leave admin
-    SUPERVISOR          // Roster, approvals
-    EMPLOYEE            // Self-service only
+    SUPER_ADMIN         // Platform-wide; cross-tenant
+    TENANT_ADMIN        // Full tenant config (seeded default bundle)
+    HR_PAYROLL          // Payroll wizard, leave admin (seeded default bundle)
+    SUPERVISOR          // Roster, approvals (seeded default bundle)
+    EMPLOYEE            // Self-service only (seeded default bundle)
 }
 
 Enum device_status_enum {
@@ -160,18 +162,79 @@ Table departments [note: 'Departments / sub-departments under a branch. ORG-01. 
 }
 
 // ─────────────────────────────────────────────────────────────
-// TABLE 4: users  (authentication & RBAC)
+// TABLE 4: users  (authentication & identity)
 // ─────────────────────────────────────────────────────────────
-Table users [note: 'Authentication identities. IAM-01, IAM-02. RLS: tenant_id (SUPER_ADMIN rows have null tenant_id).'] {
-    id              UUID        [pk, default: `gen_random_uuid()`]
-    tenant_id       UUID        [ref: > tenants.id, note: 'RLS column; null for SUPER_ADMIN']
+Table users [note: 'Authentication identities. IAM-01, IAM-02, ADR-31. RLS: tenant_id.'] {
+    id              UUID         [pk, default: `gen_random_uuid()`]
+    tenant_id       UUID         [not null, ref: > tenants.id, note: 'RLS column']
     email           VARCHAR(255) [not null, unique]
+    full_name       VARCHAR(200) [not null]
     hashed_password VARCHAR(255) [not null]
-    role            user_role_enum [not null]
-    totp_secret     VARCHAR(255) [note: 'AES-256 encrypted TOTP seed. IAM-03']
+    totp_secret     VARCHAR(255) [note: 'AES-256 encrypted TOTP seed. SEC-04']
     is_active       BOOLEAN      [not null, default: true]
     last_login_at   TIMESTAMPTZ
     created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, id) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 4b: permissions  (global platform catalog / vocabulary)
+// ─────────────────────────────────────────────────────────────
+Table permissions [note: 'Global catalog of granular permission keys: {module}.{resource}.{action}. IAM-02, ADR-31. Platform read-only.'] {
+    id          UUID         [pk, default: `gen_random_uuid()`]
+    code        VARCHAR(80)  [not null, unique, note: 'e.g. org.branch.create, employee.employee.read']
+    module      VARCHAR(40)  [not null, note: 'iam, org, employee, shift, roster, capture, attendance, leave, muster']
+    resource    VARCHAR(40)  [not null, note: 'branch, department, role, employee, punch, etc.']
+    action      VARCHAR(20)  [not null, note: 'create | read | update | delete']
+    description VARCHAR(200) [not null]
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 4c: roles  (dynamic per-tenant role definitions)
+// ─────────────────────────────────────────────────────────────
+Table roles [note: 'Dynamic roles defined per tenant by Tenant Admins or pre-seeded system roles. IAM-01, ADR-31. RLS: tenant_id.'] {
+    id          UUID         [pk, default: `gen_random_uuid()`]
+    tenant_id   UUID         [not null, ref: > tenants.id, note: 'RLS column']
+    code        VARCHAR(40)  [not null, note: 'e.g. TENANT_ADMIN, SUPERVISOR, or custom code like FORECOURT_DSM']
+    name        VARCHAR(120) [not null, note: 'Display name, e.g. General Manager, Shift Manager']
+    is_system   BOOLEAN      [not null, default: false, note: 'true for protected system roles (cannot be deleted); false for dynamic custom roles']
+    created_at  TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
+
+    indexes {
+        (tenant_id, id) [unique]
+        (tenant_id, code) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 4d: role_permissions  (permission bundle mapping)
+// ─────────────────────────────────────────────────────────────
+Table role_permissions [note: 'Maps permission keys to dynamic tenant roles. IAM-01, IAM-02. RLS: tenant_id.'] {
+    id            UUID [pk, default: `gen_random_uuid()`]
+    tenant_id     UUID [not null, ref: > tenants.id, note: 'RLS column']
+    role_id       UUID [not null, ref: > roles.id]
+    permission_id UUID [not null, ref: > permissions.id]
+
+    indexes {
+        (tenant_id, role_id, permission_id) [unique]
+    }
+}
+
+// ─────────────────────────────────────────────────────────────
+// TABLE 4e: user_roles  (multi-role assignment to users)
+// ─────────────────────────────────────────────────────────────
+Table user_roles [note: 'Assigns users to roles within a tenant. Effective permissions are union of all roles. IAM-03. RLS: tenant_id.'] {
+    id        UUID [pk, default: `gen_random_uuid()`]
+    tenant_id UUID [not null, ref: > tenants.id, note: 'RLS column']
+    user_id   UUID [not null, ref: > users.id]
+    role_id   UUID [not null, ref: > roles.id]
+
+    indexes {
+        (tenant_id, user_id, role_id) [unique]
+    }
 }
 
 // ─────────────────────────────────────────────────────────────

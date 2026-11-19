@@ -114,7 +114,7 @@ Style: **Modular monolith** (ADR-01); scale by splitting workers (ingest / atten
 | :--- | :--- | :--- |
 | M01 | Super Admin & Tenant | Provision, plans, MAU billing, lifecycle, India residency |
 | M02 | Feature Flags | Module/sub-feature toggles, canary |
-| M03 | RBAC / IAM | Roles, MFA, JWT; SSO deferred Phase 4+ |
+| M03 | RBAC / IAM | Dynamic tenant-defined roles & permissions vocabulary, multi-role union, MFA, JWT; SSO deferred Phase 4+ |
 | M04 | Employee Master | PII envelope encryption, docs vault |
 | M05 | Organization | Legal entity→branch→dept; geofence registry; FY |
 | M06 | Policy Engine | Effective-dated rules + audit |

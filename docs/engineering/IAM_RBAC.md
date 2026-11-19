@@ -1,18 +1,42 @@
-# IAM and RBAC
+# Dynamic IAM and RBAC
 
 Access control for V1. Decision record: [`ADR-31`](../decisions/adr/ADR-31-permission-keyed-rbac.md).
 
-## Rules
+## Core Principles
 
-- Key grammar: `{module}.{resource}.{action}`.
-- Actions: `create`, `read`, `update`, `delete` only.
-- A role is a named bundle of keys, scoped to one tenant.
-- The caller's grants are the union of assigned roles.
-- Every route calls `require_permission` with the exact key. Missing key returns 403.
-- The UI hides buttons the caller cannot use. Hiding is not the security check.
-- RLS still filters rows. A grant in tenant A does not reveal tenant B.
-- System roles (`TENANT_ADMIN`, `SUPERVISOR`, `EMPLOYEE`) can change their key set only through an explicit admin action. They cannot be deleted while marked system.
-- Platform superuser work (migrations, seed) is not a tenant role in the V1 UI.
+- **Dynamic Roles**: Roles are fully dynamic and defined per-tenant. Tenant Admins can create custom roles with tailored permission bundles at any time without code changes or restarts.
+- **Granular Permissions Vocabulary**: The platform defines an atomic permission vocabulary using `{module}.{resource}.{action}`. Actions are strictly `create`, `read`, `update`, `delete`.
+- **Role as a Permission Bundle**: A role is a tenant-scoped collection of permission keys chosen from the platform catalog.
+- **Multi-Role Union Evaluation**: A user may be assigned multiple roles (e.g. `SUPERVISOR` + custom `SHIFT_LEAD`). Effective user permissions are the mathematical union of all assigned role bundles.
+- **Enforcement on Every Route**: Every API route enforces `require_permission` with the exact required key. Lacking a key results in a `403 Forbidden`.
+- **RLS Boundary**: PostgreSQL Row-Level Security (`app.current_tenant_id`) guarantees that role definitions and assignments in Tenant A can never grant access to Tenant B.
+- **System vs. Custom Roles**:
+  - **System Roles (`is_system = true`)**: Pre-seeded per tenant (`TENANT_ADMIN`, `SUPERVISOR`, `EMPLOYEE`). Protected against deletion.
+  - **Custom Dynamic Roles (`is_system = false`)**: Created, modified, and deleted dynamically by Tenant Admins. Cannot be deleted while actively assigned to users.
+- **Platform Superuser**: Migrations and system-level administration are out-of-band and not tenant roles in the tenant UI.
+
+## Tenant Admin Role Management Workflow
+
+Tenant Admins manage access through a dedicated **Roles & Permissions** console:
+1. **Browse Permissions Vocabulary**: View the catalog of available permissions across modules (`org`, `employee`, `shift`, `roster`, `capture`, `attendance`, `leave`, `muster`), detailing their module, resource, action, and human-readable purpose.
+2. **Create Custom Role**: Click **+ Add Custom Role**, specify a code and human-readable name/description, and select the specific permission keys granted.
+3. **Edit / Fine-Tune Permissions**: Modify granted keys on custom roles or update role descriptions as operational needs change.
+4. **Assign to Users**: Assign one or more roles to tenant users.
+5. **Delete Custom Roles**: Delete retired custom roles once all user assignments are unlinked.
+
+## Implemented API Endpoints
+
+These exist in `backend/app/api/v1/endpoints/iam.py` and enforce idempotency:
+
+| Method | Endpoint | Required Permission | Description |
+| :--- | :--- | :--- | :--- |
+| `GET` | `/api/v1/permissions` | `iam.role.read` | Browse platform permission vocabulary |
+| `GET` | `/api/v1/roles` | `iam.role.read` | List tenant roles with granted permission keys |
+| `POST` | `/api/v1/roles` | `iam.role.create` | Create a new dynamic custom role |
+| `PATCH` | `/api/v1/roles/{role_id}` | `iam.role.update` | Rename a role or replace its permission keys |
+| `DELETE` | `/api/v1/roles/{role_id}` | `iam.role.delete` | Delete a custom role (`is_system=false` only) |
+| `POST` | `/api/v1/users/{user_id}/roles` | `iam.assignment.create` | Assign a role to a user |
+| `DELETE` | `/api/v1/users/{user_id}/roles/{role_id}` | `iam.assignment.delete` | Remove a role from a user |
 
 ## Implemented keys
 

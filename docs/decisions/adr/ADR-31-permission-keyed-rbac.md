@@ -12,21 +12,25 @@ Product access still sits behind PostgreSQL RLS (`ADR-02`). A permission grant n
 
 ## Decision Drivers
 - Security and tenant isolation
+- Dynamic role definition: allow Tenant Admins to define custom operational roles (e.g. Forecourt Attendant, Shift Manager, Site Lead) without code deploys
 - Per-module CRUD without a new role enum for every screen
 - Maintainability as M01–M21 ship
 - Alignment with the code already on `docs/v1-paid-day-scope`
 
 ## Considered Options
 1. Keep `users.role` as the only authorization check.
-2. Permission keys `{module}.{resource}.{action}` with roles as bundles (implemented slice).
+2. Dynamic permission-keyed RBAC: global permissions vocabulary `{module}.{resource}.{action}` with tenant-defined dynamic roles as bundles (implemented slice).
 3. Full ABAC policy engine in V1 (attribute rules per request).
 
 ## Decision Outcome
-Chosen option: **permission-keyed RBAC**, because the first slice already enforces it and a single enum cannot express the supervisor matrix.
+Chosen option: **Dynamic permission-keyed RBAC**, because the first slice already enforces it, single enums cannot express flexible industry matrices, and tenant administrators require the autonomy to define custom roles matching their physical operational hierarchies.
 
 Grammar: `{module}.{resource}.{action}` with actions exactly `create`, `read`, `update`, `delete`. A new action requires a later ADR.
 
-Effective permissions are the union of roles assigned to the user in the current tenant. Every API route declares `require_permission`. The UI hides actions the caller lacks. The database still applies RLS via `app.current_tenant_id`.
+**Dynamic Role Semantics:**
+- **Custom Roles:** Tenant Admins can dynamically create, rename, adjust permission bundles for, and delete custom roles (`is_system = false`) via tenant IAM APIs and console.
+- **System Roles:** Pre-seeded standard roles (`TENANT_ADMIN`, `SUPERVISOR`, `EMPLOYEE` with `is_system = true`) are protected against deletion.
+- **Evaluation:** Effective permissions are the union of all roles assigned to the user in the current tenant. Every API route declares `require_permission`. The UI hides actions the caller lacks. The database still applies RLS via `app.current_tenant_id`.
 
 `users.role` in `schema.dbml` is superseded for authorization. Seed role codes (`TENANT_ADMIN`, `SUPERVISOR`, `EMPLOYEE`) remain as bundles, not as the check.
 

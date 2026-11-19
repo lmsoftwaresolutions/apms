@@ -136,6 +136,15 @@ APMS shall provide multi-tenant workforce attendance, shift/roster management, l
 | SEC-03 | Shall audit PII unmask and admin impersonation | P0 |
 | SEC-04 | Should support TOTP MFA for admin/payroll roles | P1 |
 
+### 4.8 Identity, Access Management & Dynamic Roles (M03)
+
+| ID | Requirement | Priority |
+| :--- | :--- | :--- |
+| IAM-01 | System shall allow Tenant Admins to dynamically create, name, configure permission bundles for, and delete custom roles scoped to their tenant | P0 |
+| IAM-02 | System shall maintain a platform permission vocabulary structured as `{module}.{resource}.{action}` with actions strictly `create`, `read`, `update`, `delete` | P0 |
+| IAM-03 | System shall allow assigning multiple roles to a user; effective permissions shall evaluate as the union of all granted keys | P0 |
+| IAM-04 | Default system roles (`TENANT_ADMIN`, `SUPERVISOR`, `EMPLOYEE`) shall be protected against deletion; custom roles can be deleted only when unassigned | P0 |
+
 ---
 
 ## 5. Non-functional requirements
