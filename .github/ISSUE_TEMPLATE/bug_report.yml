@@ -1,0 +1,59 @@
+name: Bug Report / Invariant Violation
+description: Report a defect, test failure, regression, or invariant breach.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### Bug or Invariant Violation Report
+        Please describe the defect accurately. If an architectural invariant is breached (e.g. cross-tenant data leak or plaintext PII), mark it as P0.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity / Priority
+      options:
+        - P0 (Critical - Invariant violation / Cross-tenant leak / Plaintext PII / Data loss)
+        - P1 (High - Core flow blocked: attendance, leave, auth, payroll)
+        - P2 (Medium - Non-blocking functional defect)
+        - P3 (Low - Minor visual or logging issue)
+    validations:
+      required: true
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Clear and concise description of the bug.
+      placeholder: "e.g., Calling GET /api/v1/employees without tenant context triggers InvalidTextRepresentationError instead of failing closed."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Exact steps or test command to reproduce the issue.
+      placeholder: |
+        1. Run alembic upgrade head
+        2. Execute query without setting app.current_tenant_id
+        3. Observe error
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should have happened according to APMS specifications.
+      placeholder: "The query should fail-closed and return 0 rows without crashing with a SQL exception."
+    validations:
+      required: true
+
+  - type: textarea
+    id: traces
+    attributes:
+      label: Relevant Logs / Stack Trace
+      description: Paste any terminal output, test failures, or database logs.
+      render: shell

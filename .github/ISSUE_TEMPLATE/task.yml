@@ -1,0 +1,65 @@
+name: Task / Feature Implementation
+description: Plan and specify an engineering task following APMS invariants and standards.
+title: "Task: [Module / Feature Name]"
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ### APMS Task Specification
+        Tasks must align with master product truth in `CONTEXT.md`, normative requirements in `docs/product/SRS.md`, and architectural invariants in `AGENTS.md`.
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: Concise summary of what this task delivers and its business/architectural purpose.
+      placeholder: "e.g., Implement employee core master with field-level AES-256 encryption (SEC-02), DPDP Act 2023 consent logging (SEC-01), and RLS safety."
+    validations:
+      required: true
+
+  - type: textarea
+    id: specs
+    attributes:
+      label: Reference Specifications
+      description: Cite authoritative requirement IDs (EMP-*, ATT-*, PAY-*, SEC-*, ADR-*).
+      placeholder: "e.g., SRS.md (EMP-01, SEC-01, SEC-02), schema.dbml (Table: employees), ADR-31 (Permission-keyed RBAC)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables
+      description: Specific files, database migrations, models, services, endpoints, and schemas to create or modify.
+      placeholder: |
+        - Database Migration (backend/alembic/versions/...): Table schema, composite FKs, RLS policies, permissions catalog.
+        - Backend: Models, Pydantic schemas, service layer, API endpoints.
+        - Security: Cryptography helpers, masking, tenant scoping.
+        - Frontend (if applicable): React components, API hooks.
+    validations:
+      required: true
+
+  - type: textarea
+    id: testing
+    attributes:
+      label: Testing & Verification
+      description: Automated test requirements, negative tests, and verification steps.
+      placeholder: |
+        - Automated negative RLS test: Verify Tenant A cannot query or mutate Tenant B records.
+        - Crypto / Invariant test: Verify sensitive data is encrypted on disk.
+        - API & Idempotency test: Verify endpoints handle valid/invalid inputs and request replays.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: APMS Invariants Compliance
+      description: Confirm compliance with mandatory APMS invariants.
+      options:
+        - label: RLS + `app.current_tenant_id` context enforced on all tenant queries (Invariant 1)
+        - label: Composite foreign keys `(tenant_id, foreign_id)` prevent cross-tenant referencing
+        - label: No raw plaintext PII logged or exposed in unmasked API outputs (SEC-02)
+        - label: All endpoints protected by explicit permission keys per ADR-31
+        - label: Idempotent background and write operations (Invariant 8)
