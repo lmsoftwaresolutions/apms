@@ -26,4 +26,15 @@ CCTV is a **separate connector + frame-extraction adapter**; it does not live in
 
 ## Status
 
-Discovery & design. Implementation must follow `CONTEXT.md` + `SRS.md`. Application code is not the focus of the current documentation branch.
+Discovery docs remain the source of truth. The first runnable slice is tenant IAM plus branch CRUD.
+
+Permissions are keys such as `org.branch.read`. A role is a bundle of those keys. Every tenant table has row-level security. The signed-in request sets `app.current_tenant_id`.
+
+```bash
+docker compose up --build
+cd frontend && npm install && npm run dev
+```
+
+Sign in as `admin@northmill.example` / `ChangeMe-Admin-1` (all keys) or `supervisor@northmill.example` / `ChangeMe-Supervisor-1` (can read and update branches, cannot delete them or edit roles). `admin@southmill.example` uses the same admin password and cannot see North Mill.
+
+`DATABASE_URL_MIGRATE` must be a PostgreSQL superuser. The API connects as `apms_app`, which cannot bypass row-level security.

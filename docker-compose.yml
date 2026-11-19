@@ -1,0 +1,30 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: apms
+      POSTGRES_PASSWORD: apms
+      POSTGRES_DB: apms
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U apms -d apms"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+asyncpg://apms_app:apms_app@postgres:5432/apms
+      DATABASE_URL_MIGRATE: postgresql+asyncpg://apms:apms@postgres:5432/apms
+      JWT_SECRET: dev-only-change-me
+      CORS_ORIGINS: http://localhost:5173
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: >
+      sh -c "alembic upgrade head && python -m app.seed &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000"
