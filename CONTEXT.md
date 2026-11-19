@@ -383,5 +383,9 @@ Schema (unique, not duplicated in prose): `docs/database/schema.dbml`. Punch sou
 | `docs/requirements/BUSINESS_RULES.md` | Math & policy formulas |
 | `docs/requirements/OPEN_QUESTIONS.md` | Q/N status board |
 | `docs/decisions/DECISION_REGISTER.md` | ADR index |
+| `docs/engineering/DEVELOPMENT_PLAN.md` | V1 build sequence and gates |
+| `docs/engineering/SYSTEM_ARCHITECTURE.md` | Context, containers, processors |
+| `docs/engineering/IAM_RBAC.md` | Permission keys and role bundles |
+| `docs/engineering/MODULE_BUILD_ORDER.md` | M01–M21 mapped to phases |
 | `docs/SANITATION_AUDIT.md` | Drift log |
 | `AGENTS.md` / `README.md` | Agent & human entry |

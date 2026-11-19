@@ -13,6 +13,7 @@
 | [`docs/requirements/BUSINESS_RULES.md`](docs/requirements/BUSINESS_RULES.md) | Attendance & payroll formulas |
 | [`docs/SANITATION_AUDIT.md`](docs/SANITATION_AUDIT.md) | What was removed and why |
 | [`AGENTS.md`](AGENTS.md) | Rules for coding agents |
+| [`docs/engineering/DEVELOPMENT_PLAN.md`](docs/engineering/DEVELOPMENT_PLAN.md) | V1 engineering sequence (docs before the next code phase) |
 
 ## Architecture (summary)
 

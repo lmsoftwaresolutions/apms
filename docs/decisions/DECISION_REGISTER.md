@@ -6,7 +6,7 @@ This register tracks all fundamental architectural, technology, and engineering 
 
 ---
 
-## 2. Architecture Decisions Index (ADR-01 to ADR-30)
+## 2. Architecture Decisions Index (ADR-01 to ADR-31)
 
 | ADR ID | Decision Title | Status | Primary Technology / Pattern | Module |
 | :--- | :--- | :--- | :--- | :--- |
@@ -40,6 +40,7 @@ This register tracks all fundamental architectural, technology, and engineering 
 | **ADR-28** | Declarative Table Partitioning on Ingestion | ACCEPTED | Monthly range partitioning on `raw_envelope` and `punch_event` | Database / Scale |
 | **ADR-29** | Out-of-Order Punch Recalculation Triggers | ACCEPTED | Event-driven recalculation of affected daily attendance records | Attendance Engine |
 | **ADR-30** | Antigravity-Native Agent Infrastructure | ACCEPTED | Workspace rules, domain skills, and specialized agents | Dev Infrastructure |
+| **ADR-31** | Permission-keyed RBAC | PROPOSED | `{module}.{resource}.{action}` keys; roles are bundles; RLS remains isolation | IAM / M03 |
 
 ---
 
