@@ -96,8 +96,25 @@ Build the vendor-agnostic punch capture pipeline and deterministic attendance ca
 ## Testing & Verification Plan
 
 ### Test File: `backend/tests/test_adapters.py`
-1. **ZKTeco Parser**: Feeds realistic ZKTeco ADMS raw string $\rightarrow$ verifies canonical punches parsed.
-2. **eSSL Parser**: Feeds eSSL JSON push $\rightarrow$ verifies employee code, timestamp, and direction.
+1. **eTimeOffice / eSSL JSON Parser (Real-World Golden Vector)**:
+   - Feeds exact eTime payload:
+     ```json
+     {
+       "Error": false,
+       "Msg": "Success",
+       "IsAdmin": true,
+       "PunchData": [
+         {"Name": "DR. VAIBHAV KOLHE", "Empcode": "0016", "PunchDate": "20/11/2026 15:04:00", "M_Flag": null},
+         {"Name": "ASHWINI KARAD", "Empcode": "0033", "PunchDate": "20/11/2026 15:04:00", "M_Flag": null},
+         {"Name": "SHRIHARI KHADAKE", "Empcode": "0058", "PunchDate": "20/11/2026 14:23:00", "M_Flag": null}
+       ]
+     }
+     ```
+   - Verifies:
+     - Preserves leading zeros in employee code (`"0016"`, not `16`).
+     - Parses Indian date format `"DD/MM/YYYY HH:MM:SS"` with IST $\rightarrow$ UTC timezone conversion (`"20/11/2026 15:04:00"` IST $\rightarrow$ `2026-11-20T09:34:00Z`).
+     - Maps direction to `UNKNOWN` (to be paired chronologically by M10).
+2. **ZKTeco ADMS Parser**: Feeds realistic ZKTeco ADMS raw string $\rightarrow$ verifies canonical punches parsed.
 3. **CSV Bulk Import**: Feeds 10-line CSV $\rightarrow$ verifies batch conversion to canonical events.
 
 ### Test File: `backend/tests/test_raw_punch.py`
