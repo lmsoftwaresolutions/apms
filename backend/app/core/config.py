@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     jwt_secret: str = "dev-only-change-me"
     jwt_ttl_minutes: int = 480
     cors_origins: str = "http://localhost:5173"
+    pii_encryption_key: str = "dev-secret-pii-encryption-key-32b!"
 
     @property
     def cors_origin_list(self) -> list[str]:
