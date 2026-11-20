@@ -1,14 +1,14 @@
 """Department schema and permissions.
 
-Revision ID: 002_departments
-Revises: 003_rls_fail_closed
+Revision ID: 003_departments
+Revises: 002_rls_fail_closed
 Create Date: 2026-11-19
 """
 
 from alembic import op
 
-revision = "002_departments"
-down_revision = "003_rls_fail_closed"
+revision = "003_departments"
+down_revision = "002_rls_fail_closed"
 branch_labels = None
 depends_on = None
 
@@ -33,7 +33,7 @@ STATEMENTS = [
       CONSTRAINT uq_departments_tenant_id UNIQUE (tenant_id, id),
       CONSTRAINT uq_departments_tenant_branch_code UNIQUE (tenant_id, branch_id, code),
       CONSTRAINT fk_departments_branch FOREIGN KEY (tenant_id, branch_id)
-        REFERENCES branches (tenant_id, id),
+        REFERENCES branches (tenant_id, id) ON DELETE CASCADE,
       CONSTRAINT fk_departments_parent FOREIGN KEY (tenant_id, parent_dept_id)
         REFERENCES departments (tenant_id, id)
     )
@@ -67,13 +67,7 @@ def upgrade() -> None:
         op.execute(statement)
 
     values = ",\n".join(
-        "('{code}', '{module}', '{resource}', '{action}', '{description}')".format(
-            code=code,
-            module=module,
-            resource=resource,
-            action=action,
-            description=description.replace("'", "''"),
-        )
+        f"('{code}', '{module}', '{resource}', '{action}', '{description}')"
         for code, module, resource, action, description in PERMISSIONS
     )
     op.execute(
@@ -86,4 +80,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    codes = ", ".join(f"'{p[0]}'" for p in PERMISSIONS)
+    op.execute(
+        f"""
+        DELETE FROM role_permissions
+        WHERE permission_id IN (SELECT id FROM permissions WHERE code IN ({codes}))
+        """
+    )
+    op.execute(f"DELETE FROM permissions WHERE code IN ({codes})")
     op.execute("DROP TABLE IF EXISTS departments CASCADE")

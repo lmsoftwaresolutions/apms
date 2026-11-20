@@ -1,14 +1,14 @@
 """Employees schema with PII vault and DPDP consent.
 
-Revision ID: 003_employees
-Revises: 002_departments
+Revision ID: 004_employees
+Revises: 003_departments
 Create Date: 2026-11-19
 """
 
 from alembic import op
 
-revision = "003_employees"
-down_revision = "002_departments"
+revision = "004_employees"
+down_revision = "003_departments"
 branch_labels = None
 depends_on = None
 
