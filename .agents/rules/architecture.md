@@ -13,3 +13,14 @@ description: Architectural constraints governing modular monolith boundaries, da
 5. **Declarative Partitioning**: High-volume ingestion tables (`raw_envelope`, `punch_event`) must employ monthly declarative range partitioning.
 6. **Stateless API Services**: All HTTP API endpoints must remain stateless, delegating asynchronous or heavy operations (pay runs, PDF generation, bulk punch processing) to background worker queues.
 
+## Module Architecture: One Module, One Folder, Four Files
+Every business domain module under `backend/app/modules/<module_name>/` must strictly follow the four-file structure:
+
+| File | Responsibility |
+|---|---|
+| `router.py` | FastAPI routes — calls service, returns HTTP response |
+| `service.py` | Business logic only — no HTTP, no raw SQL |
+| `repository.py` | All DB queries for this module only |
+| `schemas.py` | Pydantic request/response models |
+
+

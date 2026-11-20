@@ -27,7 +27,7 @@ export function App() {
 }
 
 function SignIn({ error, onSignedIn }: { error: string; onSignedIn: (token: string) => void }) {
-  const [email, setEmail] = useState("admin@northmill.example");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [localError, setLocalError] = useState("");

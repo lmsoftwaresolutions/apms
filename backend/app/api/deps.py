@@ -2,7 +2,7 @@ from collections.abc import AsyncIterator
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import Depends
+from fastapi import Depends, Header
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,3 +65,11 @@ CurrentDep = Annotated[CurrentUser, Depends(get_current_user)]
 
 def tenant_of(current: CurrentUser) -> UUID:
     return current.tenant_id
+
+
+def idempotency_header(idempotency_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> str | None:
+    return idempotency_key
+
+
+IdempotencyDep = Annotated[str | None, Depends(idempotency_header)]
+
