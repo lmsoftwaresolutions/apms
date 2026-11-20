@@ -6,6 +6,13 @@ from app.modules.branches.service import (
     list_branches,
     update_branch,
 )
+from app.modules.departments.service import (
+    create_department,
+    delete_department,
+    department_to_out as department_out,
+    list_departments,
+    update_department,
+)
 from app.modules.iam.service import (
     assign_role,
     create_role,
@@ -29,4 +36,9 @@ __all__ = [
     "create_branch",
     "update_branch",
     "delete_branch",
+    "department_out",
+    "list_departments",
+    "create_department",
+    "update_department",
+    "delete_department",
 ]
