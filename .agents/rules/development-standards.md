@@ -19,3 +19,10 @@ description: Code quality, typing, testing, migration safety, and Git hygiene st
 1. **Zero-Downtime Schema Migrations**: Column additions must be nullable or possess safe server defaults. No long table locks on partitioned ingestion tables.
 2. **Never Commit Secrets**: Master encryption keys, JWT secrets, and database passwords must be loaded strictly via environment variables.
 
+## 4. Git & Pull Request Discipline
+1. **Conventional Commits**: Use `feat`, `fix`, `docs`, `refactor`, `test` prefixes. No direct unreviewed pushes to `main`.
+2. **Task Completion Workflow**: Stage and commit new/changed files upon task completion using descriptive conventional commits.
+3. **No Automatic Push**: Provide the exact `git push` command for the user to execute manually; do not push automatically.
+4. **Pull Request Description**: Always generate a comprehensive, structured PR description including changes, requirement IDs (`SEC-*`, `EMP-*`, etc.), invariant compliance, and test evidence.
+
+
