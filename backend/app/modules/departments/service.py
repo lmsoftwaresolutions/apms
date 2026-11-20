@@ -14,6 +14,9 @@ from app.modules.departments.schemas import (
 )
 
 
+MAX_DEPT_DEPTH = 50
+
+
 def department_to_out(dept: Department) -> DepartmentOut:
     return DepartmentOut(
         id=dept.id,
@@ -84,6 +87,14 @@ async def update_department(
         branch_ok = await dept_repo.branch_exists_in_tenant(session, tenant_id, payload.branch_id)
         if not branch_ok:
             raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
+        if payload.branch_id != department.branch_id:
+            if await dept_repo.has_sub_departments(session, tenant_id, department_id):
+                raise ProblemError(
+                    409,
+                    "Department has sub-departments",
+                    "Cannot move a department with sub-departments to a different branch. "
+                    "Move or re-parent its children first.",
+                )
 
     update_parent = "parent_dept_id" in payload.model_fields_set
     new_parent_id = payload.parent_dept_id if update_parent else department.parent_dept_id
@@ -100,12 +111,14 @@ async def update_department(
         # Cycle detection: traverse parent hierarchy
         curr = parent
         visited = set()
-        while curr is not None:
+        depth = 0
+        while curr is not None and depth < MAX_DEPT_DEPTH:
             if curr.id == department_id:
                 raise ProblemError(400, "Cyclic department hierarchy", "A department cannot be a descendant of itself.")
             if curr.parent_dept_id is None or curr.id in visited:
                 break
             visited.add(curr.id)
+            depth += 1
             curr = await dept_repo.get_department_by_id(session, tenant_id, curr.parent_dept_id)
 
     try:

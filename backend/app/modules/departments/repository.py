@@ -90,6 +90,8 @@ async def branch_exists_in_tenant(
     tenant_id: UUID,
     branch_id: UUID,
 ) -> bool:
-    branch = await session.get(Branch, branch_id)
-    return branch is not None and branch.tenant_id == tenant_id
+    result = await session.scalar(
+        select(Branch.id).where(Branch.tenant_id == tenant_id, Branch.id == branch_id)
+    )
+    return result is not None
 
