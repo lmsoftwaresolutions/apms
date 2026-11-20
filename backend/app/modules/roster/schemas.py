@@ -2,7 +2,7 @@ from datetime import date, datetime
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class RosterDayMapping(BaseModel):
@@ -12,7 +12,7 @@ class RosterDayMapping(BaseModel):
 
 
 class RosterPatternCreate(BaseModel):
-    code: str = Field(min_length=1, max_length=50)
+    code: str = Field(min_length=2, max_length=50, pattern=r"^[A-Z0-9_-]+$")
     name: str = Field(min_length=1, max_length=200)
     cycle_length_days: int = Field(default=7, ge=1, le=90)
     day_shift_mapping: list[RosterDayMapping] = Field(min_length=1)
@@ -38,6 +38,14 @@ class MaterializeRosterRequest(BaseModel):
     days: int = Field(default=30, ge=1, le=90)  # ADR-15: 30-day forward horizon
     shift_template_id: UUID | None = None
     roster_pattern_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_source_exclusivity(self) -> "MaterializeRosterRequest":
+        if self.shift_template_id and self.roster_pattern_id:
+            raise ValueError("Provide either shift_template_id or roster_pattern_id, not both.")
+        if not self.shift_template_id and not self.roster_pattern_id:
+            raise ValueError("Either shift_template_id or roster_pattern_id must be provided.")
+        return self
 
 
 class MaterializeRosterResponse(BaseModel):

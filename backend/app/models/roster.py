@@ -44,6 +44,12 @@ class DatedShiftInstance(Base):
             name="fk_dated_shift_template",
             ondelete="SET NULL",
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "roster_pattern_id"],
+            ["roster_patterns.tenant_id", "roster_patterns.id"],
+            name="fk_dated_shift_pattern",
+            ondelete="SET NULL",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)

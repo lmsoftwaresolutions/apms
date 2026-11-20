@@ -352,6 +352,7 @@ async def test_n66d_employer_cancellation_attendance_credit(seeded_tenants: tupl
         )
         assert cancel_resp.status_code == 200
         assert cancel_resp.json()["status"] == "CANCELLED_PAID"
+        assert cancel_resp.json()["is_adhoc_modified"] is False  # DESIGN-01: Employer cancellation is not supervisor override
 
         # Verify Attendance Engine credits this as PRESENT with 1.0 worked_ratio (BR-ROL-05)
         async with SessionLocal() as session:
@@ -365,6 +366,21 @@ async def test_n66d_employer_cancellation_attendance_credit(seeded_tenants: tupl
             assert rec.status == "PRESENT"
             assert float(rec.worked_ratio) == 1.0
             assert "N66d" in trace.trace_payload["summary"]["explanation"]
+
+        # IMP-05: Re-running materialization restores a cancelled shift because is_adhoc_modified is False
+        re_mat = await client.post(
+            "/api/v1/roster/materialize",
+            headers=headers,
+            json={
+                "employee_ids": [str(emp_id)],
+                "start_date": "2026-12-25",
+                "days": 1,
+                "shift_template_id": tid,
+            },
+        )
+        assert re_mat.status_code == 201
+        re_check = await client.get(f"/api/v1/roster/instances/{inst_id}", headers=headers)
+        assert re_check.json()["status"] == "SCHEDULED"
 
 
 @pytest.mark.asyncio
@@ -411,3 +427,96 @@ async def test_roster_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) -> Non
                 select(DatedShiftInstance).where(DatedShiftInstance.tenant_id == tenant_a.id)
             )
             assert inst is None
+
+
+@pytest.mark.asyncio
+async def test_materialize_roster_mutual_exclusivity_422() -> None:
+    """DESIGN-04: Enforce mutual exclusivity of shift_template_id and roster_pattern_id."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@northmill.example", "password": "ChangeMe-Admin-1"},
+        )
+        headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+
+        resp = await client.post(
+            "/api/v1/roster/materialize",
+            headers=headers,
+            json={
+                "employee_ids": [str(uuid4())],
+                "start_date": "2026-12-01",
+                "days": 7,
+                "shift_template_id": str(uuid4()),
+                "roster_pattern_id": str(uuid4()),
+            },
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_materialize_roster_missing_employee_404() -> None:
+    """DESIGN-06: Pre-validate that all employee_ids belong to the tenant before materialization."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@northmill.example", "password": "ChangeMe-Admin-1"},
+        )
+        headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+
+        # Create template first
+        t_resp = await client.post(
+            "/api/v1/shifts/templates",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json={
+                "code": f"T404_{uuid4().hex[:6].upper()}",
+                "name": "Template 404",
+                "sessions": [
+                    {"session_order": 1, "start_time": "09:00:00", "end_time": "18:00:00"}
+                ],
+            },
+        )
+        tid = t_resp.json()["id"]
+
+        fake_emp_id = uuid4()
+        resp = await client.post(
+            "/api/v1/roster/materialize",
+            headers=headers,
+            json={
+                "employee_ids": [str(fake_emp_id)],
+                "start_date": "2026-12-01",
+                "days": 7,
+                "shift_template_id": tid,
+            },
+        )
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_roster_pattern_invalid_day_index_422() -> None:
+    """DESIGN-05: Server-side validation of day_index vs cycle_length_days."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@northmill.example", "password": "ChangeMe-Admin-1"},
+        )
+        headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+
+        resp = await client.post(
+            "/api/v1/roster/patterns",
+            headers=headers,
+            json={
+                "code": f"BAD_P_{uuid4().hex[:6].upper()}",
+                "name": "Invalid Day Index Pattern",
+                "cycle_length_days": 7,
+                "day_shift_mapping": [
+                    {"day_index": 15, "is_rest_day": True}  # 15 >= 7!
+                ],
+            },
+        )
+        assert resp.status_code == 422
+        assert "cycle_length_days" in resp.json()["detail"].lower()
+

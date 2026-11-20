@@ -2,10 +2,12 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import set_tenant
+from app.core.errors import ProblemError
+from app.models.employee import Employee
 from app.models.roster import DatedShiftInstance, RosterPattern
 from app.models.shift import ShiftTemplate
 from app.modules.roster.repository import (
@@ -49,18 +51,57 @@ def _snapshot_template_sessions(template: ShiftTemplate) -> list[dict[str, Any]]
     ]
 
 
+def _validate_day_mapping(payload: RosterPatternCreate) -> None:
+    indices = [m.day_index for m in payload.day_shift_mapping]
+    if any(i >= payload.cycle_length_days for i in indices):
+        raise ProblemError(
+            422,
+            "Invalid day_index",
+            f"All day_index values must be < cycle_length_days ({payload.cycle_length_days}).",
+        )
+    if len(set(indices)) != len(indices):
+        raise ProblemError(
+            422,
+            "Duplicate day_index",
+            "Each day_index must appear exactly once in day_shift_mapping.",
+        )
+
+
+async def _validate_employees_in_tenant(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_ids: list[UUID],
+) -> None:
+    result = await session.scalars(
+        select(Employee.id).where(
+            Employee.tenant_id == tenant_id,
+            Employee.id.in_(employee_ids),
+            Employee.is_active.is_(True),
+        )
+    )
+    found = set(result.all())
+    missing = set(employee_ids) - found
+    if missing:
+        raise ProblemError(
+            404,
+            "Employee not found",
+            f"{len(missing)} employee id(s) not found in this tenant.",
+        )
+
+
 async def create_pattern(
     session: AsyncSession,
     tenant_id: UUID,
     payload: RosterPatternCreate,
 ) -> RosterPatternRead:
-    await set_tenant(session, tenant_id)
+    _validate_day_mapping(payload)
 
     existing = await get_roster_pattern_by_code(session, tenant_id, payload.code)
     if existing is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Roster pattern with code '{payload.code}' already exists.",
+        raise ProblemError(
+            409,
+            "Roster pattern code conflict",
+            f"Roster pattern with code '{payload.code}' already exists.",
         )
 
     now = datetime.now(timezone.utc)
@@ -75,7 +116,15 @@ async def create_pattern(
         created_at=now,
         updated_at=now,
     )
-    created = await create_roster_pattern(session, tenant_id, pattern)
+    try:
+        created = await create_roster_pattern(session, tenant_id, pattern)
+    except IntegrityError as exc:
+        raise ProblemError(
+            409,
+            "Roster pattern code conflict",
+            f"Roster pattern with code '{payload.code}' already exists.",
+        ) from exc
+
     return RosterPatternRead.model_validate(created)
 
 
@@ -84,12 +133,12 @@ async def get_pattern(
     tenant_id: UUID,
     pattern_id: UUID,
 ) -> RosterPatternRead:
-    await set_tenant(session, tenant_id)
     pattern = await get_roster_pattern_by_id(session, tenant_id, pattern_id)
     if pattern is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Roster pattern not found.",
+        raise ProblemError(
+            404,
+            "Roster pattern not found",
+            "No roster pattern with that id exists in this tenant.",
         )
     return RosterPatternRead.model_validate(pattern)
 
@@ -98,7 +147,6 @@ async def list_patterns(
     session: AsyncSession,
     tenant_id: UUID,
 ) -> list[RosterPatternRead]:
-    await set_tenant(session, tenant_id)
     patterns = await list_roster_patterns(session, tenant_id)
     return [RosterPatternRead.model_validate(p) for p in patterns]
 
@@ -108,13 +156,21 @@ async def materialize_roster(
     tenant_id: UUID,
     payload: MaterializeRosterRequest,
 ) -> MaterializeRosterResponse:
-    await set_tenant(session, tenant_id)
-
     if payload.shift_template_id is None and payload.roster_pattern_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Either shift_template_id or roster_pattern_id must be provided.",
+        raise ProblemError(
+            422,
+            "Missing shift source",
+            "Either shift_template_id or roster_pattern_id must be provided.",
         )
+    if payload.shift_template_id is not None and payload.roster_pattern_id is not None:
+        raise ProblemError(
+            422,
+            "Conflicting shift sources",
+            "Provide either shift_template_id or roster_pattern_id, not both.",
+        )
+
+    # Pre-validate that all employee_ids exist in this tenant and are active (DESIGN-06)
+    await _validate_employees_in_tenant(session, tenant_id, payload.employee_ids)
 
     template_cache: dict[UUID, ShiftTemplate] = {}
 
@@ -123,9 +179,10 @@ async def materialize_roster(
     if payload.shift_template_id is not None:
         single_template = await get_shift_template_by_id(session, tenant_id, payload.shift_template_id)
         if single_template is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Shift template {payload.shift_template_id} not found.",
+            raise ProblemError(
+                404,
+                "Shift template not found",
+                f"Shift template {payload.shift_template_id} not found in this tenant.",
             )
         template_cache[single_template.id] = single_template
 
@@ -134,9 +191,10 @@ async def materialize_roster(
     if payload.roster_pattern_id is not None:
         pattern = await get_roster_pattern_by_id(session, tenant_id, payload.roster_pattern_id)
         if pattern is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Roster pattern {payload.roster_pattern_id} not found.",
+            raise ProblemError(
+                404,
+                "Roster pattern not found",
+                f"Roster pattern {payload.roster_pattern_id} not found in this tenant.",
             )
         for m in pattern.day_shift_mapping:
             tid = m.get("shift_template_id")
@@ -229,12 +287,12 @@ async def get_instance(
     tenant_id: UUID,
     instance_id: UUID,
 ) -> DatedShiftInstanceRead:
-    await set_tenant(session, tenant_id)
     instance = await get_dated_shift_instance_by_id(session, tenant_id, instance_id)
     if instance is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dated shift instance not found.",
+        raise ProblemError(
+            404,
+            "Dated shift instance not found",
+            "No dated shift instance with that id exists in this tenant.",
         )
     return DatedShiftInstanceRead.model_validate(instance)
 
@@ -246,7 +304,6 @@ async def list_instances(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> list[DatedShiftInstanceRead]:
-    await set_tenant(session, tenant_id)
     instances = await list_dated_shift_instances(
         session, tenant_id, employee_id, start_date, end_date
     )
@@ -261,12 +318,12 @@ async def override_shift_instance(
     current_user_id: UUID | None = None,
 ) -> DatedShiftInstanceRead:
     """N67 supervisor direct override: modifies target date's instance without touching recurring templates."""
-    await set_tenant(session, tenant_id)
     instance = await get_dated_shift_instance_by_id(session, tenant_id, instance_id)
     if instance is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dated shift instance not found.",
+        raise ProblemError(
+            404,
+            "Dated shift instance not found",
+            "No dated shift instance with that id exists in this tenant.",
         )
 
     now = datetime.now(timezone.utc)
@@ -279,15 +336,17 @@ async def override_shift_instance(
         instance.sessions = []
     else:
         if payload.shift_template_id is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="shift_template_id is required when is_rest_day is False.",
+            raise ProblemError(
+                422,
+                "Missing shift template",
+                "shift_template_id is required when is_rest_day is False.",
             )
         template = await get_shift_template_by_id(session, tenant_id, payload.shift_template_id)
         if template is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Shift template {payload.shift_template_id} not found.",
+            raise ProblemError(
+                404,
+                "Shift template not found",
+                f"Shift template {payload.shift_template_id} not found in this tenant.",
             )
         sessions_snapshot = _snapshot_template_sessions(template)
         instance.shift_template_id = template.id
@@ -327,18 +386,23 @@ async def cancel_shift_instance(
     payload: CancelShiftRequest,
     current_user_id: UUID | None = None,
 ) -> DatedShiftInstanceRead:
-    """N66d / ROS-10 employer cancellation: marks instance CANCELLED_PAID."""
-    await set_tenant(session, tenant_id)
+    """N66d / ROS-10 employer cancellation: marks instance CANCELLED_PAID.
+
+    Note (DESIGN-01): Employer cancellation does NOT set is_adhoc_modified = True,
+    so that cancellation is distinct from N67 supervisor overrides and can be
+    re-scheduled/re-materialized.
+    """
     instance = await get_dated_shift_instance_by_id(session, tenant_id, instance_id)
     if instance is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Dated shift instance not found.",
+        raise ProblemError(
+            404,
+            "Dated shift instance not found",
+            "No dated shift instance with that id exists in this tenant.",
         )
 
     now = datetime.now(timezone.utc)
     instance.status = "CANCELLED_PAID"
-    instance.is_adhoc_modified = True
+    # DO NOT set instance.is_adhoc_modified = True (DESIGN-01)
     instance.modified_by_user_id = current_user_id
     instance.modification_reason = payload.reason
     instance.modified_at = now

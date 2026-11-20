@@ -291,3 +291,91 @@ async def test_shifts_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) -> Non
                 select(ShiftTemplate).where(ShiftTemplate.id == template_id)
             )
             assert direct is None
+
+
+@pytest.mark.asyncio
+async def test_overnight_split_still_validates_daytime_overlaps() -> None:
+    """Verify that an overnight session does NOT disable overlap checking for other daytime sessions (BUG-03)."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@northmill.example", "password": "ChangeMe-Admin-1"},
+        )
+        headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+
+        # Session 1: 08:00 - 13:00 (daytime)
+        # Session 2: 12:00 - 17:00 (overlaps with Session 1!)
+        # Session 3: 22:00 - 06:00 (overnight)
+        bad_payload = {
+            "code": f"OVR_{uuid4().hex[:6].upper()}",
+            "name": "Overnight Plus Overlapping Daytime",
+            "shift_type": "SPLIT",
+            "sessions": [
+                {
+                    "session_order": 1,
+                    "name": "Morning Session",
+                    "start_time": "08:00:00",
+                    "end_time": "13:00:00",
+                },
+                {
+                    "session_order": 2,
+                    "name": "Afternoon Session Overlapping",
+                    "start_time": "12:00:00",
+                    "end_time": "17:00:00",
+                },
+                {
+                    "session_order": 3,
+                    "name": "Night Session Overnight",
+                    "start_time": "22:00:00",
+                    "end_time": "06:00:00",
+                },
+            ],
+        }
+        resp = await client.post(
+            "/api/v1/shifts/templates",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json=bad_payload,
+        )
+        assert resp.status_code == 422
+        assert "overlaps" in resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_shift_session_composite_foreign_key_cross_tenant_rejected(seeded_tenants: tuple[Tenant, Tenant]) -> None:
+    """IMP-07: Verify composite FK (tenant_id, shift_template_id) rejects cross-tenant sessions."""
+    tenant_a, tenant_b = seeded_tenants
+    from datetime import UTC, datetime, time
+    from sqlalchemy.exc import IntegrityError
+    from app.core.database import MigrateSession
+
+    async with MigrateSession() as session:
+        # Template in Tenant A
+        t_a = ShiftTemplate(
+            id=uuid4(),
+            tenant_id=tenant_a.id,
+            code=f"FKA_{uuid4().hex[:6].upper()}",
+            name="Tenant A Template",
+            shift_type="FIXED",
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(t_a)
+        await session.flush()
+
+        # Attempt to insert ShiftSession in Tenant B referencing Tenant A template
+        bad_session = ShiftSession(
+            id=uuid4(),
+            tenant_id=tenant_b.id,
+            shift_template_id=t_a.id,
+            session_order=1,
+            start_time=time(9, 0),
+            end_time=time(18, 0),
+            created_at=datetime.now(UTC),
+        )
+        session.add(bad_session)
+        with pytest.raises(IntegrityError) as exc_info:
+            await session.flush()
+        assert "fk_shift_session_template" in str(exc_info.value).lower()
+        await session.rollback()
+

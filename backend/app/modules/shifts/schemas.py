@@ -30,7 +30,7 @@ class ShiftSessionRead(ShiftSessionBase):
 
 
 class ShiftTemplateBase(BaseModel):
-    code: str = Field(min_length=1, max_length=50)
+    code: str = Field(min_length=2, max_length=50, pattern=r"^[A-Z0-9_-]+$")
     name: str = Field(min_length=1, max_length=200)
     shift_type: str = Field(default="FIXED")  # FIXED, FLEXI, OVERNIGHT, SPLIT, CONTINUOUS
     color_code: str | None = Field(default=None, max_length=20)
@@ -42,7 +42,6 @@ class ShiftTemplateCreate(ShiftTemplateBase):
 
 class ShiftTemplateUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    shift_type: str | None = None
     is_active: bool | None = None
     color_code: str | None = None
     sessions: list[ShiftSessionCreate] | None = None
