@@ -3,7 +3,7 @@
 from alembic import op
 
 revision = "002_departments"
-down_revision = "001_iam_branches"
+down_revision = "003_rls_fail_closed"
 branch_labels = None
 depends_on = None
 
