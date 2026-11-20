@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 class PunchIngestRequest(BaseModel):
     source: str = Field(min_length=1, max_length=50)  # ETIMEOFFICE, ZKTECO, CSV_BULK, MOBILE_GEO, MANUAL
     device_identifier: str | None = Field(default=None, max_length=100)
-    raw_payload: dict[str, Any] | str
+    raw_payload: dict[str, Any] | str | bytes
 
 
 class PunchEventRead(BaseModel):

@@ -5,6 +5,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.errors import ProblemError
 from app.models.attendance import AttendanceDailyRecord, AttendanceExplanationTrace
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
 from app.modules.attendance.engine.pairing import pair_punches_for_shift
@@ -84,21 +85,10 @@ async def calculate_and_save_daily_attendance(
                     sessions=session_windows,
                 )
         else:
-            shift_contract = ShiftInstanceContract(
-                calendar_date=calendar_date,
-                shift_type="FIXED",
-                sessions=[
-                    SessionWindow(
-                        session_order=1,
-                        start_time=time(9, 0),
-                        end_time=time(18, 0),
-                        pre_window_minutes=60,
-                        post_window_minutes=120,
-                        min_presence_ratio=0.50,
-                        break_duration_minutes=0,
-                        name="Standard Shift",
-                    )
-                ],
+            raise ProblemError(
+                status=422,
+                title="Unscheduled shift evaluation",
+                detail=f"No scheduled shift found for employee {employee_id} on {calendar_date}. Roster materialization must be run before attendance evaluation.",
             )
 
     # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin

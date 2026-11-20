@@ -257,3 +257,42 @@ async def test_inactive_employee_punch_and_clock_drift(seeded_tenants: tuple[Ten
         active_event = events[0]
         assert active_event.location_meta is not None
         assert active_event.location_meta.get("clock_drift_warning") is True
+
+
+@pytest.mark.asyncio
+async def test_raw_payload_bytes_ingest(seeded_tenants: tuple[Tenant, Tenant]):
+    """IMP-08: Ingest raw punch payload provided as bytes (e.g. ZKTeco or binary streams)."""
+    tenant_a, _ = seeded_tenants
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant_a.id)
+        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        assert branch is not None
+
+        emp_code = f"BYT_{uuid4().hex[:6]}"
+        session.add(
+            Employee(
+                id=uuid4(),
+                tenant_id=tenant_a.id,
+                branch_id=branch.id,
+                employee_code=emp_code,
+                full_name="Bytes Employee",
+                date_of_joining=date(2026, 1, 1),
+                is_active=True,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+        await set_tenant(session, tenant_a.id)
+
+        raw_csv_bytes = f"employee_code,punch_time,direction\n{emp_code},20/11/2026 09:00:00,IN\n".encode("utf-8")
+        res = await process_and_ingest_punches(
+            session=session,
+            tenant_id=tenant_a.id,
+            source="CSV_BULK",
+            raw_payload=raw_csv_bytes,
+        )
+        await session.commit()
+
+        assert res.total_received == 1
+        assert res.active_punches == 1

@@ -1,14 +1,18 @@
 from datetime import UTC, date, datetime, time
+from decimal import Decimal
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import select
 
 from app.core.database import MigrateSession, SessionLocal, set_tenant
+from app.core.errors import ProblemError
+from app.models.attendance import AttendanceDailyRecord
 from app.models.branch import Branch
 from app.models.employee import Employee
 from app.models.iam import Tenant
 from app.models.punch import PunchEvent, RawEnvelope
+from app.models.roster import DatedShiftInstance
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
 from app.modules.attendance.service import calculate_and_save_daily_attendance
 
@@ -328,11 +332,28 @@ async def test_q4_lone_punch_anomaly(seeded_tenants: tuple[Tenant, Tenant]):
         # Re-set tenant after commit
         await set_tenant(session, tenant.id)
 
+        shift = ShiftInstanceContract(
+            calendar_date=cal_date,
+            shift_type="FIXED",
+            sessions=[
+                SessionWindow(
+                    session_order=1,
+                    start_time=time(9, 0),
+                    end_time=time(18, 0),
+                    pre_window_minutes=60,
+                    post_window_minutes=120,
+                    min_presence_ratio=0.50,
+                    break_duration_minutes=0,
+                )
+            ],
+        )
+
         record, trace = await calculate_and_save_daily_attendance(
             session=session,
             tenant_id=tenant.id,
             employee_id=emp_id,
             calendar_date=cal_date,
+            shift_contract=shift,
         )
         await session.commit()
 
@@ -371,6 +392,21 @@ async def test_full_trace_schema_and_append_only(seeded_tenants: tuple[Tenant, T
         await session.commit()
 
         cal_date = date(2026, 11, 20)
+        std_shift = ShiftInstanceContract(
+            calendar_date=cal_date,
+            shift_type="FIXED",
+            sessions=[
+                SessionWindow(
+                    session_order=1,
+                    start_time=time(9, 0),
+                    end_time=time(18, 0),
+                    pre_window_minutes=60,
+                    post_window_minutes=120,
+                    min_presence_ratio=0.50,
+                    break_duration_minutes=0,
+                )
+            ],
+        )
 
         # First calculation (no punches -> ABSENT)
         await set_tenant(session, tenant.id)
@@ -379,6 +415,7 @@ async def test_full_trace_schema_and_append_only(seeded_tenants: tuple[Tenant, T
             tenant_id=tenant.id,
             employee_id=emp_id,
             calendar_date=cal_date,
+            shift_contract=std_shift,
         )
         await session.commit()
 
@@ -398,6 +435,7 @@ async def test_full_trace_schema_and_append_only(seeded_tenants: tuple[Tenant, T
             tenant_id=tenant.id,
             employee_id=emp_id,
             calendar_date=cal_date,
+            shift_contract=std_shift,
         )
         await session.commit()
 
@@ -564,3 +602,98 @@ async def test_employer_cancelled_session_credit(seeded_tenants: tuple[Tenant, T
         assert record.status == "PRESENT"
         assert float(record.worked_ratio) == 1.0
         assert "Employer-cancelled session" in trace.trace_payload["summary"]["explanation"]
+
+
+@pytest.mark.asyncio
+async def test_unscheduled_shift_evaluation_raises_422(seeded_tenants: tuple[Tenant, Tenant]):
+    """DESIGN-06: Evaluator raises ProblemError(422) when no shift instance is found and no contract provided."""
+    tenant, _ = seeded_tenants
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant.id)
+        emp_id = uuid4()
+        with pytest.raises(ProblemError) as exc_info:
+            await calculate_and_save_daily_attendance(
+                session=session,
+                tenant_id=tenant.id,
+                employee_id=emp_id,
+                calendar_date=date(2026, 12, 1),
+            )
+        assert exc_info.value.status == 422
+        assert "No scheduled shift found" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_attendance_composite_foreign_key_cross_tenant_rejected(seeded_tenants: tuple[Tenant, Tenant]):
+    """DESIGN-07: Cross-tenant dated_shift_instance_id reference is rejected by composite foreign key."""
+    tenant_a, tenant_b = seeded_tenants
+
+    async with MigrateSession() as session:
+        branch_a = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        assert branch_a is not None
+        emp_id = uuid4()
+        session.add(
+            Employee(
+                id=emp_id,
+                tenant_id=tenant_a.id,
+                branch_id=branch_a.id,
+                employee_code=f"FK_{uuid4().hex[:6]}",
+                full_name="FK Test Employee",
+                date_of_joining=date(2026, 1, 1),
+                is_active=True,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+        branch_b = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_b.id))
+        assert branch_b is not None
+        emp_b_id = uuid4()
+        session.add(
+            Employee(
+                id=emp_b_id,
+                tenant_id=tenant_b.id,
+                branch_id=branch_b.id,
+                employee_code=f"FKB_{uuid4().hex[:6]}",
+                full_name="Tenant B Employee",
+                date_of_joining=date(2026, 1, 1),
+                is_active=True,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+        shift_b_id = uuid4()
+        session.add(
+            DatedShiftInstance(
+                id=shift_b_id,
+                tenant_id=tenant_b.id,
+                employee_id=emp_b_id,
+                calendar_date=date(2026, 11, 20),
+                status="SCHEDULED",
+                resolution_mode="DIRECT_ASSIGNMENT",
+                sessions=[],
+                is_rest_day=False,
+                is_adhoc_modified=False,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+        rec = AttendanceDailyRecord(
+            id=uuid4(),
+            tenant_id=tenant_a.id,
+            employee_id=emp_id,
+            calendar_date=date(2026, 11, 20),
+            dated_shift_instance_id=shift_b_id,  # Cross-tenant reference!
+            status="PRESENT",
+            worked_duration_minutes=480,
+            scheduled_duration_minutes=480,
+            worked_ratio=Decimal("1.0"),
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        session.add(rec)
+        with pytest.raises(Exception) as exc_info:
+            await session.commit()
+        assert "fk_attendance_dated_shift_instance" in str(exc_info.value).lower()

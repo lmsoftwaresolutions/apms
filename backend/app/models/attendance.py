@@ -21,6 +21,12 @@ class AttendanceDailyRecord(Base):
             name="fk_attendance_employee",
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "dated_shift_instance_id"],
+            ["dated_shift_instances.tenant_id", "dated_shift_instances.id"],
+            name="fk_attendance_dated_shift_instance",
+            ondelete="SET NULL",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
