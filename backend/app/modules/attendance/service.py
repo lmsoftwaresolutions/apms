@@ -32,24 +32,76 @@ async def calculate_and_save_daily_attendance(
     theta_half_day: float = 0.50,
 ) -> tuple[AttendanceDailyRecord, AttendanceExplanationTrace]:
     await set_tenant(session, tenant_id)
-    # Default shift: 09:00 - 18:00 fixed if not explicitly supplied
+    # Default shift: resolve from dated_shift_instances if available, else standard 09:00 - 18:00
     if shift_contract is None:
-        shift_contract = ShiftInstanceContract(
-            calendar_date=calendar_date,
-            shift_type="FIXED",
-            sessions=[
-                SessionWindow(
-                    session_order=1,
-                    start_time=time(9, 0),
-                    end_time=time(18, 0),
-                    pre_window_minutes=60,
-                    post_window_minutes=120,
-                    min_presence_ratio=0.50,
-                    break_duration_minutes=0,
-                    name="Standard Shift",
-                )
-            ],
+        from app.modules.roster.repository import (
+            get_dated_shift_instance_by_employee_and_date,
         )
+
+        instance = await get_dated_shift_instance_by_employee_and_date(
+            session, tenant_id, employee_id, calendar_date
+        )
+        if instance is not None:
+            if instance.status == "CANCELLED_PAID":
+                shift_contract = ShiftInstanceContract(
+                    calendar_date=calendar_date,
+                    shift_template_id=instance.shift_template_id,
+                    dated_shift_instance_id=instance.id,
+                    is_cancelled_paid=True,
+                    sessions=[],
+                )
+            elif instance.is_rest_day or instance.status == "REST_DAY":
+                shift_contract = ShiftInstanceContract(
+                    calendar_date=calendar_date,
+                    shift_template_id=instance.shift_template_id,
+                    dated_shift_instance_id=instance.id,
+                    is_rest_day=True,
+                    sessions=[],
+                )
+            else:
+                session_windows = []
+                for s in instance.sessions:
+                    st_val = s["start_time"]
+                    et_val = s["end_time"]
+                    st = time.fromisoformat(st_val) if isinstance(st_val, str) else st_val
+                    et = time.fromisoformat(et_val) if isinstance(et_val, str) else et_val
+                    session_windows.append(
+                        SessionWindow(
+                            session_order=s.get("session_order", 1),
+                            start_time=st,
+                            end_time=et,
+                            pre_window_minutes=s.get("pre_window_minutes", 60),
+                            post_window_minutes=s.get("post_window_minutes", 120),
+                            min_presence_ratio=float(s.get("min_presence_ratio", 0.50)),
+                            break_duration_minutes=s.get("break_duration_minutes", 0),
+                            is_overnight=s.get("is_overnight", False),
+                            name=s.get("name", "Session"),
+                        )
+                    )
+                shift_contract = ShiftInstanceContract(
+                    calendar_date=calendar_date,
+                    shift_type="SPLIT" if len(session_windows) > 1 else ("OVERNIGHT" if any(w.is_overnight for w in session_windows) else "FIXED"),
+                    shift_template_id=instance.shift_template_id,
+                    dated_shift_instance_id=instance.id,
+                    sessions=session_windows,
+                )
+        else:
+            shift_contract = ShiftInstanceContract(
+                calendar_date=calendar_date,
+                shift_type="FIXED",
+                sessions=[
+                    SessionWindow(
+                        session_order=1,
+                        start_time=time(9, 0),
+                        end_time=time(18, 0),
+                        pre_window_minutes=60,
+                        post_window_minutes=120,
+                        min_presence_ratio=0.50,
+                        break_duration_minutes=0,
+                        name="Standard Shift",
+                    )
+                ],
+            )
 
     # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin
     start_search = datetime.combine(calendar_date, time(0, 0), tzinfo=UTC) - timedelta(hours=6)

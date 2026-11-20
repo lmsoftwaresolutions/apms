@@ -20,6 +20,7 @@ class CurrentUser:
         self.user = user
         self.permissions = permissions
         self.tenant_id = user.tenant_id
+        self.id = user.id
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

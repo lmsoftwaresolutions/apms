@@ -12,11 +12,14 @@ from app.models.iam import (
     UserRole,
 )
 from app.models.punch import PunchEvent, RawEnvelope
+from app.models.roster import DatedShiftInstance, RosterPattern
+from app.models.shift import ShiftSession, ShiftTemplate
 
 __all__ = [
     "AttendanceDailyRecord",
     "AttendanceExplanationTrace",
     "Branch",
+    "DatedShiftInstance",
     "Department",
     "Employee",
     "IdempotencyKey",
@@ -25,6 +28,9 @@ __all__ = [
     "RawEnvelope",
     "Role",
     "RolePermission",
+    "RosterPattern",
+    "ShiftSession",
+    "ShiftTemplate",
     "Tenant",
     "User",
     "UserRole",
