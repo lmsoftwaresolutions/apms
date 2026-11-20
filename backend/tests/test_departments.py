@@ -467,3 +467,59 @@ async def test_clear_parent_department(seeded_tenants: tuple[Tenant, Tenant]) ->
         )
         assert cleared.parent_dept_id is None
 
+
+@pytest.mark.asyncio
+async def test_moving_department_with_children_to_another_branch_rejected_400(
+    seeded_tenants: tuple[Tenant, Tenant],
+) -> None:
+    """Verify that moving a department with sub-departments to another branch is rejected with 400."""
+    tenant_a, _ = seeded_tenants
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant_a.id)
+        b1 = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        assert b1
+        from app.schemas.iam import BranchCreate
+        from app.services.directory import create_branch
+
+        b2 = await create_branch(
+            session,
+            tenant_a.id,
+            BranchCreate(
+                name="New West Branch",
+                code=f"NWB-{uuid4().hex[:4].upper()}",
+            ),
+        )
+
+        parent = await create_department(
+            session,
+            tenant_a.id,
+            DepartmentCreate(
+                branch_id=b1.id,
+                name="Headquarters Ops",
+                code=f"HQ-{uuid4().hex[:4].upper()}",
+            ),
+        )
+        child = await create_department(
+            session,
+            tenant_a.id,
+            DepartmentCreate(
+                branch_id=b1.id,
+                name="Sub Operations Unit",
+                code=f"SOU-{uuid4().hex[:4].upper()}",
+                parent_dept_id=parent.id,
+            ),
+        )
+        assert child.parent_dept_id == parent.id
+
+        # Attempt to change parent department's branch to b2 -> should be rejected with 400
+        with pytest.raises(ProblemError) as exc_info:
+            await update_department(
+                session,
+                tenant_a.id,
+                parent.id,
+                DepartmentUpdate(branch_id=b2.id),
+            )
+        assert exc_info.value.status == 400
+        assert "sub-departments" in exc_info.value.title.lower() or "sub-departments" in exc_info.value.detail.lower()
+
+

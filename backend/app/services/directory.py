@@ -267,6 +267,18 @@ async def update_department(
         branch = await session.get(Branch, payload.branch_id)
         if branch is None or branch.tenant_id != tenant_id:
             raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
+        if payload.branch_id != department.branch_id:
+            has_sub = await session.scalar(
+                select(Department.id)
+                .where(Department.tenant_id == tenant_id, Department.parent_dept_id == department_id)
+                .limit(1)
+            )
+            if has_sub is not None:
+                raise ProblemError(
+                    400,
+                    "Cannot move department with sub-departments",
+                    "Cannot move a department to another branch while sub-departments exist.",
+                )
         department.branch_id = payload.branch_id
     if "parent_dept_id" in payload.model_fields_set:
         chosen_parent_id = payload.parent_dept_id
