@@ -2,7 +2,7 @@
 
 from alembic import op
 
-revision = "003_rls_fail_closed"
+revision = "002_rls_fail_closed"
 down_revision = "001_iam_branches"
 branch_labels = None
 depends_on = None

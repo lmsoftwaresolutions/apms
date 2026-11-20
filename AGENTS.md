@@ -30,4 +30,8 @@ Load only what the task needs: `CONTEXT.md` first, then `SRS.md`, then `BUSINESS
 Never promote OPEN/RECOMMENDED → CONFIRMED without Product Owner approval. Keep requirement IDs stable once published.
 
 ## Git
-Conventional commits (`feat`, `fix`, `docs`, `refactor`, `test`). No direct unreviewed pushes to `main`.
+- Conventional commits (`feat`, `fix`, `docs`, `refactor`, `test`). No direct unreviewed pushes to `main`.
+- Stage and commit new/changed files after completing a task.
+- Provide the exact `git push` command for the user; do not push automatically.
+- Always write a detailed, copy-pasteable Pull Request (PR) description covering the summary, changes, security/invariants verified, and test evidence.
+

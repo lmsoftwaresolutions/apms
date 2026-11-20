@@ -7,6 +7,14 @@ export type Me = {
   permissions: string[];
 };
 export type Branch = { id: string; name: string; code: string; is_active: boolean };
+export type Department = {
+  id: string;
+  branch_id: string;
+  name: string;
+  code: string;
+  parent_dept_id?: string | null;
+  is_active: boolean;
+};
 export type Role = { id: string; code: string; name: string; is_system: boolean; permissions: string[] };
 export type Permission = { code: string; module: string; resource: string; action: string; description: string };
 export type DirectoryUser = { id: string; email: string; full_name: string; is_active: boolean; roles: string[] };
@@ -70,6 +78,17 @@ export const api = {
   updateBranch: (id: string, body: Partial<Pick<Branch, "name" | "code" | "is_active">>) =>
     request<Branch>(`/api/v1/branches/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteBranch: (id: string) => request(`/api/v1/branches/${id}`, { method: "DELETE" }),
+  departments: (branchId?: string) =>
+    request<Department[]>(branchId ? `/api/v1/departments?branch_id=${encodeURIComponent(branchId)}` : "/api/v1/departments"),
+  createDepartment: (branch_id: string, name: string, code: string) =>
+    request<Department>("/api/v1/departments", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ branch_id, name, code }),
+    }),
+  updateDepartment: (id: string, body: Partial<Pick<Department, "name" | "code" | "branch_id" | "is_active">>) =>
+    request<Department>(`/api/v1/departments/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteDepartment: (id: string) => request(`/api/v1/departments/${id}`, { method: "DELETE" }),
   roles: () => request<Role[]>("/api/v1/roles"),
   permissions: () => request<Permission[]>("/api/v1/permissions"),
   createRole: (code: string, name: string, permissions: string[]) =>

@@ -6,9 +6,10 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql+asyncpg://apms_app:apms_app@localhost:5432/apms"
     database_url_migrate: str = "postgresql+asyncpg://apms:apms@localhost:5432/apms"
-    jwt_secret: str = "dev-only-change-me"
+    jwt_secret: str = "dev-only-change-me-jwt-secret-32b!"
     jwt_ttl_minutes: int = 480
     cors_origins: str = "http://localhost:5173"
+    pii_encryption_key: str = "dev-secret-pii-encryption-key-32b!"
 
     @property
     def cors_origin_list(self) -> list[str]:
