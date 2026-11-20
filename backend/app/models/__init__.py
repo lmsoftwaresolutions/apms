@@ -1,4 +1,5 @@
 from app.models.branch import Branch
+from app.models.department import Department
 from app.models.iam import (
     IdempotencyKey,
     Permission,
@@ -11,6 +12,7 @@ from app.models.iam import (
 
 __all__ = [
     "Branch",
+    "Department",
     "IdempotencyKey",
     "Permission",
     "Role",

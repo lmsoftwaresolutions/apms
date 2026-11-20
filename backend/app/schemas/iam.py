@@ -11,6 +11,11 @@ from app.modules.branches.schemas import (
     BranchOut,
     BranchUpdate,
 )
+from app.modules.departments.schemas import (
+    DepartmentCreate,
+    DepartmentOut,
+    DepartmentUpdate,
+)
 from app.modules.iam.schemas import (
     AssignmentIn,
     DeletedOut,
@@ -36,5 +41,8 @@ __all__ = [
     "BranchOut",
     "BranchCreate",
     "BranchUpdate",
+    "DepartmentOut",
+    "DepartmentCreate",
+    "DepartmentUpdate",
     "DeletedOut",
 ]
