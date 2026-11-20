@@ -84,13 +84,26 @@ async def seed() -> None:
                     )
                     session.add(role)
                     await session.flush()
-                    for permission_code in bundles[code]:
+
+                existing_perm_ids = set(
+                    (
+                        await session.scalars(
+                            select(RolePermission.permission_id).where(
+                                RolePermission.tenant_id == tenant.id,
+                                RolePermission.role_id == role.id,
+                            )
+                        )
+                    ).all()
+                )
+                for permission_code in bundles[code]:
+                    perm = by_code.get(permission_code)
+                    if perm and perm.id not in existing_perm_ids:
                         session.add(
                             RolePermission(
                                 id=uuid4(),
                                 tenant_id=tenant.id,
                                 role_id=role.id,
-                                permission_id=by_code[permission_code].id,
+                                permission_id=perm.id,
                             )
                         )
                 roles[code] = role
