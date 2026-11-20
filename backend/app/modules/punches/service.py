@@ -1,0 +1,148 @@
+from datetime import UTC, datetime
+import hashlib
+import json
+from typing import Any
+from uuid import UUID, uuid4
+
+from fastapi import HTTPException, status
+
+from app.adapters.base import BasePunchAdapter, CanonicalPunch
+from app.adapters.csv_bulk import CSVBulkAdapter
+from app.adapters.etimeoffice import ETimeOfficeAdapter
+from app.adapters.zkteco import ZKTecoADMSAdapter
+from app.core.database import set_tenant
+from app.models.punch import PunchEvent, RawEnvelope
+from app.modules.punches.repository import (
+    find_envelope_by_hash,
+    find_recent_punch_within_window,
+    get_employee_id_by_code,
+    insert_punch_events,
+    insert_raw_envelope,
+)
+from app.modules.punches.schemas import PunchIngestResult
+
+
+def get_adapter_for_source(source: str) -> BasePunchAdapter:
+    src = source.upper()
+    if src in ("ETIMEOFFICE", "ETIME", "ESSL"):
+        return ETimeOfficeAdapter()
+    elif src in ("ZKTECO", "ADMS"):
+        return ZKTecoADMSAdapter()
+    elif src in ("CSV_BULK", "CSV", "EXCEL"):
+        return CSVBulkAdapter()
+    # Default to eTime if JSON, CSV otherwise
+    return ETimeOfficeAdapter()
+
+
+def compute_payload_hash(raw_payload: Any) -> str:
+    if isinstance(raw_payload, str):
+        payload_bytes = raw_payload.encode("utf-8")
+    elif isinstance(raw_payload, bytes):
+        payload_bytes = raw_payload
+    else:
+        payload_bytes = json.dumps(raw_payload, sort_keys=True, default=str).encode("utf-8")
+    return hashlib.sha256(payload_bytes).hexdigest()
+
+
+async def process_and_ingest_punches(
+    session: Any,
+    tenant_id: UUID,
+    source: str,
+    raw_payload: Any,
+    device_identifier: str | None = None,
+) -> PunchIngestResult:
+    await set_tenant(session, tenant_id)
+    # 1. Compute SHA-256 hash for deduplication
+    payload_hash = compute_payload_hash(raw_payload)
+
+    # Check if duplicate envelope already ingested
+    existing = await find_envelope_by_hash(session, tenant_id, payload_hash)
+    if existing:
+        return PunchIngestResult(
+            raw_envelope_id=existing.id,
+            source=source,
+            total_received=0,
+            active_punches=0,
+            duplicates_ignored=0,
+            unmatched_employees=[],
+        )
+
+    # 2. Append-only persistence into raw_envelope (BR-ING-01)
+    normalized_payload = raw_payload if isinstance(raw_payload, dict) else {"data": str(raw_payload)}
+    envelope = RawEnvelope(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        source=source.upper(),
+        device_identifier=device_identifier,
+        raw_payload=normalized_payload,
+        payload_hash=payload_hash,
+        received_at=datetime.now(UTC),
+    )
+    await insert_raw_envelope(session, envelope)
+
+    # 3. Parse with Adapter SPI
+    adapter = get_adapter_for_source(source)
+    canonical_punches: list[CanonicalPunch] = adapter.parse_payload(raw_payload, device_identifier)
+
+    active_count = 0
+    duplicate_count = 0
+    unmatched_codes: list[str] = []
+    events_to_insert: list[PunchEvent] = []
+
+    # Cache code to employee_id lookups
+    employee_cache: dict[str, UUID | None] = {}
+
+    for punch in canonical_punches:
+        code = punch.employee_code
+        if code not in employee_cache:
+            emp_id = await get_employee_id_by_code(session, tenant_id, code)
+            employee_cache[code] = emp_id
+
+        emp_id = employee_cache[code]
+        if not emp_id:
+            if code not in unmatched_codes:
+                unmatched_codes.append(code)
+            continue
+
+        # 4. Debounce Engine: BR-PCH-01 (60-second window deduplication)
+        recent = await find_recent_punch_within_window(
+            session=session,
+            tenant_id=tenant_id,
+            employee_id=emp_id,
+            punch_time=punch.punch_time,
+            window_seconds=60,
+        )
+
+        punch_status = "ACTIVE"
+        if recent is not None:
+            punch_status = "DUPLICATE_IGNORED"
+            duplicate_count += 1
+        else:
+            active_count += 1
+
+        events_to_insert.append(
+            PunchEvent(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                raw_envelope_id=envelope.id,
+                employee_id=emp_id,
+                punch_time=punch.punch_time,
+                punch_direction=punch.punch_direction,
+                source=punch.source,
+                status=punch_status,
+                location_meta=punch.location_meta,
+                created_at=datetime.now(UTC),
+            )
+        )
+
+    if events_to_insert:
+        await insert_punch_events(session, events_to_insert)
+
+    return PunchIngestResult(
+        raw_envelope_id=envelope.id,
+        source=source.upper(),
+        total_received=len(canonical_punches),
+        active_punches=active_count,
+        duplicates_ignored=duplicate_count,
+        unmatched_employees=unmatched_codes,
+    )
