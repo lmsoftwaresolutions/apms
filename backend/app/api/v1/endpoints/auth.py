@@ -1,7 +1,5 @@
-# Backwards-compatibility wrapper
+# Backwards-compatibility wrapper — real logic lives in app.modules.auth
 from app.api.deps import IdempotencyDep, idempotency_header
 from app.modules.auth.router import router
 
-CurrentUserDep = None
-
-__all__ = ["router", "IdempotencyDep", "idempotency_header", "CurrentUserDep"]
+__all__ = ["router", "IdempotencyDep", "idempotency_header"]
