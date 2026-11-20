@@ -444,3 +444,57 @@ async def test_clear_parent_department(seeded_tenants: tuple[Tenant, Tenant]) ->
         )
         assert cleared.parent_dept_id is None
 
+
+@pytest.mark.asyncio
+async def test_cannot_move_parent_department_with_children_to_new_branch(
+    seeded_tenants: tuple[Tenant, Tenant],
+) -> None:
+    """Verify that moving a department with sub-departments to a different branch is rejected with 409."""
+    tenant_a, _ = seeded_tenants
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant_a.id)
+        b1 = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        assert b1
+        from app.schemas.iam import BranchCreate
+        from app.services.directory import create_branch
+
+        b2 = await create_branch(
+            session,
+            tenant_a.id,
+            BranchCreate(
+                name="Second Branch",
+                code=f"SB-{uuid4().hex[:4].upper()}",
+            ),
+        )
+
+        parent = await create_department(
+            session,
+            tenant_a.id,
+            DepartmentCreate(
+                branch_id=b1.id,
+                name="Parent Dept",
+                code=f"PAR-{uuid4().hex[:4].upper()}",
+            ),
+        )
+        await create_department(
+            session,
+            tenant_a.id,
+            DepartmentCreate(
+                branch_id=b1.id,
+                name="Child Dept",
+                code=f"CHD-{uuid4().hex[:4].upper()}",
+                parent_dept_id=parent.id,
+            ),
+        )
+
+        with pytest.raises(ProblemError) as exc:
+            await update_department(
+                session,
+                tenant_a.id,
+                parent.id,
+                DepartmentUpdate(branch_id=b2.id),
+            )
+        assert exc.value.status == 409
+        assert "sub-departments" in exc.value.detail.lower()
+
+
