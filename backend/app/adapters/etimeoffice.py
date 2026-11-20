@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -39,11 +39,14 @@ class ETimeOfficeAdapter(BasePunchAdapter):
             try:
                 local_dt = datetime.strptime(punch_date_str.strip(), "%d/%m/%Y %H:%M:%S")
                 # Attach IST timezone and convert to UTC
-                utc_dt = local_dt.replace(tzinfo=IST)
+                utc_dt = local_dt.replace(tzinfo=IST).astimezone(UTC)
             except ValueError:
                 try:
                     # Fallback to ISO format if provided
-                    utc_dt = datetime.fromisoformat(punch_date_str.strip())
+                    parsed = datetime.fromisoformat(punch_date_str.strip())
+                    if parsed.tzinfo is None:
+                        parsed = parsed.replace(tzinfo=IST)
+                    utc_dt = parsed.astimezone(UTC)
                 except ValueError:
                     continue
 

@@ -158,11 +158,12 @@ STATEMENTS = [
       calendar_date date NOT NULL,
       trace_payload jsonb NOT NULL,
       evaluated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
-      CONSTRAINT uq_attendance_trace_record UNIQUE (tenant_id, attendance_record_id),
+      CONSTRAINT uq_attendance_trace_tenant_id UNIQUE (tenant_id, id),
       CONSTRAINT fk_attendance_trace_record FOREIGN KEY (tenant_id, attendance_record_id)
         REFERENCES attendance_daily_records (tenant_id, id) ON DELETE CASCADE
     )
     """,
+    "CREATE INDEX ix_attendance_trace_lookup ON attendance_explanation_traces (tenant_id, attendance_record_id, evaluated_at DESC)",
     "ALTER TABLE attendance_explanation_traces ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE attendance_explanation_traces FORCE ROW LEVEL SECURITY",
     """
@@ -183,7 +184,7 @@ STATEMENTS = [
       END
     )
     """,
-    "GRANT SELECT, INSERT, UPDATE, DELETE ON attendance_explanation_traces TO apms_app",
+    "GRANT SELECT, INSERT ON attendance_explanation_traces TO apms_app",
 ]
 
 

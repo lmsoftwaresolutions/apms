@@ -51,12 +51,14 @@ def test_etime_office_real_world_payload():
 
     # Timezone check: 15:04:00 IST -> 09:34:00 UTC
     expected_utc = datetime(2026, 11, 20, 9, 34, 0, tzinfo=UTC)
-    assert p1.punch_time.astimezone(UTC) == expected_utc
+    assert p1.punch_time == expected_utc
+    assert p1.punch_time.tzinfo == UTC
 
     p3 = punches[2]
     assert p3.employee_code == "0078"
     expected_p3_utc = datetime(2026, 11, 20, 8, 38, 0, tzinfo=UTC)
-    assert p3.punch_time.astimezone(UTC) == expected_p3_utc
+    assert p3.punch_time == expected_p3_utc
+    assert p3.punch_time.tzinfo == UTC
 
 
 def test_zkteco_adms_tabular_payload():
@@ -74,9 +76,13 @@ def test_zkteco_adms_tabular_payload():
     assert punches[0].employee_code == "EMP001"
     assert punches[0].punch_direction == "IN"  # Status 0 = IN
     assert punches[0].source == "ZKTECO"
+    assert punches[0].punch_time == datetime(2026, 11, 20, 3, 30, 0, tzinfo=UTC)
+    assert punches[0].punch_time.tzinfo == UTC
 
     assert punches[1].employee_code == "EMP001"
     assert punches[1].punch_direction == "OUT"  # Status 1 = OUT
+    assert punches[1].punch_time == datetime(2026, 11, 20, 12, 30, 0, tzinfo=UTC)
+    assert punches[1].punch_time.tzinfo == UTC
 
     assert punches[2].employee_code == "EMP002"
     assert punches[2].punch_direction == "IN"
@@ -97,7 +103,14 @@ def test_csv_bulk_import_adapter():
     assert len(punches) == 3
     assert punches[0].employee_code == "0016"
     assert punches[0].punch_direction == "IN"
+    assert punches[0].punch_time == datetime(2026, 11, 20, 3, 30, 0, tzinfo=UTC)
+    assert punches[0].punch_time.tzinfo == UTC
     assert punches[1].employee_code == "0016"
+    assert punches[1].punch_direction == "OUT"
+    assert punches[1].punch_time == datetime(2026, 11, 20, 12, 30, 0, tzinfo=UTC)
+    assert punches[1].punch_time.tzinfo == UTC
+    assert punches[2].employee_code == "0033"
+    assert punches[2].punch_direction == "IN"
     assert punches[1].punch_direction == "OUT"
     assert punches[2].employee_code == "0033"
     assert punches[2].punch_direction == "IN"

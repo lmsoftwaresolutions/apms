@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -30,7 +31,7 @@ class AttendanceDailyRecord(Base):
     status: Mapped[str]
     worked_duration_minutes: Mapped[int] = mapped_column(default=0)
     scheduled_duration_minutes: Mapped[int] = mapped_column(default=0)
-    worked_ratio: Mapped[float] = mapped_column(Numeric(5, 4), default=0.0)
+    worked_ratio: Mapped[Decimal] = mapped_column(Numeric(5, 4), default=Decimal("0.0"))
     late_minutes: Mapped[int] = mapped_column(default=0)
     early_departure_minutes: Mapped[int] = mapped_column(default=0)
     overtime_minutes: Mapped[int] = mapped_column(default=0)
@@ -43,7 +44,7 @@ class AttendanceDailyRecord(Base):
 class AttendanceExplanationTrace(Base):
     __tablename__ = "attendance_explanation_traces"
     __table_args__ = (
-        UniqueConstraint("tenant_id", "attendance_record_id", name="uq_attendance_trace_record"),
+        UniqueConstraint("tenant_id", "id", name="uq_attendance_trace_tenant_id"),
         ForeignKeyConstraint(
             ["tenant_id", "attendance_record_id"],
             ["attendance_daily_records.tenant_id", "attendance_daily_records.id"],

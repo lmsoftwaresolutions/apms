@@ -1,5 +1,5 @@
 import csv
-from datetime import datetime
+from datetime import UTC, datetime
 import io
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -59,14 +59,18 @@ class CSVBulkAdapter(BasePunchAdapter):
                 for fmt in ["%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%d-%m-%Y %H:%M:%S", "%Y/%m/%d %H:%M:%S"]:
                     try:
                         local_dt = datetime.strptime(val, fmt)
-                        utc_dt = local_dt.replace(tzinfo=IST)
+                        utc_dt = local_dt.replace(tzinfo=IST).astimezone(UTC)
                         break
                     except ValueError:
                         pass
 
                 if utc_dt is None:
                     try:
-                        utc_dt = datetime.fromisoformat(val)
+                        parsed = datetime.fromisoformat(val)
+                        if parsed.tzinfo is None:
+                            utc_dt = parsed.replace(tzinfo=IST).astimezone(UTC)
+                        else:
+                            utc_dt = parsed.astimezone(UTC)
                     except ValueError:
                         continue
             else:

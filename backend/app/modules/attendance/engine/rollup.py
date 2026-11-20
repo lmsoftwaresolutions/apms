@@ -53,7 +53,7 @@ def evaluate_daily_rollup(
         )
 
     # 3. Single-Punch Anomaly (Q4 / BR-ATT-04 / BR-ATT-16)
-    if pairing.total_punches_matched == 1 or (len(pairing.sessions) == 1 and pairing.sessions[0].is_single_punch):
+    if pairing.total_punches_matched == 1 or pairing.has_single_punch or (len(pairing.sessions) == 1 and pairing.sessions[0].is_single_punch):
         return DailyRollupDecision(
             status="NEEDS_REVIEW",
             worked_ratio=0.0,
@@ -64,7 +64,7 @@ def evaluate_daily_rollup(
             overtime_minutes=0,  # Never auto-grant OT from lone punch
             is_single_punch=True,
             anomaly_code="LONE_PUNCH_ANOMALY",
-            explanation="Only a single punch recorded for the shift. Defaults to NEEDS_REVIEW per Q4.",
+            explanation="Single or unpaired punch recorded for shift session. Defaults to NEEDS_REVIEW per Q4.",
         )
 
     # 4. Zero punches matched
