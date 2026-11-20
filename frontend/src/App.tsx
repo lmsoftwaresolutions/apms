@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api, Branch, DirectoryUser, loadToken, Me, Permission, Role, saveToken } from "./api";
+import { api, Branch, Department, DirectoryUser, loadToken, Me, Permission, Role, saveToken } from "./api";
 
 function can(me: Me, code: string) {
   return me.permissions.includes(code);
@@ -90,6 +90,7 @@ function Console({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
       </header>
       <div className="layout">
         <Branches me={me} />
+        {can(me, "org.department.read") ? <Departments me={me} /> : null}
         {can(me, "iam.role.read") ? <Roles me={me} /> : <p className="empty">Role administration is not on this account.</p>}
       </div>
     </div>
@@ -168,6 +169,153 @@ function Branches({ me }: { me: Me }) {
           <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
           <label>Code<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>
           <button className="primary" type="submit" disabled={!name || code.length < 2}>Add branch</button>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
+function Departments({ me }: { me: Me }) {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  async function refresh(targetBranchId?: string) {
+    setLoading(true);
+    try {
+      const branchList = await api.branches();
+      setBranches(branchList);
+      const activeBranchId = targetBranchId ?? selectedBranchId ?? branchList[0]?.id ?? "";
+      if (!selectedBranchId && branchList.length > 0) {
+        setSelectedBranchId(branchList[0].id);
+      }
+      const deptList = await api.departments(activeBranchId || undefined);
+      setDepartments(deptList);
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load departments");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void refresh();
+  }, [selectedBranchId]);
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedBranchId) return;
+    setError("");
+    try {
+      await api.createDepartment(selectedBranchId, name, code.toUpperCase());
+      setName("");
+      setCode("");
+      await refresh(selectedBranchId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create the department");
+    }
+  }
+
+  const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
+
+  return (
+    <section className="panel">
+      <h2>Departments</h2>
+      <div className="stack">
+        {branches.length > 0 ? (
+          <label>
+            Filter by Branch
+            <select
+              value={selectedBranchId}
+              onChange={(e) => {
+                setSelectedBranchId(e.target.value);
+                void refresh(e.target.value);
+              }}
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+      </div>
+      {loading ? <p>Loading departments…</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      {!loading && departments.length === 0 ? <p className="empty">No departments yet.</p> : null}
+      {departments.length > 0 ? (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Branch</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {departments.map((dept) => (
+              <tr key={dept.id}>
+                <td>{dept.code}</td>
+                <td>{dept.name}</td>
+                <td>{branchNameById.get(dept.branch_id) || dept.branch_id.slice(0, 8)}</td>
+                <td>{dept.is_active ? "Active" : "Inactive"}</td>
+                <td className="row">
+                  {can(me, "org.department.update") ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        api.updateDepartment(dept.id, { is_active: !dept.is_active }).then(() => refresh(selectedBranchId))
+                      }
+                    >
+                      {dept.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                  ) : null}
+                  {can(me, "org.department.delete") ? (
+                    <button
+                      className="danger"
+                      type="button"
+                      onClick={() => api.deleteDepartment(dept.id).then(() => refresh(selectedBranchId))}
+                    >
+                      Delete
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      {can(me, "org.department.create") ? (
+        <form className="stack" onSubmit={create}>
+          <label>
+            Branch
+            <select value={selectedBranchId} onChange={(e) => setSelectedBranchId(e.target.value)}>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Name
+            <input value={name} onChange={(event) => setName(event.target.value)} />
+          </label>
+          <label>
+            Code
+            <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+          </label>
+          <button className="primary" type="submit" disabled={!name || code.length < 2 || !selectedBranchId}>
+            Add department
+          </button>
         </form>
       ) : null}
     </section>

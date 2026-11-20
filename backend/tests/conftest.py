@@ -3,7 +3,7 @@ from app.core.database import engine, migrate_engine
 
 
 @pytest.fixture(autouse=True)
-async def cleanup_db():
+def cleanup_db():
     yield
-    await engine.dispose()
-    await migrate_engine.dispose()
+    engine.sync_engine.dispose()
+    migrate_engine.sync_engine.dispose()
