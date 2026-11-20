@@ -31,7 +31,7 @@ async def calculate_and_save_daily_attendance(
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
 ) -> tuple[AttendanceDailyRecord, AttendanceExplanationTrace]:
-    # Default shift: resolve from dated_shift_instances if available, else standard 09:00 - 18:00
+    # Resolve shift contract from dated_shift_instances; fail with 422 if unscheduled
     if shift_contract is None:
         from app.modules.roster.repository import (
             get_dated_shift_instance_by_employee_and_date,
