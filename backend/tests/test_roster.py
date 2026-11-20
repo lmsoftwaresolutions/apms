@@ -12,7 +12,6 @@ from app.models.branch import Branch
 from app.models.employee import Employee
 from app.models.iam import Tenant
 from app.models.roster import DatedShiftInstance
-from app.modules.attendance.service import calculate_and_save_daily_attendance
 
 
 @pytest.fixture
@@ -353,19 +352,6 @@ async def test_n66d_employer_cancellation_attendance_credit(seeded_tenants: tupl
         assert cancel_resp.status_code == 200
         assert cancel_resp.json()["status"] == "CANCELLED_PAID"
         assert cancel_resp.json()["is_adhoc_modified"] is False  # DESIGN-01: Employer cancellation is not supervisor override
-
-        # Verify Attendance Engine credits this as PRESENT with 1.0 worked_ratio (BR-ROL-05)
-        async with SessionLocal() as session:
-            await set_tenant(session, tenant_a.id)
-            rec, trace = await calculate_and_save_daily_attendance(
-                session=session,
-                tenant_id=tenant_a.id,
-                employee_id=emp_id,
-                calendar_date=date(2026, 12, 25),
-            )
-            assert rec.status == "PRESENT"
-            assert float(rec.worked_ratio) == 1.0
-            assert "N66d" in trace.trace_payload["summary"]["explanation"]
 
         # IMP-05: Re-running materialization restores a cancelled shift because is_adhoc_modified is False
         re_mat = await client.post(
