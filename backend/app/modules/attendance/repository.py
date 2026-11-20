@@ -41,9 +41,14 @@ async def get_trace_by_record_id(
     tenant_id: UUID,
     record_id: UUID,
 ) -> AttendanceExplanationTrace | None:
-    stmt = select(AttendanceExplanationTrace).where(
-        AttendanceExplanationTrace.tenant_id == tenant_id,
-        AttendanceExplanationTrace.attendance_record_id == record_id,
+    stmt = (
+        select(AttendanceExplanationTrace)
+        .where(
+            AttendanceExplanationTrace.tenant_id == tenant_id,
+            AttendanceExplanationTrace.attendance_record_id == record_id,
+        )
+        .order_by(AttendanceExplanationTrace.evaluated_at.desc())
+        .limit(1)
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
@@ -62,13 +67,7 @@ async def save_explanation_trace(
     session: AsyncSession,
     trace: AttendanceExplanationTrace,
 ) -> AttendanceExplanationTrace:
-    # Delete previous trace if exists for this record
-    await session.execute(
-        delete(AttendanceExplanationTrace).where(
-            AttendanceExplanationTrace.tenant_id == trace.tenant_id,
-            AttendanceExplanationTrace.attendance_record_id == trace.attendance_record_id,
-        )
-    )
+    # Strictly append-only audit trace (Invariant 4, ATT-09)
     session.add(trace)
     await session.flush()
     return trace

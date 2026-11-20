@@ -76,7 +76,9 @@ def pair_punches_for_shift(
     total_early = 0
     all_matched_punches = set()
 
-    for idx, s in enumerate(shift.sessions):
+    sorted_sessions = sorted(shift.sessions, key=lambda s: s.session_order)
+
+    for idx, s in enumerate(sorted_sessions):
         # Scheduled Start & End
         sched_start_utc = _combine_date_time_utc(cal_date, s.start_time)
         is_end_next_day = s.is_overnight or (s.end_time < s.start_time)
@@ -146,8 +148,8 @@ def pair_punches_for_shift(
 
     # N65 Mid-Shift Gap Exclusion:
     # If multi-session (e.g. 2 sessions), the interval [Session1_End, Session2_Start] is explicitly excluded!
-    if len(shift.sessions) >= 2:
-        for i in range(len(shift.sessions) - 1):
+    if len(sorted_sessions) >= 2:
+        for i in range(len(sorted_sessions) - 1):
             s1 = result.sessions[i]
             s2 = result.sessions[i + 1]
             gap_seconds = (s2.scheduled_start - s1.scheduled_end).total_seconds()

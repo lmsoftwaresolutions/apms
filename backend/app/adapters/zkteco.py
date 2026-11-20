@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -42,11 +42,11 @@ class ZKTecoADMSAdapter(BasePunchAdapter):
             try:
                 # Standard ZKTeco time format
                 local_dt = datetime.strptime(time_str, "%Y-%m-%d %H:%M:%S")
-                utc_dt = local_dt.replace(tzinfo=IST)
+                utc_dt = local_dt.replace(tzinfo=IST).astimezone(UTC)
             except ValueError:
                 try:
                     local_dt = datetime.strptime(time_str, "%d/%m/%Y %H:%M:%S")
-                    utc_dt = local_dt.replace(tzinfo=IST)
+                    utc_dt = local_dt.replace(tzinfo=IST).astimezone(UTC)
                 except ValueError:
                     continue
 

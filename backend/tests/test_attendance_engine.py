@@ -342,3 +342,225 @@ async def test_q4_lone_punch_anomaly(seeded_tenants: tuple[Tenant, Tenant]):
         assert record.anomaly_code == "LONE_PUNCH_ANOMALY"
         assert record.overtime_minutes == 0  # BR-ATT-16: Never grant OT on lone punch
         assert trace.trace_payload["summary"]["assigned_status"] == "NEEDS_REVIEW"
+
+
+@pytest.mark.asyncio
+async def test_full_trace_schema_and_append_only(seeded_tenants: tuple[Tenant, Tenant]):
+    """IMP-02 & DESIGN-02: Verify full audit trace JSON schema and append-only recalculation."""
+    tenant, _ = seeded_tenants
+
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant.id)
+        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant.id))
+        assert branch is not None
+
+        emp_id = uuid4()
+        session.add(
+            Employee(
+                id=emp_id,
+                tenant_id=tenant.id,
+                branch_id=branch.id,
+                employee_code=f"TRC_{uuid4().hex[:6]}",
+                full_name="Trace Auditor",
+                date_of_joining=date(2026, 1, 1),
+                is_active=True,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+        cal_date = date(2026, 11, 20)
+
+        # First calculation (no punches -> ABSENT)
+        await set_tenant(session, tenant.id)
+        rec1, trace1 = await calculate_and_save_daily_attendance(
+            session=session,
+            tenant_id=tenant.id,
+            employee_id=emp_id,
+            calendar_date=cal_date,
+        )
+        await session.commit()
+
+        # Schema assertions on trace1
+        payload = trace1.trace_payload
+        for k in ["engine_version", "evaluated_at", "calendar_date", "policy_bands", "sessions", "summary"]:
+            assert k in payload
+
+        for s in payload["sessions"]:
+            for sk in ["session_order", "session_name", "scheduled_start", "scheduled_end", "window_start", "window_end", "session_eligibility"]:
+                assert sk in s
+
+        # Second calculation (recalculate -> must append new trace, not delete old one)
+        await set_tenant(session, tenant.id)
+        rec2, trace2 = await calculate_and_save_daily_attendance(
+            session=session,
+            tenant_id=tenant.id,
+            employee_id=emp_id,
+            calendar_date=cal_date,
+        )
+        await session.commit()
+
+        assert trace2.id != trace1.id
+        assert rec2.id == rec1.id  # Same daily record updated, new trace appended
+
+
+@pytest.mark.asyncio
+async def test_overnight_shift_attribution(seeded_tenants: tuple[Tenant, Tenant]):
+    """IMP-03: Overnight shift (22:00 - 06:00 next day) correctly attributed to shift start date."""
+    tenant, _ = seeded_tenants
+
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant.id)
+        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant.id))
+        assert branch is not None
+
+        emp_id = uuid4()
+        session.add(
+            Employee(
+                id=emp_id,
+                tenant_id=tenant.id,
+                branch_id=branch.id,
+                employee_code=f"NIGHT_{uuid4().hex[:6]}",
+                full_name="Night Shift Worker",
+                date_of_joining=date(2026, 1, 1),
+                is_active=True,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+
+        env_id = uuid4()
+        session.add(
+            RawEnvelope(
+                id=env_id,
+                tenant_id=tenant.id,
+                source="TEST",
+                raw_payload={},
+                payload_hash=f"hash_night_{uuid4().hex[:8]}",
+                received_at=datetime.now(UTC),
+            )
+        )
+        await session.flush()
+
+        shift_date = date(2026, 11, 20)
+        # Shift: 22:00 IST (16:30 UTC on 20th) to 06:00 IST next day (00:30 UTC on 21st)
+        p_in = datetime(2026, 11, 20, 16, 30, 0, tzinfo=UTC)
+        p_out = datetime(2026, 11, 21, 0, 30, 0, tzinfo=UTC)
+
+        session.add(
+            PunchEvent(
+                id=uuid4(),
+                tenant_id=tenant.id,
+                raw_envelope_id=env_id,
+                employee_id=emp_id,
+                punch_time=p_in,
+                source="TEST",
+                status="ACTIVE",
+                created_at=datetime.now(UTC),
+            )
+        )
+        session.add(
+            PunchEvent(
+                id=uuid4(),
+                tenant_id=tenant.id,
+                raw_envelope_id=env_id,
+                employee_id=emp_id,
+                punch_time=p_out,
+                source="TEST",
+                status="ACTIVE",
+                created_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+        await set_tenant(session, tenant.id)
+
+        overnight_shift = ShiftInstanceContract(
+            calendar_date=shift_date,
+            shift_type="OVERNIGHT",
+            sessions=[
+                SessionWindow(
+                    session_order=1,
+                    name="Graveyard Shift",
+                    start_time=time(22, 0),
+                    end_time=time(6, 0),
+                    is_overnight=True,
+                    pre_window_minutes=60,
+                    post_window_minutes=60,
+                    min_presence_ratio=0.50,
+                )
+            ],
+        )
+
+        record, trace = await calculate_and_save_daily_attendance(
+            session=session,
+            tenant_id=tenant.id,
+            employee_id=emp_id,
+            calendar_date=shift_date,
+            shift_contract=overnight_shift,
+        )
+        await session.commit()
+
+        assert record.calendar_date == shift_date
+        assert record.worked_duration_minutes == 480
+        assert record.scheduled_duration_minutes == 480
+        assert record.status == "PRESENT"
+        assert record.is_single_punch is False
+
+
+@pytest.mark.asyncio
+async def test_employer_cancelled_session_credit(seeded_tenants: tuple[Tenant, Tenant]):
+    """IMP-04: Employer-cancelled session credited as PRESENT per N66d / ROS-10."""
+    tenant, _ = seeded_tenants
+
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant.id)
+        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant.id))
+        assert branch is not None
+
+        emp_id = uuid4()
+        session.add(
+            Employee(
+                id=emp_id,
+                tenant_id=tenant.id,
+                branch_id=branch.id,
+                employee_code=f"CAN_{uuid4().hex[:6]}",
+                full_name="Cancelled Session Worker",
+                date_of_joining=date(2026, 1, 1),
+                is_active=True,
+                created_at=datetime.now(UTC),
+                updated_at=datetime.now(UTC),
+            )
+        )
+        await session.commit()
+
+        cal_date = date(2026, 11, 20)
+        await set_tenant(session, tenant.id)
+
+        cancelled_shift = ShiftInstanceContract(
+            calendar_date=cal_date,
+            shift_type="FIXED",
+            is_cancelled_paid=True,
+            sessions=[
+                SessionWindow(
+                    session_order=1,
+                    start_time=time(9, 0),
+                    end_time=time(18, 0),
+                    break_duration_minutes=60,
+                )
+            ],
+        )
+
+        record, trace = await calculate_and_save_daily_attendance(
+            session=session,
+            tenant_id=tenant.id,
+            employee_id=emp_id,
+            calendar_date=cal_date,
+            shift_contract=cancelled_shift,
+        )
+        await session.commit()
+
+        assert record.status == "PRESENT"
+        assert float(record.worked_ratio) == 1.0
+        assert "Employer-cancelled session" in trace.trace_payload["summary"]["explanation"]

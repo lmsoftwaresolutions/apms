@@ -2,9 +2,10 @@ from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, SessionDep, require_permission
+from app.core.errors import ProblemError
 from app.modules.attendance.repository import (
     get_attendance_record_by_id,
     get_trace_by_record_id,
@@ -78,9 +79,10 @@ async def get_trace_endpoint(
         record_id=record_id,
     )
     if trace is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Explanation trace not found for this attendance record.",
+        raise ProblemError(
+            status_code=404,
+            title="Explanation trace not found",
+            detail="No explanation trace found for this attendance record.",
         )
     return AttendanceTraceRead(
         id=trace.id,

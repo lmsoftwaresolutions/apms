@@ -1,11 +1,10 @@
 from datetime import UTC, date, datetime, time, timedelta
+from decimal import Decimal
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.database import set_tenant
 from app.models.attendance import AttendanceDailyRecord, AttendanceExplanationTrace
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
 from app.modules.attendance.engine.pairing import pair_punches_for_shift
@@ -31,7 +30,6 @@ async def calculate_and_save_daily_attendance(
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
 ) -> tuple[AttendanceDailyRecord, AttendanceExplanationTrace]:
-    await set_tenant(session, tenant_id)
     # Default shift: 09:00 - 18:00 fixed if not explicitly supplied
     if shift_contract is None:
         shift_contract = ShiftInstanceContract(
@@ -78,11 +76,13 @@ async def calculate_and_save_daily_attendance(
     existing = await find_attendance_record(session, tenant_id, employee_id, calendar_date)
     now = datetime.now(UTC)
 
+    worked_ratio_decimal = Decimal(str(decision.worked_ratio))
+
     if existing is not None:
         existing.status = decision.status
         existing.worked_duration_minutes = decision.worked_minutes
         existing.scheduled_duration_minutes = decision.scheduled_minutes
-        existing.worked_ratio = decision.worked_ratio
+        existing.worked_ratio = worked_ratio_decimal
         existing.late_minutes = decision.late_minutes
         existing.early_departure_minutes = decision.early_exit_minutes
         existing.overtime_minutes = decision.overtime_minutes
@@ -100,7 +100,7 @@ async def calculate_and_save_daily_attendance(
             status=decision.status,
             worked_duration_minutes=decision.worked_minutes,
             scheduled_duration_minutes=decision.scheduled_minutes,
-            worked_ratio=decision.worked_ratio,
+            worked_ratio=worked_ratio_decimal,
             late_minutes=decision.late_minutes,
             early_departure_minutes=decision.early_exit_minutes,
             overtime_minutes=decision.overtime_minutes,
@@ -111,7 +111,7 @@ async def calculate_and_save_daily_attendance(
         )
         await save_attendance_record(session, record)
 
-    # 6. Persist AttendanceExplanationTrace
+    # 6. Persist AttendanceExplanationTrace (Append-Only)
     trace = AttendanceExplanationTrace(
         id=uuid4(),
         tenant_id=tenant_id,

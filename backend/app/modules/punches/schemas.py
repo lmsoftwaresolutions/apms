@@ -31,3 +31,4 @@ class PunchIngestResult(BaseModel):
     active_punches: int
     duplicates_ignored: int
     unmatched_employees: list[str] = Field(default_factory=list)
+    is_duplicate: bool = False
