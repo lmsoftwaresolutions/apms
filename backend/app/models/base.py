@@ -8,4 +8,3 @@ class Base(DeclarativeBase):
     type_annotation_map = {
         datetime: DateTime(timezone=True),
     }
-
