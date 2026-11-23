@@ -1,6 +1,7 @@
 from app.models.attendance import AttendanceDailyRecord, AttendanceExplanationTrace
 from app.models.branch import Branch
 from app.models.department import Department
+from app.models.designation import Designation
 from app.models.employee import Employee
 from app.models.punch import PunchEvent, RawEnvelope
 from app.models.roster import DatedShiftInstance, RosterPattern
@@ -21,6 +22,7 @@ __all__ = [
     "Branch",
     "DatedShiftInstance",
     "Department",
+    "Designation",
     "Employee",
     "PunchEvent",
     "RawEnvelope",

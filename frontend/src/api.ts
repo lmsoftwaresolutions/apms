@@ -15,6 +15,22 @@ export type Department = {
   parent_dept_id?: string | null;
   is_active: boolean;
 };
+export type EmployeeRow = {
+  id: string;
+  employee_code: string;
+  full_name: string;
+  department_id: string | null;
+  designation_id: string | null;
+  designation: string | null;
+};
+export type Designation = {
+  id: string;
+  department_id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  is_active: boolean;
+};
 export type Role = { id: string; code: string; name: string; is_system: boolean; permissions: string[] };
 export type Permission = { code: string; module: string; resource: string; action: string; description: string };
 export type DirectoryUser = { id: string; email: string; full_name: string; is_active: boolean; roles: string[] };
@@ -91,6 +107,28 @@ export const api = {
     body: Partial<Pick<Department, "name" | "code" | "branch_id" | "parent_dept_id" | "is_active">>,
   ) => request<Department>(`/api/v1/departments/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDepartment: (id: string) => request(`/api/v1/departments/${id}`, { method: "DELETE" }),
+  designations: (departmentId?: string) =>
+    request<Designation[]>(
+      departmentId ? `/api/v1/designations?department_id=${encodeURIComponent(departmentId)}` : "/api/v1/designations",
+    ),
+  createDesignation: (department_id: string, name: string, code: string, description?: string | null) =>
+    request<Designation>("/api/v1/designations", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify({ department_id, name, code, description: description || null }),
+    }),
+  updateDesignation: (
+    id: string,
+    body: Partial<Pick<Designation, "name" | "code" | "description" | "is_active">>,
+  ) => request<Designation>(`/api/v1/designations/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteDesignation: (id: string) => request(`/api/v1/designations/${id}`, { method: "DELETE" }),
+  employees: (departmentId: string) =>
+    request<EmployeeRow[]>(`/api/v1/employees?department_id=${encodeURIComponent(departmentId)}`),
+  assignDesignation: (id: string, designation_id: string | null) =>
+    request<EmployeeRow>(`/api/v1/employees/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ designation_id }),
+    }),
   roles: () => request<Role[]>("/api/v1/roles"),
   permissions: () => request<Permission[]>("/api/v1/permissions"),
   createRole: (code: string, name: string, permissions: string[]) =>

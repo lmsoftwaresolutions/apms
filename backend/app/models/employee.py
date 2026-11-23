@@ -36,6 +36,12 @@ class Employee(Base):
             name="fk_employees_department",
         ),
         ForeignKeyConstraint(
+            ["tenant_id", "designation_id"],
+            ["designations.tenant_id", "designations.id"],
+            name="fk_employees_designation",
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
             ["tenant_id", "user_id"],
             ["users.tenant_id", "users.id"],
             name="fk_employees_user",
@@ -75,6 +81,7 @@ class Employee(Base):
     user_id: Mapped[UUID | None] = mapped_column(default=None)
     branch_id: Mapped[UUID]
     department_id: Mapped[UUID | None] = mapped_column(default=None)
+    designation_id: Mapped[UUID | None] = mapped_column(default=None)
     employee_code: Mapped[str] = mapped_column(String(50))
     full_name: Mapped[str] = mapped_column(String(300))
     designation: Mapped[str | None] = mapped_column(String(200), default=None)

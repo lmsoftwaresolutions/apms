@@ -34,6 +34,7 @@ class EmployeeCreate(BaseModel):
     full_name: str = Field(min_length=1, max_length=300)
     branch_id: UUID
     department_id: UUID | None = None
+    designation_id: UUID | None = None
     user_id: UUID | None = None
     designation: str | None = Field(default=None, max_length=200)
     date_of_joining: date
@@ -68,6 +69,7 @@ class EmployeeUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=300)
     branch_id: UUID | None = None
     department_id: UUID | None = None
+    designation_id: UUID | None = None
     user_id: UUID | None = None
     designation: str | None = Field(default=None, max_length=200)
     date_of_joining: date | None = None
@@ -105,6 +107,7 @@ class EmployeeOut(BaseModel):
     user_id: UUID | None
     branch_id: UUID
     department_id: UUID | None
+    designation_id: UUID | None = None
     employee_code: str
     full_name: str
     designation: str | None
