@@ -13,6 +13,34 @@ async def insert_employee(session: AsyncSession, employee: Employee) -> Employee
     return employee
 
 
+async def list_active_employee_ids(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_ids: Sequence[UUID],
+) -> set[UUID]:
+    if not employee_ids:
+        return set()
+    stmt = select(Employee.id).where(
+        Employee.tenant_id == tenant_id,
+        Employee.id.in_(list(employee_ids)),
+        Employee.is_active.is_(True),
+    )
+    return set((await session.scalars(stmt)).all())
+
+
+async def get_active_employee_id_by_code(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_code: str,
+) -> UUID | None:
+    stmt = select(Employee.id).where(
+        Employee.tenant_id == tenant_id,
+        Employee.employee_code == employee_code,
+        Employee.is_active.is_(True),
+    )
+    return await session.scalar(stmt)
+
+
 async def get_employee_by_id(session: AsyncSession, tenant_id: UUID, employee_id: UUID) -> Employee | None:
     emp = await session.get(Employee, employee_id)
     if emp is None or emp.tenant_id != tenant_id:

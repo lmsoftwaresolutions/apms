@@ -1,0 +1,166 @@
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+from app.models.punch import PunchEvent
+from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
+
+IST = ZoneInfo("Asia/Kolkata")
+
+
+@dataclass
+class SessionPairingResult:
+    session_order: int
+    session_name: str
+    scheduled_start: datetime
+    scheduled_end: datetime
+    scheduled_minutes: int
+    window_start: datetime
+    window_end: datetime
+    matched_punches: list[datetime] = field(default_factory=list)
+    in_punch: datetime | None = None
+    out_punch: datetime | None = None
+    worked_minutes: int = 0
+    break_minutes: int = 0
+    late_minutes: int = 0
+    early_exit_minutes: int = 0
+    is_single_punch: bool = False
+    status: str = "BELOW_MIN"  # COMPLETED, BELOW_MIN
+
+
+@dataclass
+class DailyPairingResult:
+    calendar_date: str
+    is_rest_day: bool
+    is_cancelled_paid: bool
+    sessions: list[SessionPairingResult] = field(default_factory=list)
+    total_scheduled_minutes: int = 0
+    total_worked_minutes: int = 0
+    total_late_minutes: int = 0
+    total_early_exit_minutes: int = 0
+    mid_gap_minutes_excluded: int = 0  # N65 gap
+    total_punches_matched: int = 0
+    has_single_punch: bool = False
+
+
+def _combine_date_time_utc(d, t: time, is_next_day: bool = False) -> datetime:
+    base_date = d + timedelta(days=1) if is_next_day else d
+    dt_local = datetime.combine(base_date, t, tzinfo=IST)
+    return dt_local.astimezone(UTC)
+
+
+def pair_punches_for_shift(
+    shift: ShiftInstanceContract,
+    punches: list[PunchEvent],
+) -> DailyPairingResult:
+    cal_date = shift.calendar_date
+    result = DailyPairingResult(
+        calendar_date=cal_date.isoformat(),
+        is_rest_day=shift.is_rest_day,
+        is_cancelled_paid=shift.is_cancelled_paid,
+    )
+
+    if shift.is_rest_day or shift.is_cancelled_paid:
+        return result
+
+    # Sort punches chronologically
+    active_punches = [p for p in punches if p.status == "ACTIVE"]
+    active_punches.sort(key=lambda p: p.punch_time)
+
+    # Convert punches to UTC datetimes
+    punch_times = [p.punch_time.astimezone(UTC) for p in active_punches]
+
+    total_sched = 0
+    total_worked = 0
+    total_late = 0
+    total_early = 0
+    all_matched_punches = set()
+
+    sorted_sessions = sorted(shift.sessions, key=lambda s: s.session_order)
+
+    for idx, s in enumerate(sorted_sessions):
+        # Scheduled Start & End
+        sched_start_utc = _combine_date_time_utc(cal_date, s.start_time)
+        is_end_next_day = s.is_overnight or (s.end_time < s.start_time)
+        sched_end_utc = _combine_date_time_utc(cal_date, s.end_time, is_next_day=is_end_next_day)
+
+        sched_mins = max(0, int((sched_end_utc - sched_start_utc).total_seconds() / 60) - s.break_duration_minutes)
+        total_sched += sched_mins
+
+        # Session Ingestion Window: [T_start - W_pre, T_end + W_post] (BR-ATT-01)
+        win_start = sched_start_utc - timedelta(minutes=s.pre_window_minutes)
+        win_end = sched_end_utc + timedelta(minutes=s.post_window_minutes)
+
+        matched = [pt for pt in punch_times if win_start <= pt <= win_end]
+        for m in matched:
+            all_matched_punches.add(m)
+
+        session_res = SessionPairingResult(
+            session_order=s.session_order,
+            session_name=s.name,
+            scheduled_start=sched_start_utc,
+            scheduled_end=sched_end_utc,
+            scheduled_minutes=sched_mins,
+            window_start=win_start,
+            window_end=win_end,
+            matched_punches=matched,
+            break_minutes=s.break_duration_minutes,
+        )
+
+        if len(matched) == 0:
+            session_res.status = "BELOW_MIN"
+            session_res.worked_minutes = 0
+        elif len(matched) == 1:
+            session_res.is_single_punch = True
+            session_res.in_punch = matched[0]
+            session_res.worked_minutes = 0
+            session_res.status = "BELOW_MIN"
+        else:
+            # Chronological pairing: first in window = IN, last = OUT (BR-ATT-01)
+            first_p = matched[0]
+            last_p = matched[-1]
+            session_res.in_punch = first_p
+            session_res.out_punch = last_p
+
+            raw_duration = int((last_p - first_p).total_seconds() / 60)
+            net_worked = max(0, raw_duration - s.break_duration_minutes)
+            session_res.worked_minutes = net_worked
+
+            # Late calculation
+            if first_p > sched_start_utc:
+                session_res.late_minutes = int((first_p - sched_start_utc).total_seconds() / 60)
+
+            # Early exit calculation
+            if last_p < sched_end_utc:
+                session_res.early_exit_minutes = int((sched_end_utc - last_p).total_seconds() / 60)
+
+            # Minimum presence evaluation (N66b)
+            min_required = int(s.min_presence_ratio * sched_mins)
+            if net_worked >= min_required:
+                session_res.status = "COMPLETED"
+            else:
+                session_res.status = "BELOW_MIN"
+
+        total_worked += session_res.worked_minutes
+        total_late += session_res.late_minutes
+        total_early += session_res.early_exit_minutes
+        result.sessions.append(session_res)
+
+    # N65 Mid-Shift Gap Exclusion:
+    # If multi-session (e.g. 2 sessions), the interval [Session1_End, Session2_Start] is explicitly excluded!
+    if len(sorted_sessions) >= 2:
+        for i in range(len(sorted_sessions) - 1):
+            s1 = result.sessions[i]
+            s2 = result.sessions[i + 1]
+            gap_seconds = (s2.scheduled_start - s1.scheduled_end).total_seconds()
+            if gap_seconds > 0:
+                result.mid_gap_minutes_excluded += int(gap_seconds / 60)
+
+    result.total_scheduled_minutes = total_sched
+    result.total_worked_minutes = total_worked
+    result.total_late_minutes = total_late
+    result.total_early_exit_minutes = total_early
+    result.total_punches_matched = len(all_matched_punches)
+    result.has_single_punch = len(all_matched_punches) == 1 or any(s.is_single_punch for s in result.sessions)
+
+    return result
