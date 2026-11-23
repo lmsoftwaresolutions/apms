@@ -455,8 +455,8 @@ async def test_cannot_move_parent_department_with_children_to_new_branch(
         await set_tenant(session, tenant_a.id)
         b1 = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
         assert b1
-        from app.schemas.iam import BranchCreate
-        from app.services.directory import create_branch
+        from app.modules.branches.schemas import BranchCreate
+        from app.modules.branches.service import create_branch
 
         b2 = await create_branch(
             session,
