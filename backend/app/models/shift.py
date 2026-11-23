@@ -1,0 +1,66 @@
+from datetime import datetime, time
+from decimal import Decimal
+from uuid import UUID
+
+from sqlalchemy import ForeignKey, ForeignKeyConstraint, Numeric, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.models.base import Base
+
+
+class ShiftTemplate(Base):
+    __tablename__ = "shift_templates"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_shift_templates_tenant_id"),
+        UniqueConstraint("tenant_id", "code", name="uq_shift_templates_tenant_code"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
+    code: Mapped[str]
+    name: Mapped[str]
+    shift_type: Mapped[str] = mapped_column(default="FIXED")  # FIXED, FLEXI, OVERNIGHT, SPLIT, CONTINUOUS
+    is_overnight: Mapped[bool] = mapped_column(default=False)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    color_code: Mapped[str | None] = mapped_column(default=None)
+    created_at: Mapped[datetime]
+    updated_at: Mapped[datetime]
+
+    sessions: Mapped[list["ShiftSession"]] = relationship(
+        back_populates="shift_template",
+        cascade="all, delete-orphan",
+        order_by="ShiftSession.session_order",
+        lazy="selectin",
+    )
+
+
+class ShiftSession(Base):
+    __tablename__ = "shift_sessions"
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "id", name="uq_shift_sessions_tenant_id"),
+        UniqueConstraint("tenant_id", "shift_template_id", "session_order", name="uq_shift_sessions_template_order"),
+        ForeignKeyConstraint(
+            ["tenant_id", "shift_template_id"],
+            ["shift_templates.tenant_id", "shift_templates.id"],
+            name="fk_shift_session_template",
+            ondelete="CASCADE",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
+    shift_template_id: Mapped[UUID]
+    session_order: Mapped[int] = mapped_column(default=1)
+    name: Mapped[str] = mapped_column(default="Session")
+    start_time: Mapped[time]
+    end_time: Mapped[time]
+    pre_window_minutes: Mapped[int] = mapped_column(default=60)
+    post_window_minutes: Mapped[int] = mapped_column(default=120)
+    grace_period_late_minutes: Mapped[int] = mapped_column(default=15)
+    grace_period_early_minutes: Mapped[int] = mapped_column(default=15)
+    min_presence_ratio: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("0.50"))
+    break_duration_minutes: Mapped[int] = mapped_column(default=0)
+    is_overnight: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime]
+
+    shift_template: Mapped[ShiftTemplate] = relationship(back_populates="sessions")
