@@ -6,6 +6,7 @@ Create Date: 2026-11-20
 """
 
 from alembic import op
+from sqlalchemy import bindparam, text
 
 revision = "007_shifts_roster"
 down_revision = "006_raw_punch_attendance"
@@ -207,33 +208,58 @@ STATEMENTS = [
     "GRANT SELECT, INSERT, UPDATE, DELETE ON dated_shift_instances TO apms_app",
 ]
 
+INSERT_PERMISSION = text(
+    """
+    INSERT INTO permissions (code, module, resource, action, description)
+    VALUES (:code, :module, :resource, :action, :description)
+    ON CONFLICT (code) DO NOTHING
+    """
+)
+GRANT_TENANT_ADMIN = text(
+    """
+    INSERT INTO role_permissions (tenant_id, role_id, permission_id)
+    SELECT r.tenant_id, r.id, p.id
+    FROM roles r
+    JOIN permissions p ON p.code IN :codes
+    WHERE r.code = 'TENANT_ADMIN'
+    ON CONFLICT ON CONSTRAINT uq_role_permission DO NOTHING
+    """
+).bindparams(bindparam("codes", expanding=True))
+DELETE_ROLE_GRANTS = text(
+    """
+    DELETE FROM role_permissions
+    WHERE permission_id IN (SELECT id FROM permissions WHERE code IN :codes)
+    """
+).bindparams(bindparam("codes", expanding=True))
+DELETE_PERMISSIONS = text(
+    "DELETE FROM permissions WHERE code IN :codes"
+).bindparams(bindparam("codes", expanding=True))
+
 
 def upgrade() -> None:
     for statement in STATEMENTS:
         op.execute(statement)
 
-    values = ",\n".join(
-        f"('{code}', '{module}', '{resource}', '{action}', '{description}')"
-        for code, module, resource, action, description in PERMISSIONS
-    )
-    op.execute(
-        f"""
-        INSERT INTO permissions (code, module, resource, action, description)
-        VALUES {values}
-        ON CONFLICT (code) DO NOTHING
-        """
-    )
+    bind = op.get_bind()
+    for code, module, resource, action, description in PERMISSIONS:
+        bind.execute(
+            INSERT_PERMISSION,
+            {
+                "code": code,
+                "module": module,
+                "resource": resource,
+                "action": action,
+                "description": description,
+            },
+        )
+    bind.execute(GRANT_TENANT_ADMIN, {"codes": [item[0] for item in PERMISSIONS]})
 
 
 def downgrade() -> None:
-    codes = ", ".join(f"'{p[0]}'" for p in PERMISSIONS)
-    op.execute(
-        f"""
-        DELETE FROM role_permissions
-        WHERE permission_id IN (SELECT id FROM permissions WHERE code IN ({codes}))
-        """
-    )
-    op.execute(f"DELETE FROM permissions WHERE code IN ({codes})")
+    codes = [item[0] for item in PERMISSIONS]
+    bind = op.get_bind()
+    bind.execute(DELETE_ROLE_GRANTS, {"codes": codes})
+    bind.execute(DELETE_PERMISSIONS, {"codes": codes})
     op.execute("DROP TABLE IF EXISTS dated_shift_instances CASCADE")
     op.execute("DROP TABLE IF EXISTS roster_patterns CASCADE")
     op.execute("DROP TABLE IF EXISTS shift_sessions CASCADE")
