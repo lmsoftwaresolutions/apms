@@ -42,7 +42,7 @@ You are the adversary. You write tests that catch bugs, expose edge cases, and b
 - **Lone Punch Attack (Confirmed Q4)**: Single IN punch with no exit. Assert status is `NEEDS_REVIEW`, `anomaly_code = 'LONE_PUNCH_ANOMALY'`, and overtime is strictly `0` (never auto-granted).
 - **Split Shift Mid-Gap Contamination (Confirmed N65)**:
   - Session 1 (08:00–12:00), 4-hour gap, Session 2 (16:00–20:00).
-  - Punches inside the gap (e.g. 13:00, 14:00) must be discarded or excluded. Worked duration must remain exactly 8 hours.
+  - Punches inside the gap, including one that still sits in a session post-window (12:20), must be excluded. Worked duration must remain exactly 8 hours.
 - **Split Shift Minimum Presence Cap (Confirmed N66b)**:
   - Worker completes Session 1 (4h) but completely misses Session 2 (0h).
   - Assert daily status is capped at `HALF_DAY`, even if tenant presence threshold would otherwise evaluate ratio differently.

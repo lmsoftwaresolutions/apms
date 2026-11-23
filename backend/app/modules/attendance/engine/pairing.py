@@ -91,7 +91,22 @@ def pair_punches_for_shift(
         win_start = sched_start_utc - timedelta(minutes=s.pre_window_minutes)
         win_end = sched_end_utc + timedelta(minutes=s.post_window_minutes)
 
-        matched = [pt for pt in punch_times if win_start <= pt <= win_end]
+        next_start = None
+        if idx + 1 < len(sorted_sessions):
+            nxt = sorted_sessions[idx + 1]
+            next_start = _combine_date_time_utc(cal_date, nxt.start_time)
+        prev_end = result.sessions[idx - 1].scheduled_end if idx else None
+
+        matched = []
+        for pt in punch_times:
+            if not (win_start <= pt <= win_end):
+                continue
+            # N65: a punch strictly inside the scheduled gap is not a session boundary.
+            if next_start is not None and sched_end_utc < pt < next_start:
+                continue
+            if prev_end is not None and prev_end < pt < sched_start_utc:
+                continue
+            matched.append(pt)
         for m in matched:
             all_matched_punches.add(m)
 
