@@ -53,7 +53,7 @@ async def seed() -> None:
         catalog = list((await session.scalars(select(Permission))).all())
         by_code = {row.code: row for row in catalog}
         bundles = {
-            "TENANT_ADMIN": list(by_code),
+            "TENANT_ADMIN": [p for p in by_code if p != "platform.tenant.create"],
             "SUPERVISOR": [
                 "org.branch.read",
                 "org.branch.update",
@@ -118,7 +118,11 @@ async def seed() -> None:
                         )
                     ).all()
                 )
-                for permission_code in bundles[code]:
+                role_perms = list(bundles[code])
+                if code == "TENANT_ADMIN" and spec["subdomain"] == "northmill":
+                    role_perms.append("platform.tenant.create")
+
+                for permission_code in role_perms:
                     perm = by_code.get(permission_code)
                     if perm and perm.id not in existing_perm_ids:
                         session.add(

@@ -88,7 +88,7 @@ async def provision_tenant(session: AsyncSession, payload: TenantProvisionReques
     by_code = {p.code: p for p in catalog}
 
     bundles = {
-        "TENANT_ADMIN": list(by_code),
+        "TENANT_ADMIN": [p for p in by_code if p != "platform.tenant.create"],
         "SUPERVISOR": [
             "org.branch.read",
             "org.branch.update",

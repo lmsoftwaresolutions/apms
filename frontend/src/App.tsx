@@ -50,7 +50,7 @@ export function App() {
       {currentTab === "organization" && <OrganizationPage />}
       {currentTab === "iam" && <IAMPage />}
       {currentTab === "settings" && <SettingsPage />}
-      {currentTab === "tenants" && <TenantsPage />}
+      {currentTab === "tenants" && me.permissions.includes("platform.tenant.create") && <TenantsPage />}
     </AppShell>
   );
 }

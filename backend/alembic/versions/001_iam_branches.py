@@ -30,6 +30,7 @@ PERMISSIONS = (
     ("org.branch.delete", "org", "branch", "delete", "Delete branches"),
     ("org.tenant.read", "org", "tenant", "read", "Read tenant profile"),
     ("org.tenant.update", "org", "tenant", "update", "Update tenant name and logo"),
+    ("platform.tenant.create", "platform", "tenant", "create", "Platform super administrator multi-tenant management and provisioning"),
 )
 
 STATEMENTS = [

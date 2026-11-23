@@ -38,7 +38,7 @@ PlatformSessionDep = Annotated[AsyncSession, Depends(get_platform_session)]
 )
 async def list_tenants_endpoint(
     session: PlatformSessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("org.tenant.update"))],
+    current: Annotated[CurrentUser, Depends(require_permission("platform.tenant.create"))],
 ) -> list[TenantListItem]:
     return await platform_service.list_tenants(session)
 
@@ -52,7 +52,7 @@ async def list_tenants_endpoint(
 async def provision_tenant_endpoint(
     payload: TenantProvisionRequest,
     session: PlatformSessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("org.tenant.update"))],
+    current: Annotated[CurrentUser, Depends(require_permission("platform.tenant.create"))],
 ) -> TenantListItem:
     return await platform_service.provision_tenant(session, payload)
 
@@ -66,6 +66,6 @@ async def update_tenant_status_endpoint(
     tenant_id: UUID,
     payload: TenantStatusUpdate,
     session: PlatformSessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("org.tenant.update"))],
+    current: Annotated[CurrentUser, Depends(require_permission("platform.tenant.create"))],
 ) -> TenantListItem:
     return await platform_service.update_tenant_status(session, tenant_id, payload.is_active)

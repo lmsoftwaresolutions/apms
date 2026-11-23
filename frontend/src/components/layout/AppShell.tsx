@@ -155,7 +155,7 @@ export function AppShell({
           ) : null}
 
           {/* ── Platform (Super Admin only) ── */}
-          {can("org.tenant.update") && (
+          {can("platform.tenant.create") && (
             <>
               <li className="nav-divider" />
               {!collapsed && <li className="nav-group-label nav-group-platform">Platform Admin</li>}
