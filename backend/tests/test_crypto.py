@@ -1,9 +1,11 @@
 from app.core.crypto import (
     decrypt_pii,
     encrypt_pii,
+    fingerprint_pii,
     mask_aadhaar,
     mask_bank_account,
     mask_bank_ifsc,
+    mask_digits,
     mask_pan,
 )
 
@@ -54,3 +56,20 @@ def test_masking_bank_account() -> None:
 def test_masking_bank_ifsc() -> None:
     assert mask_bank_ifsc("SBIN0001234") == "XXXXXXX1234"
     assert mask_bank_ifsc(None) is None
+
+
+def test_masking_uan_and_esic() -> None:
+    assert mask_digits("100012345678") == "XXXXXXXX5678"
+    assert mask_digits("12345678901234567") == "XXXXXXXXXXXXX4567"
+    assert mask_digits(None) is None
+
+
+def test_fingerprint_is_stable_and_tenant_scoped() -> None:
+    tenant_a = "11111111-1111-1111-1111-111111111111"
+    tenant_b = "22222222-2222-2222-2222-222222222222"
+    first = fingerprint_pii("100012345678", tenant_a)
+    assert first is not None
+    assert len(first) == 64
+    assert first == fingerprint_pii("100012345678", tenant_a)
+    assert first != fingerprint_pii("100012345678", tenant_b)
+    assert fingerprint_pii(None, tenant_a) is None

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import hmac
 import os
 
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
@@ -43,6 +44,17 @@ def encrypt_pii(plaintext: str | None, context: str | None = None) -> str | None
     packed = nonce + ciphertext
     b64 = base64.urlsafe_b64encode(packed).decode("ascii")
     return f"{_PREFIX}{b64}"
+
+
+def fingerprint_pii(plaintext: str | None, context: str) -> str | None:
+    """Keyed fingerprint so a unique identifier can be matched without storing it in plaintext."""
+    if plaintext is None:
+        return None
+    val = plaintext.strip()
+    if not val:
+        return None
+    digest = hmac.new(_get_encryption_key(), f"{context}:{val}".encode(), hashlib.sha256).hexdigest()
+    return digest
 
 
 def decrypt_pii(encrypted_payload: str | None, context: str | None = None) -> str | None:
@@ -102,6 +114,16 @@ def mask_bank_account(account: str | None) -> str | None:
         mask_len = max(len(clean) - 4, 4)
         return f"{'X' * mask_len}{clean[-4:]}"
     return "XXXX"
+
+
+def mask_digits(value: str | None, visible: int = 4) -> str | None:
+    """Mask a numeric identifier, keeping only the last digits."""
+    if not value:
+        return None
+    clean = "".join(value.strip().split())
+    if len(clean) <= visible:
+        return "X" * len(clean)
+    return f"{'X' * (len(clean) - visible)}{clean[-visible:]}"
 
 
 def mask_bank_ifsc(ifsc: str | None) -> str | None:

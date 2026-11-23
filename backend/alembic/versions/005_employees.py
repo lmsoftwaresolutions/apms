@@ -37,11 +37,15 @@ STATEMENTS = [
       probation_end_date date,
       confirmation_date date,
       pan_encrypted text,
+      pan_fingerprint char(64),
       aadhaar_encrypted text,
+      aadhaar_fingerprint char(64),
       bank_account_encrypted text,
       bank_ifsc_encrypted text,
-      epf_uan varchar(50),
-      esic_number varchar(50),
+      epf_uan_encrypted text,
+      epf_uan_fingerprint char(64),
+      esic_number_encrypted text,
+      esic_number_fingerprint char(64),
       is_active boolean NOT NULL DEFAULT true,
       biometric_consent_at timestamptz,
       created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -56,6 +60,26 @@ STATEMENTS = [
       CONSTRAINT fk_employees_user FOREIGN KEY (tenant_id, user_id)
         REFERENCES users (tenant_id, id)
     )
+    """,
+    """
+    CREATE UNIQUE INDEX uq_employees_tenant_pan
+      ON employees (tenant_id, pan_fingerprint)
+      WHERE pan_fingerprint IS NOT NULL
+    """,
+    """
+    CREATE UNIQUE INDEX uq_employees_tenant_aadhaar
+      ON employees (tenant_id, aadhaar_fingerprint)
+      WHERE aadhaar_fingerprint IS NOT NULL
+    """,
+    """
+    CREATE UNIQUE INDEX uq_employees_tenant_uan
+      ON employees (tenant_id, epf_uan_fingerprint)
+      WHERE epf_uan_fingerprint IS NOT NULL
+    """,
+    """
+    CREATE UNIQUE INDEX uq_employees_tenant_esic
+      ON employees (tenant_id, esic_number_fingerprint)
+      WHERE esic_number_fingerprint IS NOT NULL
     """,
     "ALTER TABLE employees ENABLE ROW LEVEL SECURITY",
     "ALTER TABLE employees FORCE ROW LEVEL SECURITY",

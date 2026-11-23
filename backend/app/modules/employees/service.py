@@ -7,9 +7,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.crypto import (
     decrypt_pii,
     encrypt_pii,
+    fingerprint_pii,
     mask_aadhaar,
     mask_bank_account,
     mask_bank_ifsc,
+    mask_digits,
     mask_pan,
 )
 from app.core.errors import ProblemError
@@ -28,6 +30,8 @@ def employee_to_out(emp: Employee) -> EmployeeOut:
     raw_aadhaar = decrypt_pii(emp.aadhaar_encrypted, context=context)
     raw_bank_account = decrypt_pii(emp.bank_account_encrypted, context=context)
     raw_bank_ifsc = decrypt_pii(emp.bank_ifsc_encrypted, context=context)
+    raw_uan = decrypt_pii(emp.epf_uan_encrypted, context=context)
+    raw_esic = decrypt_pii(emp.esic_number_encrypted, context=context)
 
     return EmployeeOut(
         id=emp.id,
@@ -47,8 +51,8 @@ def employee_to_out(emp: Employee) -> EmployeeOut:
         aadhaar_masked=mask_aadhaar(raw_aadhaar),
         bank_account_masked=mask_bank_account(raw_bank_account),
         bank_ifsc_masked=mask_bank_ifsc(raw_bank_ifsc),
-        epf_uan=emp.epf_uan,
-        esic_number=emp.esic_number,
+        epf_uan_masked=mask_digits(raw_uan),
+        esic_number_masked=mask_digits(raw_esic),
         is_active=emp.is_active,
         biometric_consent_at=emp.biometric_consent_at,
         created_at=emp.created_at,
@@ -72,6 +76,21 @@ async def _require_department_in_branch(
         raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
     if dept.branch_id != branch_id:
         raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
+
+
+def _assign_identifier(
+    emp: Employee,
+    fields_set: set[str],
+    field_name: str,
+    value: str | None,
+    context: str,
+    encrypted_attr: str,
+    fingerprint_attr: str,
+) -> None:
+    if field_name not in fields_set:
+        return
+    setattr(emp, encrypted_attr, encrypt_pii(value, context=context))
+    setattr(emp, fingerprint_attr, fingerprint_pii(value, context))
 
 
 async def _require_user(session: AsyncSession, tenant_id: UUID, user_id: UUID) -> None:
@@ -106,11 +125,15 @@ async def create_employee(session: AsyncSession, tenant_id: UUID, payload: Emplo
         confirmation_date=payload.confirmation_date,
         # Field-level envelope encryption
         pan_encrypted=encrypt_pii(payload.pan, context=context),
+        pan_fingerprint=fingerprint_pii(payload.pan, context),
         aadhaar_encrypted=encrypt_pii(payload.aadhaar, context=context),
+        aadhaar_fingerprint=fingerprint_pii(payload.aadhaar, context),
         bank_account_encrypted=encrypt_pii(payload.bank_account, context=context),
         bank_ifsc_encrypted=encrypt_pii(payload.bank_ifsc, context=context),
-        epf_uan=payload.epf_uan.strip() if payload.epf_uan else None,
-        esic_number=payload.esic_number.strip() if payload.esic_number else None,
+        epf_uan_encrypted=encrypt_pii(payload.epf_uan, context=context),
+        epf_uan_fingerprint=fingerprint_pii(payload.epf_uan, context),
+        esic_number_encrypted=encrypt_pii(payload.esic_number, context=context),
+        esic_number_fingerprint=fingerprint_pii(payload.esic_number, context),
         is_active=payload.is_active,
         biometric_consent_at=now if payload.biometric_consent else None,
         created_at=now,
@@ -201,19 +224,26 @@ async def update_employee(
         emp.confirmation_date = payload.confirmation_date
 
     context = str(tenant_id)
-    if payload.pan is not None:
-        emp.pan_encrypted = encrypt_pii(payload.pan, context=context)
-    if payload.aadhaar is not None:
-        emp.aadhaar_encrypted = encrypt_pii(payload.aadhaar, context=context)
-    if payload.bank_account is not None:
+    _assign_identifier(emp, payload.model_fields_set, "pan", payload.pan, context, "pan_encrypted", "pan_fingerprint")
+    _assign_identifier(
+        emp, payload.model_fields_set, "aadhaar", payload.aadhaar, context, "aadhaar_encrypted", "aadhaar_fingerprint"
+    )
+    if "bank_account" in payload.model_fields_set:
         emp.bank_account_encrypted = encrypt_pii(payload.bank_account, context=context)
-    if payload.bank_ifsc is not None:
+    if "bank_ifsc" in payload.model_fields_set:
         emp.bank_ifsc_encrypted = encrypt_pii(payload.bank_ifsc, context=context)
-
-    if payload.epf_uan is not None:
-        emp.epf_uan = payload.epf_uan.strip() if payload.epf_uan else None
-    if payload.esic_number is not None:
-        emp.esic_number = payload.esic_number.strip() if payload.esic_number else None
+    _assign_identifier(
+        emp, payload.model_fields_set, "epf_uan", payload.epf_uan, context, "epf_uan_encrypted", "epf_uan_fingerprint"
+    )
+    _assign_identifier(
+        emp,
+        payload.model_fields_set,
+        "esic_number",
+        payload.esic_number,
+        context,
+        "esic_number_encrypted",
+        "esic_number_fingerprint",
+    )
 
     if payload.biometric_consent is True:
         emp.biometric_consent_at = datetime.now(UTC)
