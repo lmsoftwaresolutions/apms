@@ -114,14 +114,14 @@ function SignIn({
           </div>
         ) : null}
 
-        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+        <form className="flex flex-col gap-3" style={{ width: "100%" }} onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Work Email</label>
             <input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@apms.local"
+              placeholder="admin@northmill.example"
               autoComplete="username"
               required
             />
@@ -143,13 +143,44 @@ function SignIn({
             className="primary"
             type="submit"
             disabled={pending || !email || password.length < 6}
-            style={{ marginTop: "0.5rem", width: "100%", padding: "0.6rem" }}
+            style={{ marginTop: "0.25rem", width: "100%", padding: "0.6rem" }}
           >
             {pending ? "Signing in…" : "Sign in to Console"}
           </button>
         </form>
 
-        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", textAlign: "center", borderTop: "1px solid var(--border-default)", paddingTop: "0.75rem" }}>
+        {/* Quick Fill Credentials for Dev Testing */}
+        <div style={{ borderTop: "1px solid var(--border-default)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
+          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.03em", fontWeight: 600 }}>
+            Quick Demo Credentials
+          </span>
+          <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+            <button
+              className="ghost small"
+              type="button"
+              onClick={() => {
+                setEmail("admin@northmill.example");
+                setPassword("ChangeMe-Admin-1");
+              }}
+              title="Full tenant administrator"
+            >
+              Admin (North Mill)
+            </button>
+            <button
+              className="ghost small"
+              type="button"
+              onClick={() => {
+                setEmail("supervisor@northmill.example");
+                setPassword("ChangeMe-Supervisor-1");
+              }}
+              title="Shift supervisor"
+            >
+              Supervisor
+            </button>
+          </div>
+        </div>
+
+        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", textAlign: "center" }}>
           Protected by Row-Level Security & AES-256 Tenant Vault
         </div>
       </div>
