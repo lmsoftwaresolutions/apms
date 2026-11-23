@@ -99,3 +99,46 @@ export function EmptyState({
     </div>
   );
 }
+
+export function SkeletonTable({ rows = 5, cols = 6 }: { rows?: number; cols?: number }) {
+  return (
+    <div style={{ padding: "0.5rem 0" }}>
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="skeleton-row" style={{ display: "flex", gap: "1rem", padding: "0.85rem 1rem", borderBottom: "1px solid var(--border-default)" }}>
+          {Array.from({ length: cols }).map((_, c) => (
+            <div
+              key={c}
+              className="skeleton"
+              style={{
+                height: "16px",
+                width: c === 0 ? "120px" : c === 1 ? "160px" : c === 2 ? "80px" : "100px",
+                borderRadius: "4px",
+              }}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function Alert({
+  variant = "danger",
+  children,
+  onDismiss,
+}: {
+  variant?: "danger" | "warning" | "info" | "success";
+  children: React.ReactNode;
+  onDismiss?: () => void;
+}) {
+  return (
+    <div className={`banner ${variant}`} style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+        <span>{children}</span>
+      </div>
+      {onDismiss ? (
+        <button type="button" className="ghost small" onClick={onDismiss} style={{ padding: "0 0.3rem" }}>✕</button>
+      ) : null}
+    </div>
+  );
+}

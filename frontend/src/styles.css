@@ -565,3 +565,208 @@ label {
   gap: 1.25rem;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
+
+.login-brand-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--action-primary);
+  color: var(--action-fg);
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.login-error-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-fg);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.login-demo-section {
+  border-top: 1px solid var(--border-default);
+  padding-top: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.login-demo-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  font-weight: 600;
+}
+
+/* Nav Grouping & Dividers */
+.nav-group-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  padding: 0.4rem 0.75rem 0.15rem;
+  user-select: none;
+}
+
+.nav-divider {
+  height: 1px;
+  background: var(--border-default);
+  margin: 0.5rem 0.75rem;
+  list-style: none;
+}
+
+.nav-item-platform {
+  color: var(--action-hover);
+}
+
+.nav-group-platform {
+  color: var(--action-primary);
+}
+
+/* Skeleton Loading States */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--bg-subtle) 25%,
+    var(--bg-muted) 50%,
+    var(--bg-subtle) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 4px;
+  display: inline-block;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.skeleton-text {
+  height: 14px;
+  width: 100%;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-default);
+}
+
+/* Tabbed Navigation Bar */
+.tabs-bar {
+  display: flex;
+  border-bottom: 1px solid var(--border-default);
+  gap: 0.25rem;
+  background: var(--bg-surface);
+  border-radius: 6px 6px 0 0;
+  padding: 0 0.5rem;
+}
+
+.tab-item {
+  padding: 0.65rem 1rem;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-radius: 0;
+  transition: all 150ms ease;
+}
+
+.tab-item:hover {
+  color: var(--text-primary);
+  background: var(--bg-subtle);
+}
+
+.tab-item.active {
+  color: var(--action-primary);
+  border-bottom-color: var(--action-primary);
+  font-weight: 600;
+  background: none;
+}
+
+/* Form Section Tabs */
+.form-tab-nav {
+  display: flex;
+  border-bottom: 1px solid var(--border-default);
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.form-tab-btn {
+  padding: 0.5rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: none;
+  border-radius: 0;
+  cursor: pointer;
+}
+
+.form-tab-btn:hover {
+  color: var(--text-primary);
+}
+
+.form-tab-btn.active {
+  color: var(--action-primary);
+  border-bottom: 2px solid var(--action-primary);
+  font-weight: 600;
+}
+
+/* Callout & Banner */
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  font-size: 0.84rem;
+  border: 1px solid var(--border-default);
+}
+
+.banner.info {
+  background: var(--info-bg);
+  border-color: var(--info-border);
+  color: var(--info-fg);
+}
+
+.banner.warning {
+  background: var(--warning-bg);
+  border-color: var(--warning-border);
+  color: var(--warning-fg);
+}
+
+.banner.danger {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-fg);
+}
+
+.banner.success {
+  background: var(--success-bg);
+  border-color: var(--success-border);
+  color: var(--success-fg);
+}

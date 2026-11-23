@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Users, Upload, Search, Filter, ShieldCheck, CheckCircle2, AlertCircle, FileSpreadsheet } from "lucide-react";
+import { Plus, Users, Upload, Search, Filter, ShieldCheck, CheckCircle2, AlertCircle, FileSpreadsheet, Eye } from "lucide-react";
 import { api, Branch, Department, Employee, EmployeeCreateInput } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Badge, Drawer, Modal, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Drawer, Modal, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
 import { PRESET_DESIGNATIONS } from "../Organization/OrganizationPage";
 
 export function EmployeesPage() {
@@ -19,8 +19,12 @@ export function EmployeesPage() {
   const [filterDeptId, setFilterDeptId] = useState("");
   const [filterActive, setFilterActive] = useState<string>("true");
 
-  // Drawer Create/Edit state
+  // Detail Modal state
+  const [detailEmployee, setDetailEmployee] = useState<Employee | null>(null);
+
+  // Drawer Create/Edit state & Tabs
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<"identity" | "org" | "statutory" | "dpdp">("identity");
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [form, setForm] = useState<EmployeeCreateInput>({
     employee_code: "",
@@ -332,9 +336,9 @@ export function EmployeesPage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       {/* Filter Bar */}
@@ -378,7 +382,9 @@ export function EmployeesPage() {
 
       {/* Table */}
       <div className="panel" style={{ padding: 0 }}>
-        {filteredEmployees.length === 0 && !loading ? (
+        {loading ? (
+          <SkeletonTable rows={6} cols={9} />
+        ) : filteredEmployees.length === 0 ? (
           <EmptyState
             icon={Users}
             title="No employees found"
@@ -402,7 +408,12 @@ export function EmployeesPage() {
               </thead>
               <tbody>
                 {filteredEmployees.map((emp) => (
-                  <tr key={emp.id}>
+                  <tr
+                    key={emp.id}
+                    style={{ cursor: "pointer" }}
+                    onClick={() => setDetailEmployee(emp)}
+                    title="Click row to view employee profile details"
+                  >
                     <td style={{ fontWeight: 600 }}>{emp.employee_code}</td>
                     <td style={{ fontWeight: 500 }}>{emp.full_name}</td>
                     <td>{emp.designation || <span className="text-muted">—</span>}</td>
@@ -428,12 +439,27 @@ export function EmployeesPage() {
                         {emp.is_active ? "Active" : "Inactive"}
                       </Badge>
                     </td>
-                    <td style={{ textAlign: "right" }}>
-                      {can("employee.employee.update") ? (
-                        <button className="ghost small" type="button" onClick={() => openEdit(emp)}>
-                          View / Edit
+                    <td style={{ textAlign: "right" }} onClick={(e) => e.stopPropagation()}>
+                      <div className="flex gap-1 justify-end">
+                        <button
+                          className="ghost small"
+                          type="button"
+                          onClick={() => setDetailEmployee(emp)}
+                          title="View Profile Details"
+                        >
+                          <Eye size={13} />
                         </button>
-                      ) : null}
+                        {can("employee.employee.update") ? (
+                          <button
+                            className="ghost small"
+                            type="button"
+                            onClick={() => openEdit(emp)}
+                            title="Edit Employee"
+                          >
+                            Edit
+                          </button>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -464,121 +490,228 @@ export function EmployeesPage() {
           </>
         }
       >
-        <form className="flex flex-col gap-4" onSubmit={handleSave}>
-          {/* Section 1: Core Identity */}
-          <div>
-            <h4 style={{ marginBottom: "0.5rem" }}>1. Identity & Core Details</h4>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Employee Code</label>
-                <input
-                  value={form.employee_code}
-                  disabled={!!editingEmployee}
-                  onChange={(e) => setForm({ ...form, employee_code: e.target.value.toUpperCase() })}
-                  placeholder="e.g. EMP1042"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Full Name</label>
-                <input
-                  value={form.full_name}
-                  onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                  placeholder="e.g. Anand Sharma"
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Date of Joining</label>
-                <input
-                  type="date"
-                  value={form.date_of_joining}
-                  onChange={(e) => setForm({ ...form, date_of_joining: e.target.value })}
-                  required
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Date of Birth (Optional)</label>
-                <input
-                  type="date"
-                  value={form.date_of_birth || ""}
-                  onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
-                />
-              </div>
-            </div>
+        <form className="flex flex-col gap-3" onSubmit={handleSave}>
+          {/* Drawer Section Navigation Tabs */}
+          <div className="form-tab-nav">
+            <button
+              type="button"
+              className={`form-tab-btn ${drawerTab === "identity" ? "active" : ""}`}
+              onClick={() => setDrawerTab("identity")}
+            >
+              1. Identity
+            </button>
+            <button
+              type="button"
+              className={`form-tab-btn ${drawerTab === "org" ? "active" : ""}`}
+              onClick={() => setDrawerTab("org")}
+            >
+              2. Org Placement
+            </button>
+            <button
+              type="button"
+              className={`form-tab-btn ${drawerTab === "statutory" ? "active" : ""}`}
+              onClick={() => setDrawerTab("statutory")}
+            >
+              3. Statutory &amp; PII
+            </button>
+            <button
+              type="button"
+              className={`form-tab-btn ${drawerTab === "dpdp" ? "active" : ""}`}
+              onClick={() => setDrawerTab("dpdp")}
+            >
+              4. DPDP &amp; Lifecycle
+            </button>
           </div>
 
-          {/* Section 2: Organization & Employment Placement */}
-          <div>
-            <h4 style={{ marginBottom: "0.5rem" }}>2. Organizational Placement</h4>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Branch</label>
-                <select
-                  value={form.branch_id}
-                  onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
-                  required
-                >
-                  <option value="">Select branch…</option>
-                  {branches.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Tab 1: Core Identity */}
+          {drawerTab === "identity" ? (
+            <div className="flex flex-col gap-3">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Employee Code</label>
+                  <input
+                    value={form.employee_code}
+                    disabled={!!editingEmployee}
+                    onChange={(e) => setForm({ ...form, employee_code: e.target.value.toUpperCase() })}
+                    placeholder="e.g. EMP1042"
+                    required
+                  />
+                </div>
 
-              <div className="form-group">
-                <label>Department</label>
-                <select
-                  value={form.department_id || ""}
-                  onChange={(e) => setForm({ ...form, department_id: e.target.value || null })}
-                >
-                  <option value="">None / Unassigned</option>
-                  {departments
-                    .filter((d) => !form.branch_id || d.branch_id === form.branch_id)
-                    .map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.name} ({d.code})
+                <div className="form-group">
+                  <label>Full Name</label>
+                  <input
+                    value={form.full_name}
+                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    placeholder="e.g. Anand Sharma"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Date of Joining</label>
+                  <input
+                    type="date"
+                    value={form.date_of_joining}
+                    onChange={(e) => setForm({ ...form, date_of_joining: e.target.value })}
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Date of Birth (Optional)</label>
+                  <input
+                    type="date"
+                    value={form.date_of_birth || ""}
+                    onChange={(e) => setForm({ ...form, date_of_birth: e.target.value })}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Tab 2: Organization & Employment Placement */}
+          {drawerTab === "org" ? (
+            <div className="flex flex-col gap-3">
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>Branch</label>
+                  <select
+                    value={form.branch_id}
+                    onChange={(e) => setForm({ ...form, branch_id: e.target.value })}
+                    required
+                  >
+                    <option value="">Select branch…</option>
+                    {branches.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.code})
                       </option>
                     ))}
-                </select>
-              </div>
+                  </select>
+                </div>
 
-              <div className="form-group">
-                <label>Designation (Autocomplete)</label>
-                <input
-                  list="preset-designations"
-                  value={form.designation || ""}
-                  onChange={(e) => setForm({ ...form, designation: e.target.value })}
-                  placeholder="Select or enter job title…"
-                />
-                <datalist id="preset-designations">
-                  {PRESET_DESIGNATIONS.map((d) => (
-                    <option key={d} value={d} />
-                  ))}
-                </datalist>
-              </div>
+                <div className="form-group">
+                  <label>Department</label>
+                  <select
+                    value={form.department_id || ""}
+                    onChange={(e) => setForm({ ...form, department_id: e.target.value || null })}
+                  >
+                    <option value="">None / Unassigned</option>
+                    {departments
+                      .filter((d) => !form.branch_id || d.branch_id === form.branch_id)
+                      .map((d) => (
+                        <option key={d.id} value={d.id}>
+                          {d.name} ({d.code})
+                        </option>
+                      ))}
+                  </select>
+                </div>
 
-              <div className="form-group">
-                <label>Employment Type</label>
-                <select
-                  value={form.employment_type}
-                  onChange={(e) => setForm({ ...form, employment_type: e.target.value })}
-                >
-                  <option value="FULL_TIME">Full Time</option>
-                  <option value="PROBATION">Probation</option>
-                  <option value="CONTRACT">Contract</option>
-                  <option value="INTERN">Intern</option>
-                </select>
-              </div>
+                <div className="form-group">
+                  <label>Designation</label>
+                  <input
+                    list="preset-designations"
+                    value={form.designation || ""}
+                    onChange={(e) => setForm({ ...form, designation: e.target.value })}
+                    placeholder="Select or enter job title…"
+                  />
+                  <datalist id="preset-designations">
+                    {PRESET_DESIGNATIONS.map((d) => (
+                      <option key={d} value={d} />
+                    ))}
+                  </datalist>
+                </div>
 
-              {/* B7: Conditional Probation fields */}
+                <div className="form-group">
+                  <label>Employment Type</label>
+                  <select
+                    value={form.employment_type}
+                    onChange={(e) => setForm({ ...form, employment_type: e.target.value })}
+                  >
+                    <option value="FULL_TIME">Full Time</option>
+                    <option value="PROBATION">Probation</option>
+                    <option value="CONTRACT">Contract</option>
+                    <option value="INTERN">Intern</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Tab 3: Statutory & PII Vault */}
+          {drawerTab === "statutory" ? (
+            <div className="flex flex-col gap-3">
+              <p className="text-secondary" style={{ fontSize: "0.78rem", margin: 0 }}>
+                Tax and banking details are encrypted in the tenant vault (AES-GCM). Only masked values are returned by the API.
+              </p>
+
+              <div className="form-grid">
+                <div className="form-group">
+                  <label>
+                    PAN {editingEmployee?.pan_masked ? `(Saved: ${editingEmployee.pan_masked})` : ""}
+                  </label>
+                  <input
+                    value={form.pan || ""}
+                    onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })}
+                    placeholder={editingEmployee?.pan_masked ? "Re-enter to change" : "e.g. ABCDE1234F"}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>
+                    Aadhaar {editingEmployee?.aadhaar_masked ? `(Saved: ${editingEmployee.aadhaar_masked})` : ""}
+                  </label>
+                  <input
+                    value={form.aadhaar || ""}
+                    onChange={(e) => setForm({ ...form, aadhaar: e.target.value })}
+                    placeholder={editingEmployee?.aadhaar_masked ? "Re-enter to change" : "12-digit Aadhaar"}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Bank Account Number</label>
+                  <input
+                    value={form.bank_account || ""}
+                    onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
+                    placeholder={editingEmployee?.bank_account_masked ? "Re-enter to change" : "Account number"}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>Bank IFSC Code</label>
+                  <input
+                    value={form.bank_ifsc || ""}
+                    onChange={(e) => setForm({ ...form, bank_ifsc: e.target.value.toUpperCase() })}
+                    placeholder={editingEmployee?.bank_ifsc_masked ? "Re-enter to change" : "e.g. HDFC0001234"}
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>EPF UAN</label>
+                  <input
+                    value={form.epf_uan || ""}
+                    onChange={(e) => setForm({ ...form, epf_uan: e.target.value })}
+                    placeholder="12-digit UAN"
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label>ESIC Number</label>
+                  <input
+                    value={form.esic_number || ""}
+                    onChange={(e) => setForm({ ...form, esic_number: e.target.value })}
+                    placeholder="17-digit IP number"
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Tab 4: DPDP Compliance & Lifecycle */}
+          {drawerTab === "dpdp" ? (
+            <div className="flex flex-col gap-3">
               {form.employment_type === "PROBATION" ? (
-                <>
+                <div className="form-grid">
                   <div className="form-group">
                     <label>Probation End Date</label>
                     <input
@@ -595,110 +728,134 @@ export function EmployeesPage() {
                       onChange={(e) => setForm({ ...form, confirmation_date: e.target.value })}
                     />
                   </div>
-                </>
+                </div>
               ) : null}
-            </div>
-          </div>
 
-          {/* Section 3: Statutory & PII Vault */}
-          <div>
-            <h4 style={{ marginBottom: "0.5rem" }}>3. Statutory Identifiers & Vault</h4>
-            <p className="text-secondary" style={{ fontSize: "0.75rem", marginBottom: "0.5rem" }}>
-              Tax and banking details are encrypted in the tenant vault (AES-GCM). Only masked values are returned.
-            </p>
-
-            <div className="form-grid">
-              <div className="form-group">
-                <label>
-                  PAN {editingEmployee?.pan_masked ? `(Saved: ${editingEmployee.pan_masked})` : ""}
+              <div style={{ background: "var(--bg-subtle)", padding: "0.85rem", borderRadius: "6px" }}>
+                <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={form.biometric_consent}
+                    onChange={(e) => setForm({ ...form, biometric_consent: e.target.checked })}
+                    style={{ width: "auto" }}
+                  />
+                  <div>
+                    <span style={{ fontWeight: 600 }}>DPDP Act 2023 Biometric Capture Consent</span>
+                    <p className="text-secondary" style={{ fontSize: "0.74rem" }}>
+                      Employee has provided affirmative biometric punch capture consent for attendance recording.
+                    </p>
+                  </div>
                 </label>
-                <input
-                  value={form.pan || ""}
-                  onChange={(e) => setForm({ ...form, pan: e.target.value.toUpperCase() })}
-                  placeholder={editingEmployee?.pan_masked ? "Re-enter to change" : "e.g. ABCDE1234F"}
-                />
               </div>
 
-              <div className="form-group">
-                <label>
-                  Aadhaar {editingEmployee?.aadhaar_masked ? `(Saved: ${editingEmployee.aadhaar_masked})` : ""}
-                </label>
-                <input
-                  value={form.aadhaar || ""}
-                  onChange={(e) => setForm({ ...form, aadhaar: e.target.value })}
-                  placeholder={editingEmployee?.aadhaar_masked ? "Re-enter to change" : "12-digit Aadhaar"}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Bank Account Number</label>
-                <input
-                  value={form.bank_account || ""}
-                  onChange={(e) => setForm({ ...form, bank_account: e.target.value })}
-                  placeholder={editingEmployee?.bank_account_masked ? "Re-enter to change" : "Account number"}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Bank IFSC Code</label>
-                <input
-                  value={form.bank_ifsc || ""}
-                  onChange={(e) => setForm({ ...form, bank_ifsc: e.target.value.toUpperCase() })}
-                  placeholder={editingEmployee?.bank_ifsc_masked ? "Re-enter to change" : "e.g. HDFC0001234"}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>EPF UAN</label>
-                <input
-                  value={form.epf_uan || ""}
-                  onChange={(e) => setForm({ ...form, epf_uan: e.target.value })}
-                  placeholder="12-digit UAN"
-                />
-              </div>
-
-              <div className="form-group">
-                <label>ESIC Number</label>
-                <input
-                  value={form.esic_number || ""}
-                  onChange={(e) => setForm({ ...form, esic_number: e.target.value })}
-                  placeholder="17-digit IP number"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Section 4: DPDP Compliance & Status */}
-          <div style={{ borderTop: "1px solid var(--border-default)", paddingTop: "0.75rem" }}>
-            <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={form.biometric_consent}
-                onChange={(e) => setForm({ ...form, biometric_consent: e.target.checked })}
-                style={{ width: "auto" }}
-              />
               <div>
-                <span style={{ fontWeight: 600 }}>DPDP Act 2023 Biometric Capture Consent</span>
-                <p className="text-secondary" style={{ fontSize: "0.74rem" }}>
-                  Employee has provided affirmative biometric punch capture consent for attendance recording.
-                </p>
+                <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={form.is_active}
+                    onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
+                    style={{ width: "auto" }}
+                  />
+                  <span>Active Employee Record</span>
+                </label>
               </div>
-            </label>
-
-            <div style={{ marginTop: "0.5rem" }}>
-              <label style={{ flexDirection: "row", alignItems: "center", gap: "0.5rem", cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={form.is_active}
-                  onChange={(e) => setForm({ ...form, is_active: e.target.checked })}
-                  style={{ width: "auto" }}
-                />
-                <span>Active Employee Record</span>
-              </label>
             </div>
-          </div>
+          ) : null}
         </form>
       </Drawer>
+
+      {/* Employee Read-Only Detail Modal */}
+      <Modal
+        isOpen={!!detailEmployee}
+        onClose={() => setDetailEmployee(null)}
+        title={detailEmployee ? `Employee Profile — ${detailEmployee.employee_code}` : "Profile"}
+        footer={
+          <div className="flex justify-between w-full">
+            <button className="ghost small" type="button" onClick={() => setDetailEmployee(null)}>
+              Close
+            </button>
+            {can("employee.employee.update") && detailEmployee ? (
+              <button
+                className="primary small"
+                type="button"
+                onClick={() => {
+                  const emp = detailEmployee;
+                  setDetailEmployee(null);
+                  openEdit(emp);
+                }}
+              >
+                Edit Profile
+              </button>
+            ) : null}
+          </div>
+        }
+      >
+        {detailEmployee ? (
+          <div className="flex flex-col gap-3">
+            <div style={{ background: "var(--bg-subtle)", padding: "0.85rem", borderRadius: "6px" }}>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.4rem" }}>
+                Identity &amp; Status
+              </div>
+              <div className="grid-cols-2" style={{ fontSize: "0.8rem", gap: "0.5rem 1rem" }}>
+                <div><strong>Code:</strong> {detailEmployee.employee_code}</div>
+                <div><strong>Name:</strong> {detailEmployee.full_name}</div>
+                <div><strong>Joining Date:</strong> {detailEmployee.date_of_joining}</div>
+                <div><strong>DOB:</strong> {detailEmployee.date_of_birth || "—"}</div>
+                <div><strong>Type:</strong> <Badge variant="neutral">{detailEmployee.employment_type}</Badge></div>
+                <div>
+                  <strong>Status:</strong>{" "}
+                  <Badge variant={detailEmployee.is_active ? "present" : "absent"}>
+                    {detailEmployee.is_active ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: "var(--bg-subtle)", padding: "0.85rem", borderRadius: "6px" }}>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.4rem" }}>
+                Organization
+              </div>
+              <div className="grid-cols-2" style={{ fontSize: "0.8rem", gap: "0.5rem 1rem" }}>
+                <div><strong>Branch:</strong> {branchNameById.get(detailEmployee.branch_id) || "—"}</div>
+                <div><strong>Department:</strong> {detailEmployee.department_id ? deptNameById.get(detailEmployee.department_id) || "—" : "—"}</div>
+                <div><strong>Designation:</strong> {detailEmployee.designation || "—"}</div>
+              </div>
+            </div>
+
+            <div style={{ background: "var(--bg-subtle)", padding: "0.85rem", borderRadius: "6px" }}>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.4rem" }}>
+                Statutory &amp; Encrypted Vault (AES-GCM)
+              </div>
+              <div className="grid-cols-2" style={{ fontSize: "0.8rem", gap: "0.5rem 1rem" }}>
+                <div><strong>PAN:</strong> {detailEmployee.pan_masked || "—"}</div>
+                <div><strong>Aadhaar:</strong> {detailEmployee.aadhaar_masked || "—"}</div>
+                <div><strong>Bank Account:</strong> {detailEmployee.bank_account_masked || "—"}</div>
+                <div><strong>Bank IFSC:</strong> {detailEmployee.bank_ifsc_masked || "—"}</div>
+                <div><strong>EPF UAN:</strong> {detailEmployee.epf_uan || "—"}</div>
+                <div><strong>ESIC Number:</strong> {detailEmployee.esic_number || "—"}</div>
+              </div>
+            </div>
+
+            <div style={{ background: "var(--bg-subtle)", padding: "0.85rem", borderRadius: "6px" }}>
+              <div style={{ fontWeight: 600, fontSize: "0.85rem", marginBottom: "0.4rem" }}>
+                Compliance &amp; Lifecycle
+              </div>
+              <div className="grid-cols-2" style={{ fontSize: "0.8rem", gap: "0.5rem 1rem" }}>
+                <div>
+                  <strong>DPDP Consent:</strong>{" "}
+                  {detailEmployee.biometric_consent_at ? (
+                    <Badge variant="present">Consented ({new Date(detailEmployee.biometric_consent_at).toLocaleDateString()})</Badge>
+                  ) : (
+                    <Badge variant="neutral">Pending</Badge>
+                  )}
+                </div>
+                <div><strong>Probation End:</strong> {detailEmployee.probation_end_date || "—"}</div>
+                <div><strong>Target Confirmation:</strong> {detailEmployee.confirmation_date || "—"}</div>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       {/* CSV Bulk Upload Modal */}
       <Modal

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Calendar, RefreshCw, Eye, AlertTriangle, Clock, Activity, CheckCircle, FileJson } from "lucide-react";
+import { Calendar, RefreshCw, Eye, AlertTriangle, Clock, Activity, CheckCircle, FileJson, UploadCloud, Plus } from "lucide-react";
 import {
   api,
   DailyAttendance,
@@ -8,7 +8,7 @@ import {
   Employee,
 } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Badge, Drawer, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Drawer, EmptyState, Modal, SkeletonTable, Alert } from "../../components/common/UIComponents";
 
 export const ANOMALY_LABELS: Record<string, string> = {
   SINGLE_PUNCH: "Single Punch",
@@ -17,6 +17,14 @@ export const ANOMALY_LABELS: Record<string, string> = {
   EARLY_DEPARTURE: "Early Departure",
   LATE_ARRIVAL: "Late Arrival",
 };
+
+function getMondayOfCurrentWeek(): string {
+  const d = new Date();
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const monday = new Date(d.setDate(diff));
+  return monday.toISOString().slice(0, 10);
+}
 
 export function AttendancePage() {
   const { can } = useAuth();
@@ -27,11 +35,20 @@ export function AttendancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Filters
+  // Filters (Defaults to current week Monday -> today)
   const today = new Date().toISOString().slice(0, 10);
-  const [startDate, setStartDate] = useState(today);
+  const [startDate, setStartDate] = useState(getMondayOfCurrentWeek());
   const [endDate, setEndDate] = useState(today);
   const [selectedEmpId, setSelectedEmpId] = useState("");
+
+  // Ingest Punch Modal state
+  const [isIngestOpen, setIsIngestOpen] = useState(false);
+  const [ingestEmpId, setIngestEmpId] = useState("");
+  const [ingestPunchTime, setIngestPunchTime] = useState(new Date().toISOString().slice(0, 16));
+  const [ingestDirection, setIngestDirection] = useState("IN");
+  const [ingestSource, setIngestSource] = useState("ETIMEOFFICE");
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestNotice, setIngestNotice] = useState<string | null>(null);
 
   // Trace Drawer state (Invariant #5)
   const [isTraceOpen, setIsTraceOpen] = useState(false);
@@ -47,6 +64,9 @@ export function AttendancePage() {
     try {
       const emps = await api.employees({ is_active: true });
       setEmployees(emps);
+      if (emps.length > 0 && !ingestEmpId) {
+        setIngestEmpId(emps[0].id);
+      }
     } catch {}
   }
 
@@ -91,6 +111,48 @@ export function AttendancePage() {
   const absentCount = records.filter((r) => r.status === "ABSENT").length;
   const anomalyCount = records.filter((r) => !!r.anomaly_code || r.is_single_punch).length;
 
+  const handleIngestPunch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIngesting(true);
+    setError("");
+    setIngestNotice(null);
+    try {
+      const targetEmp = employees.find((e) => e.id === ingestEmpId);
+      const empCode = targetEmp?.employee_code || "EMP001";
+      const dt = new Date(ingestPunchTime);
+      const dd = String(dt.getDate()).padStart(2, "0");
+      const mm = String(dt.getMonth() + 1).padStart(2, "0");
+      const yyyy = dt.getFullYear();
+      const hh = String(dt.getHours()).padStart(2, "0");
+      const min = String(dt.getMinutes()).padStart(2, "0");
+      const ss = String(dt.getSeconds()).padStart(2, "0");
+      const formatted = `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+
+      const res = await api.ingestPunches({
+        source: ingestSource,
+        device_identifier: "web_console_manual",
+        raw_payload: {
+          PunchData: [
+            {
+              Empcode: empCode,
+              PunchDate: formatted,
+              Direction: ingestDirection,
+            },
+          ],
+        },
+      });
+
+      setIngestNotice(
+        `Punch ingested! Envelopes received: ${res.total_received}, Active punches: ${res.active_punches}, Duplicates ignored: ${res.duplicates_ignored}`
+      );
+      await loadAttendanceData();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to ingest punch");
+    } finally {
+      setIngesting(false);
+    }
+  };
+
   const openTraceDrawer = async (rec: DailyAttendance) => {
     setSelectedRecord(rec);
     setIsTraceOpen(true);
@@ -126,14 +188,30 @@ export function AttendancePage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h2>Daily Attendance Register & Trace Audit</h2>
+          <h2>Daily Attendance Register &amp; Trace Audit</h2>
           <p className="text-secondary" style={{ fontSize: "0.82rem" }}>
-            Deterministic rollup calculations with immutable JSON explanation traces (Invariant #4 & #5).
+            Deterministic rollup calculations with immutable JSON explanation traces (Invariant #4 &amp; #5).
           </p>
         </div>
 
-        {/* Tab switch */}
-        <div className="flex gap-2">
+        {/* Tab switch + Ingest Action */}
+        <div className="flex gap-2 items-center">
+          {can("capture.punch.ingest") ? (
+            <button
+              className="primary small"
+              type="button"
+              onClick={() => {
+                setIngestNotice(null);
+                setIsIngestOpen(true);
+              }}
+              title="Manual Punch Ingest via Adapter"
+            >
+              <UploadCloud size={14} /> Ingest Punch
+            </button>
+          ) : null}
+
+          <div style={{ width: "1px", height: "20px", background: "var(--border-default)" }} />
+
           <button
             className={activeTab === "register" ? "primary small" : "ghost small"}
             type="button"
@@ -152,9 +230,15 @@ export function AttendancePage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
-        </div>
+        </Alert>
+      ) : null}
+
+      {ingestNotice ? (
+        <Alert variant="success" onDismiss={() => setIngestNotice(null)}>
+          {ingestNotice}
+        </Alert>
       ) : null}
 
       {/* Metric Cards Summary */}
@@ -206,6 +290,16 @@ export function AttendancePage() {
             className="ghost small"
             type="button"
             onClick={() => {
+              setStartDate(getMondayOfCurrentWeek());
+              setEndDate(today);
+            }}
+          >
+            This Week
+          </button>
+          <button
+            className="ghost small"
+            type="button"
+            onClick={() => {
               setStartDate(today);
               setEndDate(today);
             }}
@@ -229,7 +323,7 @@ export function AttendancePage() {
           </select>
 
           <button className="ghost small" type="button" onClick={() => loadAttendanceData()}>
-            <RefreshCw size={14} /> Refresh
+            <RefreshCw size={14} className={loading ? "spin" : ""} /> Refresh
           </button>
         </div>
       </div>
@@ -237,7 +331,9 @@ export function AttendancePage() {
       {/* Main Tab: Daily Register */}
       {activeTab === "register" ? (
         <div className="panel" style={{ padding: 0 }}>
-          {records.length === 0 && !loading ? (
+          {loading ? (
+            <SkeletonTable rows={6} cols={8} />
+          ) : records.length === 0 ? (
             <EmptyState
               icon={Calendar}
               title="No attendance records found"
@@ -373,11 +469,20 @@ export function AttendancePage() {
       {/* Raw Punch Stream Tab */}
       {activeTab === "punches" ? (
         <div className="panel" style={{ padding: 0 }}>
-          {punches.length === 0 && !loading ? (
+          {loading ? (
+            <SkeletonTable rows={6} cols={5} />
+          ) : punches.length === 0 ? (
             <EmptyState
               icon={Activity}
               title="No raw punch events"
               description="No device, eTime, or CSV bulk punches ingested for this filter criteria."
+              action={
+                can("capture.punch.ingest") ? (
+                  <button className="primary small" type="button" onClick={() => setIsIngestOpen(true)}>
+                    <UploadCloud size={14} /> Ingest Punch
+                  </button>
+                ) : null
+              }
             />
           ) : (
             <div className="table-container" style={{ border: "none" }}>
@@ -420,6 +525,86 @@ export function AttendancePage() {
           )}
         </div>
       ) : null}
+
+      {/* Manual Punch Ingest Modal */}
+      <Modal
+        isOpen={isIngestOpen}
+        onClose={() => setIsIngestOpen(false)}
+        title="Ingest Raw Punch Event"
+        footer={
+          <div className="flex gap-2">
+            <button className="ghost small" type="button" onClick={() => setIsIngestOpen(false)}>
+              Cancel
+            </button>
+            <button
+              className="primary small"
+              type="submit"
+              form="ingest-punch-form"
+              disabled={ingesting || !ingestEmpId}
+            >
+              {ingesting ? "Ingesting…" : "Ingest & Normalize Punch"}
+            </button>
+          </div>
+        }
+      >
+        <form id="ingest-punch-form" onSubmit={handleIngestPunch} className="flex flex-col gap-3">
+          <p className="text-secondary" style={{ fontSize: "0.82rem" }}>
+            Punches are ingested append-only into <code>raw_envelope</code> and canonicalized into <code>punch_event</code>.
+          </p>
+
+          <div className="form-group">
+            <label>Employee</label>
+            <select
+              value={ingestEmpId}
+              onChange={(e) => setIngestEmpId(e.target.value)}
+              required
+            >
+              <option value="">Select Employee</option>
+              {employees.map((e) => (
+                <option key={e.id} value={e.id}>
+                  {e.full_name} ({e.employee_code})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid-cols-2">
+            <div className="form-group">
+              <label>Punch Date &amp; Time (Local)</label>
+              <input
+                type="datetime-local"
+                value={ingestPunchTime}
+                onChange={(e) => setIngestPunchTime(e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label>Direction</label>
+              <select
+                value={ingestDirection}
+                onChange={(e) => setIngestDirection(e.target.value)}
+              >
+                <option value="IN">IN (Check-in)</option>
+                <option value="OUT">OUT (Check-out)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Ingest Adapter Source</label>
+            <select
+              value={ingestSource}
+              onChange={(e) => setIngestSource(e.target.value)}
+            >
+              <option value="ETIMEOFFICE">eTimeOffice / eSSL JSON Payload</option>
+              <option value="MANUAL">Manual Supervisor Entry</option>
+              <option value="ZKTECO">ZKTeco ADMS Adapter</option>
+              <option value="CSV_BULK">CSV Bulk Ingestion Adapter</option>
+            </select>
+          </div>
+        </form>
+      </Modal>
 
       {/* Explanation Trace Drawer (Invariant #5) */}
       <Drawer

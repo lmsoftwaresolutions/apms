@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Shield, Users as UsersIcon, Trash2, Edit } from "lucide-react";
+import { Plus, Shield, Users as UsersIcon, Trash2, Edit, Search } from "lucide-react";
 import { api, Permission, Role, DirectoryUser } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Badge, Drawer, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Drawer, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
 
 export function IAMPage() {
   const { can } = useAuth();
@@ -19,6 +19,7 @@ export function IAMPage() {
   const [roleCode, setRoleCode] = useState("");
   const [roleName, setRoleName] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
+  const [permSearch, setPermSearch] = useState("");
   const [savingRole, setSavingRole] = useState(false);
 
   // User assignment state
@@ -158,9 +159,9 @@ export function IAMPage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       {/* Tabs */}
@@ -171,7 +172,7 @@ export function IAMPage() {
           onClick={() => setActiveTab("roles")}
         >
           <Shield size={14} />
-          Roles & Permissions ({roles.length})
+          Roles &amp; Permissions ({roles.length})
         </button>
         <button
           className={activeTab === "users" ? "primary small" : "ghost small"}
@@ -186,7 +187,9 @@ export function IAMPage() {
       {/* Tab: Roles List */}
       {activeTab === "roles" ? (
         <div className="panel" style={{ padding: 0 }}>
-          {roles.length === 0 && !loading ? (
+          {loading ? (
+            <SkeletonTable rows={4} cols={4} />
+          ) : roles.length === 0 ? (
             <EmptyState
               icon={Shield}
               title="No roles configured"
@@ -252,7 +255,9 @@ export function IAMPage() {
       {/* Tab: Users Assignment */}
       {activeTab === "users" ? (
         <div className="panel" style={{ padding: 0 }}>
-          {users.length === 0 && !loading ? (
+          {loading ? (
+            <SkeletonTable rows={4} cols={3} />
+          ) : users.length === 0 ? (
             <EmptyState
               icon={UsersIcon}
               title="No directory users"
@@ -409,44 +414,71 @@ export function IAMPage() {
           </div>
 
           <div style={{ marginTop: "0.5rem" }}>
-            <h4 style={{ marginBottom: "0.5rem" }}>Permissions Matrix</h4>
-            <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-              {Object.entries(permissionsByModule).map(([mod, items]) => (
-                <div key={mod} style={{ border: "1px solid var(--border-default)", borderRadius: "4px", padding: "0.75rem" }}>
-                  <div style={{ fontWeight: 600, textTransform: "uppercase", fontSize: "0.72rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
-                    Module: {mod}
+            <div className="flex justify-between items-center" style={{ marginBottom: "0.5rem" }}>
+              <h4>Permissions Matrix</h4>
+              <span className="text-muted" style={{ fontSize: "0.75rem" }}>
+                {selectedPermissions.length} selected
+              </span>
+            </div>
+
+            <div style={{ marginBottom: "0.75rem" }}>
+              <input
+                type="text"
+                placeholder="Search permissions by code, name or module…"
+                value={permSearch}
+                onChange={(e) => setPermSearch(e.target.value)}
+                style={{ fontSize: "0.8rem", padding: "0.4rem 0.6rem" }}
+              />
+            </div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxHeight: "380px", overflowY: "auto" }}>
+              {Object.entries(permissionsByModule).map(([mod, items]) => {
+                const filtered = items.filter(
+                  (p) =>
+                    !permSearch ||
+                    p.code.toLowerCase().includes(permSearch.toLowerCase()) ||
+                    p.description.toLowerCase().includes(permSearch.toLowerCase()) ||
+                    mod.toLowerCase().includes(permSearch.toLowerCase())
+                );
+                if (filtered.length === 0) return null;
+
+                return (
+                  <div key={mod} style={{ border: "1px solid var(--border-default)", borderRadius: "4px", padding: "0.75rem" }}>
+                    <div style={{ fontWeight: 600, textTransform: "uppercase", fontSize: "0.72rem", color: "var(--text-secondary)", marginBottom: "0.5rem" }}>
+                      Module: {mod} ({filtered.length})
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.4rem" }}>
+                      {filtered.map((perm) => {
+                        const isChecked = selectedPermissions.includes(perm.code);
+                        return (
+                          <label
+                            key={perm.code}
+                            style={{
+                              display: "flex",
+                              flexDirection: "row",
+                              alignItems: "center",
+                              gap: "0.5rem",
+                              cursor: editingRole?.is_system ? "default" : "pointer",
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              disabled={editingRole?.is_system}
+                              onChange={() => togglePermission(perm.code)}
+                              style={{ width: "auto" }}
+                            />
+                            <div>
+                              <div style={{ fontSize: "0.82rem", fontWeight: 500 }}>{perm.code}</div>
+                              <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{perm.description}</div>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "0.4rem" }}>
-                    {items.map((perm) => {
-                      const isChecked = selectedPermissions.includes(perm.code);
-                      return (
-                        <label
-                          key={perm.code}
-                          style={{
-                            display: "flex",
-                            flexDirection: "row",
-                            alignItems: "center",
-                            gap: "0.5rem",
-                            cursor: editingRole?.is_system ? "default" : "pointer",
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            disabled={editingRole?.is_system}
-                            onChange={() => togglePermission(perm.code)}
-                            style={{ width: "auto" }}
-                          />
-                          <div>
-                            <div style={{ fontSize: "0.82rem", fontWeight: 500 }}>{perm.code}</div>
-                            <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{perm.description}</div>
-                          </div>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </form>

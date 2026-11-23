@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Clock, Trash2, Edit } from "lucide-react";
 import { api, ShiftTemplate, ShiftTemplateCreateInput, ShiftSession } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Badge, Drawer, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Drawer, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
 
 const PRESET_COLORS = [
   "#0f766e", // Teal
@@ -206,14 +206,16 @@ export function ShiftsPage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       {/* Templates Table */}
       <div className="panel" style={{ padding: 0 }}>
-        {templates.length === 0 && !loading ? (
+        {loading ? (
+          <SkeletonTable rows={4} cols={8} />
+        ) : templates.length === 0 ? (
           <EmptyState
             icon={Clock}
             title="No shift templates"
@@ -235,7 +237,8 @@ export function ShiftsPage() {
                   <th>Shift Code</th>
                   <th>Shift Name</th>
                   <th>Type</th>
-                  <th>Sessions / Working Hours</th>
+                  <th>Sessions</th>
+                  <th>Session Schedule</th>
                   <th>Overnight</th>
                   <th>Status</th>
                   <th style={{ textAlign: "right" }}>Actions</th>
@@ -265,11 +268,16 @@ export function ShiftsPage() {
                       </Badge>
                     </td>
                     <td>
+                      <Badge variant="neutral">
+                        {tpl.sessions?.length || 1} session{tpl.sessions?.length === 1 ? "" : "s"}
+                      </Badge>
+                    </td>
+                    <td>
                       {tpl.sessions && tpl.sessions.length > 0 ? (
                         <div className="flex gap-1" style={{ flexWrap: "wrap" }}>
                           {tpl.sessions.map((s, idx) => (
                             <Badge key={idx} variant="neutral">
-                              {s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
+                              {s.name ? `${s.name}: ` : ""}{s.start_time.slice(0, 5)}–{s.end_time.slice(0, 5)}
                             </Badge>
                           ))}
                         </div>

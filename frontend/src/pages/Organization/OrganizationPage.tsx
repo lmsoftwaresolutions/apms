@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Plus, Building2, Layers, Briefcase, Trash2, Edit } from "lucide-react";
 import { api, Branch, Department } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Badge, Drawer, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Drawer, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
 
 export const PRESET_DESIGNATIONS = [
   "Senior Software Engineer",
@@ -123,6 +123,24 @@ export function OrganizationPage() {
     }
   };
 
+  const toggleBranchActive = async (b: Branch) => {
+    try {
+      await api.updateBranch(b.id, { is_active: !b.is_active });
+      await loadBranches();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update branch status");
+    }
+  };
+
+  const toggleDeptActive = async (d: Department) => {
+    try {
+      await api.updateDepartment(d.id, { is_active: !d.is_active });
+      await loadDepartments(selectedBranchId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to update department status");
+    }
+  };
+
   // Department CRUD
   const openCreateDept = () => {
     setEditingDept(null);
@@ -202,9 +220,9 @@ export function OrganizationPage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
-        </div>
+        </Alert>
       ) : null}
 
       {/* Tabs */}
@@ -256,7 +274,9 @@ export function OrganizationPage() {
           </div>
 
           <div className="panel" style={{ padding: 0 }}>
-            {departments.length === 0 && !loading ? (
+            {loading ? (
+              <SkeletonTable rows={4} cols={5} />
+            ) : departments.length === 0 ? (
               <EmptyState
                 icon={Layers}
                 title="No departments found"
@@ -278,7 +298,7 @@ export function OrganizationPage() {
                       <th>Department Name</th>
                       <th>Branch</th>
                       <th>Parent Department</th>
-                      <th>Status</th>
+                      <th>Status (Click to toggle)</th>
                       <th style={{ textAlign: "right" }}>Actions</th>
                     </tr>
                   </thead>
@@ -290,9 +310,23 @@ export function OrganizationPage() {
                         <td>{branchNameById.get(dept.branch_id) || "—"}</td>
                         <td>{dept.parent_dept_id ? deptNameById.get(dept.parent_dept_id) || "—" : <span className="text-muted">Root</span>}</td>
                         <td>
-                          <Badge variant={dept.is_active ? "present" : "neutral"}>
-                            {dept.is_active ? "Active" : "Inactive"}
-                          </Badge>
+                          {can("org.department.update") ? (
+                            <button
+                              type="button"
+                              className="ghost small"
+                              onClick={() => toggleDeptActive(dept)}
+                              title="Click to toggle active status"
+                              style={{ padding: "0.15rem 0.35rem" }}
+                            >
+                              <Badge variant={dept.is_active ? "present" : "neutral"}>
+                                {dept.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                            </button>
+                          ) : (
+                            <Badge variant={dept.is_active ? "present" : "neutral"}>
+                              {dept.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          )}
                         </td>
                         <td style={{ textAlign: "right" }}>
                           <div className="flex items-center" style={{ justifyContent: "flex-end", gap: "0.4rem" }}>
@@ -321,7 +355,9 @@ export function OrganizationPage() {
       {/* Tab: Branches */}
       {activeTab === "branches" ? (
         <div className="panel" style={{ padding: 0 }}>
-          {branches.length === 0 && !loading ? (
+          {loading ? (
+            <SkeletonTable rows={4} cols={4} />
+          ) : branches.length === 0 ? (
             <EmptyState
               icon={Building2}
               title="No branches yet"
@@ -341,7 +377,7 @@ export function OrganizationPage() {
                   <tr>
                     <th>Branch Code</th>
                     <th>Branch Name</th>
-                    <th>Status</th>
+                    <th>Status (Click to toggle)</th>
                     <th style={{ textAlign: "right" }}>Actions</th>
                   </tr>
                 </thead>
@@ -351,9 +387,23 @@ export function OrganizationPage() {
                       <td style={{ fontWeight: 600 }}>{branch.code}</td>
                       <td>{branch.name}</td>
                       <td>
-                        <Badge variant={branch.is_active ? "present" : "neutral"}>
-                          {branch.is_active ? "Active" : "Inactive"}
-                        </Badge>
+                        {can("org.branch.update") ? (
+                          <button
+                            type="button"
+                            className="ghost small"
+                            onClick={() => toggleBranchActive(branch)}
+                            title="Click to toggle active status"
+                            style={{ padding: "0.15rem 0.35rem" }}
+                          >
+                            <Badge variant={branch.is_active ? "present" : "neutral"}>
+                              {branch.is_active ? "Active" : "Inactive"}
+                            </Badge>
+                          </button>
+                        ) : (
+                          <Badge variant={branch.is_active ? "present" : "neutral"}>
+                            {branch.is_active ? "Active" : "Inactive"}
+                          </Badge>
+                        )}
                       </td>
                       <td style={{ textAlign: "right" }}>
                         <div className="flex items-center" style={{ justifyContent: "flex-end", gap: "0.4rem" }}>

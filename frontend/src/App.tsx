@@ -67,6 +67,13 @@ function SignIn({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState(initialError);
 
+  // Reset fields on mount to prevent browser-autofill or clipboard bleed
+  useEffect(() => {
+    setEmail("");
+    setPassword("");
+    setError(initialError);
+  }, [initialError]);
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setPending(true);
@@ -75,68 +82,73 @@ function SignIn({
       const res = await api.login(email.trim(), password);
       await onSignedIn(res.access_token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Sign-in failed. Please verify credentials.");
+      const msg = err instanceof Error ? err.message : "Sign-in failed.";
+      // Strip raw markdown/JSON that sometimes leaks from backend error strings
+      setError(msg.replace(/^#+\s+.*$/gm, "").trim() || "Sign-in failed. Please verify credentials.");
     } finally {
       setPending(false);
     }
   };
 
+  const fillCreds = (e: string, p: string) => {
+    setEmail(e);
+    setPassword(p);
+    setError("");
+  };
+
   return (
     <main className="gate">
       <div className="login-card">
+        {/* Brand */}
         <div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
-            <span
-              style={{
-                width: "28px",
-                height: "28px",
-                background: "var(--action-primary)",
-                color: "var(--action-fg)",
-                borderRadius: "4px",
-                display: "grid",
-                placeItems: "center",
-                fontWeight: 700,
-                fontSize: "0.9rem",
-              }}
-            >
-              A
-            </span>
-            <span style={{ fontSize: "1.2rem", fontWeight: 700, letterSpacing: "-0.02em" }}>
-              APMS
-            </span>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.4rem" }}>
+            <span className="login-brand-mark">A</span>
+            <span style={{ fontSize: "1.25rem", fontWeight: 700, letterSpacing: "-0.02em" }}>APMS</span>
           </div>
-          <p className="text-secondary" style={{ fontSize: "0.82rem" }}>
-            Attendance Capture, Shift Rostering & Statutory Payroll Console
+          <p className="text-secondary" style={{ fontSize: "0.82rem", lineHeight: 1.5 }}>
+            Attendance Capture, Shift Rostering &amp; Statutory Payroll Console
           </p>
         </div>
 
+        {/* Error Banner */}
         {error ? (
-          <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.8rem" }}>
-            {error}
+          <div className="login-error-banner">
+            <span>⚠ {error}</span>
+            <button type="button" className="ghost small" style={{ padding: "0 0.25rem" }} onClick={() => setError("")}>✕</button>
           </div>
         ) : null}
 
-        <form className="flex flex-col gap-3" style={{ width: "100%" }} onSubmit={handleSubmit}>
+        {/* Sign-in Form */}
+        <form
+          className="flex flex-col gap-3"
+          style={{ width: "100%" }}
+          onSubmit={handleSubmit}
+          autoComplete="off"
+        >
           <div className="form-group">
-            <label>Work Email</label>
+            <label htmlFor="login-email">Work Email</label>
             <input
-              type="email"
+              id="login-email"
+              type="text"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@northmill.example"
-              autoComplete="username"
+              placeholder="user@tenant.example"
+              autoComplete="off"
+              spellCheck={false}
               required
             />
           </div>
 
           <div className="form-group">
-            <label>Password</label>
+            <label htmlFor="login-password">Password</label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
-              autoComplete="current-password"
+              autoComplete="new-password"
               required
             />
           </div>
@@ -144,46 +156,46 @@ function SignIn({
           <button
             className="primary"
             type="submit"
-            disabled={pending || !email || password.length < 6}
-            style={{ marginTop: "0.25rem", width: "100%", padding: "0.6rem" }}
+            disabled={pending || !email.includes("@") || password.length < 6}
+            style={{ marginTop: "0.25rem", width: "100%", padding: "0.65rem" }}
           >
             {pending ? "Signing in…" : "Sign in to Console"}
           </button>
         </form>
 
-        {/* Quick Fill Credentials for Dev Testing */}
-        <div style={{ borderTop: "1px solid var(--border-default)", paddingTop: "0.75rem", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-          <span style={{ fontSize: "0.72rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.03em", fontWeight: 600 }}>
-            Quick Demo Credentials
-          </span>
-          <div className="flex gap-2" style={{ flexWrap: "wrap" }}>
+        {/* Quick-fill Demo Buttons */}
+        <div className="login-demo-section">
+          <span className="login-demo-label">Dev Demo Credentials</span>
+          <div className="flex gap-2 flex-wrap">
             <button
               className="ghost small"
               type="button"
-              onClick={() => {
-                setEmail("admin@northmill.example");
-                setPassword("ChangeMe-Admin-1");
-              }}
-              title="Full tenant administrator"
+              onClick={() => fillCreds("admin@northmill.example", "ChangeMe-Admin-1")}
+              title="Full tenant administrator — North Mill Textiles"
             >
-              Admin (North Mill)
+              Admin · North Mill
             </button>
             <button
               className="ghost small"
               type="button"
-              onClick={() => {
-                setEmail("supervisor@northmill.example");
-                setPassword("ChangeMe-Supervisor-1");
-              }}
-              title="Shift supervisor"
+              onClick={() => fillCreds("supervisor@northmill.example", "ChangeMe-Supervisor-1")}
+              title="Shift supervisor role"
             >
               Supervisor
+            </button>
+            <button
+              className="ghost small"
+              type="button"
+              onClick={() => fillCreds("admin@eastmill.example", "ChangeMe-East-1")}
+              title="East Mill Textile — newly provisioned"
+            >
+              Admin · East Mill
             </button>
           </div>
         </div>
 
-        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", textAlign: "center" }}>
-          Protected by Row-Level Security & AES-256 Tenant Vault
+        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", textAlign: "center", paddingTop: "0.25rem" }}>
+          Protected by Row-Level Security &amp; AES-256 Tenant Vault
         </div>
       </div>
     </main>

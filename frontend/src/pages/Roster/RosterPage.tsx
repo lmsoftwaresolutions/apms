@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Calendar, Play, AlertCircle, ChevronLeft, ChevronRight, CheckCircle2 } from "lucide-react";
+import { Plus, Calendar, Play, AlertCircle, ChevronLeft, ChevronRight, CheckCircle2, RotateCw } from "lucide-react";
 import {
   api,
   Branch,
@@ -10,7 +10,7 @@ import {
   DatedShiftInstance,
 } from "../../api";
 import { useAuth } from "../../context/AuthContext";
-import { Badge, Modal, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Modal, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
 
 export function RosterPage() {
   const { can } = useAuth();
@@ -210,8 +210,24 @@ export function RosterPage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
+        </Alert>
+      ) : null}
+
+      {instances.length === 0 && employees.length > 0 && !loading ? (
+        <div className="banner info flex justify-between items-center">
+          <div>
+            <strong>No shift instances materialized for this period.</strong>
+            <p className="text-secondary" style={{ fontSize: "0.78rem", margin: 0 }}>
+              The 30-day roster grid is empty for the selected branch/department. Materialize shifts to assign schedules.
+            </p>
+          </div>
+          {can("roster.instance.create") ? (
+            <button className="primary small" type="button" onClick={() => setIsMatModalOpen(true)}>
+              <Play size={14} /> Materialize Now
+            </button>
+          ) : null}
         </div>
       ) : null}
 
@@ -277,7 +293,9 @@ export function RosterPage() {
 
       {/* Roster Calendar Matrix */}
       <div className="panel" style={{ padding: 0 }}>
-        {employees.length === 0 && !loading ? (
+        {loading ? (
+          <SkeletonTable rows={6} cols={10} />
+        ) : employees.length === 0 ? (
           <EmptyState
             icon={Calendar}
             title="No employees found"

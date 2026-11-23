@@ -373,6 +373,16 @@ export const api = {
     const str = q.toString();
     return request<PunchEvent[]>(str ? `/api/v1/punches?${str}` : "/api/v1/punches");
   },
+  ingestPunches: (payload: { source: string; raw_payload: any; device_identifier?: string }) =>
+    request<{ raw_envelope_id: string; source: string; total_received: number; active_punches: number; duplicates_ignored: number; unmatched_employees: string[]; is_duplicate: boolean }>(
+      "/api/v1/punches/ingest",
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
+  ingestEtime: (payload: Record<string, any>) =>
+    request<{ raw_envelope_id: string; source: string; total_received: number; active_punches: number; duplicates_ignored: number; unmatched_employees: string[]; is_duplicate: boolean }>(
+      "/api/v1/punches/etime",
+      { method: "POST", body: JSON.stringify(payload) }
+    ),
 
   // Attendance
   dailyAttendance: (params: { employee_id?: string; start_date?: string; end_date?: string }) => {

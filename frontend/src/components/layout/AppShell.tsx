@@ -67,11 +67,16 @@ export function AppShell({
         </div>
 
         <ul className="nav-list">
+          {/* ── Operational ── */}
+          {!collapsed && (can("attendance.daily.read") || can("roster.instance.read") || can("shift.template.read") || can("employee.employee.read")) && (
+            <li className="nav-group-label">Operational</li>
+          )}
+
           {can("attendance.daily.read") ? (
             <li
               className={`nav-item ${currentTab === "attendance" ? "active" : ""}`}
               onClick={() => onSelectTab("attendance")}
-              title="Attendance"
+              title="Attendance Register"
             >
               <Calendar size={18} />
               {!collapsed && <span>Attendance</span>}
@@ -111,6 +116,11 @@ export function AppShell({
             </li>
           ) : null}
 
+          {/* ── Admin ── */}
+          {!collapsed && (can("org.department.read") || can("org.branch.read") || can("iam.role.read") || can("org.tenant.update")) && (
+            <li className="nav-group-label" style={{ marginTop: "0.5rem" }}>Administration</li>
+          )}
+
           {can("org.department.read") || can("org.branch.read") ? (
             <li
               className={`nav-item ${currentTab === "organization" ? "active" : ""}`}
@@ -129,7 +139,7 @@ export function AppShell({
               title="IAM & RBAC"
             >
               <ShieldCheck size={18} />
-              {!collapsed && <span>IAM & Roles</span>}
+              {!collapsed && <span>IAM &amp; Roles</span>}
             </li>
           ) : null}
 
@@ -137,23 +147,28 @@ export function AppShell({
             <li
               className={`nav-item ${currentTab === "settings" ? "active" : ""}`}
               onClick={() => onSelectTab("settings")}
-              title="Settings"
+              title="Tenant Settings"
             >
               <Settings size={18} />
               {!collapsed && <span>Settings</span>}
             </li>
           ) : null}
 
-          {can("org.tenant.update") ? (
-            <li
-              className={`nav-item ${currentTab === "tenants" ? "active" : ""}`}
-              onClick={() => onSelectTab("tenants")}
-              title="Platform Tenants"
-            >
-              <Globe size={18} />
-              {!collapsed && <span>Platform Tenants</span>}
-            </li>
-          ) : null}
+          {/* ── Platform (Super Admin only) ── */}
+          {can("org.tenant.update") && (
+            <>
+              <li className="nav-divider" />
+              {!collapsed && <li className="nav-group-label nav-group-platform">Platform Admin</li>}
+              <li
+                className={`nav-item nav-item-platform ${currentTab === "tenants" ? "active" : ""}`}
+                onClick={() => onSelectTab("tenants")}
+                title="Platform Tenants"
+              >
+                <Globe size={18} />
+                {!collapsed && <span>Tenants</span>}
+              </li>
+            </>
+          )}
         </ul>
       </aside>
 

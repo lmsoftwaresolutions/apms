@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Globe, ShieldAlert, CheckCircle2, Building, Users } from "lucide-react";
+import { Plus, Globe, ShieldAlert, CheckCircle2, Building, Users, Copy, Check } from "lucide-react";
 import { api, PlatformTenant, TenantProvisionInput } from "../../api";
-import { Badge, Modal, EmptyState } from "../../components/common/UIComponents";
+import { Badge, Modal, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
 
 export function TenantsPage() {
   const [tenants, setTenants] = useState<PlatformTenant[]>([]);
@@ -21,7 +21,8 @@ export function TenantsPage() {
     branch_code: "HQ",
   });
   const [provisioning, setProvisioning] = useState(false);
-  const [provisionSuccess, setProvisionSuccess] = useState<string | null>(null);
+  const [createdCreds, setCreatedCreds] = useState<{ email: string; pass: string; org: string } | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Status toggle state
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -54,7 +55,6 @@ export function TenantsPage() {
       branch_name: "Headquarters",
       branch_code: "HQ",
     });
-    setProvisionSuccess(null);
     setIsProvisionOpen(true);
   };
 
@@ -74,20 +74,28 @@ export function TenantsPage() {
     e.preventDefault();
     setProvisioning(true);
     setError("");
-    setProvisionSuccess(null);
     try {
       const created = await api.provisionTenant(form);
-      setProvisionSuccess(`Tenant '${created.display_name}' (${created.subdomain}) successfully provisioned!`);
+      setCreatedCreds({
+        email: form.admin_email,
+        pass: form.admin_password,
+        org: created.display_name,
+      });
+      setIsProvisionOpen(false);
       await loadTenants();
-      setTimeout(() => {
-        setIsProvisionOpen(false);
-        setProvisionSuccess(null);
-      }, 1800);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to provision tenant");
     } finally {
       setProvisioning(false);
     }
+  };
+
+  const copyCreds = () => {
+    if (!createdCreds) return;
+    const text = `APMS Tenant Admin Credentials\nOrganization: ${createdCreds.org}\nLogin Email: ${createdCreds.email}\nPassword: ${createdCreds.pass}`;
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleToggleStatus = async (tenant: PlatformTenant) => {
@@ -126,10 +134,53 @@ export function TenantsPage() {
       </div>
 
       {error ? (
-        <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.82rem" }}>
+        <Alert variant="danger" onDismiss={() => setError("")}>
           {error}
-        </div>
+        </Alert>
       ) : null}
+
+      {/* Newly Provisioned Credentials Success Modal */}
+      <Modal
+        isOpen={!!createdCreds}
+        onClose={() => setCreatedCreds(null)}
+        title="Tenant Organization Provisioned Successfully"
+        footer={
+          <div className="flex justify-between w-full">
+            <button className="ghost small" type="button" onClick={() => setCreatedCreds(null)}>
+              Done
+            </button>
+            <button className="primary small" type="button" onClick={copyCreds}>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              {copied ? "Copied to Clipboard!" : "Copy Admin Credentials"}
+            </button>
+          </div>
+        }
+      >
+        {createdCreds && (
+          <div className="flex flex-col gap-3">
+            <div className="banner success flex items-center gap-2">
+              <CheckCircle2 size={16} />
+              <span>Tenant <strong>{createdCreds.org}</strong> has been initialized with schema RLS and super admin role.</span>
+            </div>
+
+            <div style={{ background: "var(--bg-subtle)", padding: "1rem", borderRadius: "6px", display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div style={{ fontSize: "0.8rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                Initial Administrator Login:
+              </div>
+              <div className="grid-cols-2" style={{ fontSize: "0.85rem" }}>
+                <div><strong>Work Email:</strong></div>
+                <div><code>{createdCreds.email}</code></div>
+                <div><strong>Password:</strong></div>
+                <div><code>{createdCreds.pass}</code></div>
+              </div>
+            </div>
+
+            <p className="text-secondary" style={{ fontSize: "0.78rem", margin: 0 }}>
+              Save these credentials. The tenant admin can immediately sign in to configure operating branches and employees.
+            </p>
+          </div>
+        )}
+      </Modal>
 
       {/* Platform Summary Metrics */}
       <div className="grid-cols-4">
@@ -153,7 +204,9 @@ export function TenantsPage() {
 
       {/* Tenants Table */}
       <div className="panel" style={{ padding: 0 }}>
-        {tenants.length === 0 && !loading ? (
+        {loading ? (
+          <SkeletonTable rows={4} cols={7} />
+        ) : tenants.length === 0 ? (
           <EmptyState
             icon={Globe}
             title="No tenants found"
@@ -252,12 +305,6 @@ export function TenantsPage() {
         }
       >
         <form className="flex flex-col gap-4" onSubmit={handleProvision}>
-          {provisionSuccess ? (
-            <div className="flex items-center gap-2" style={{ background: "var(--success-bg)", color: "var(--success-fg)", padding: "0.75rem", borderRadius: "4px", fontSize: "0.82rem" }}>
-              <CheckCircle2 size={16} /> {provisionSuccess}
-            </div>
-          ) : null}
-
           {/* Section 1: Company Profile */}
           <div>
             <h4 style={{ marginBottom: "0.5rem" }}>1. Organization Profile</h4>
@@ -324,7 +371,29 @@ export function TenantsPage() {
               </div>
 
               <div className="form-group" style={{ gridColumn: "1 / -1" }}>
-                <label>Temporary Password (min 8 chars)</label>
+                <div className="flex justify-between items-center">
+                  <label>Temporary Password (min 8 chars)</label>
+                  {form.admin_password ? (
+                    <span
+                      style={{
+                        fontSize: "0.72rem",
+                        fontWeight: 600,
+                        color:
+                          form.admin_password.length < 8
+                            ? "var(--danger-fg)"
+                            : form.admin_password.length < 10
+                            ? "var(--warning-fg)"
+                            : "var(--success-fg)",
+                      }}
+                    >
+                      {form.admin_password.length < 8
+                        ? "Too short (min 8)"
+                        : form.admin_password.length < 10
+                        ? "Fair (recommend 10+)"
+                        : "Strong password"}
+                    </span>
+                  ) : null}
+                </div>
                 <input
                   type="password"
                   value={form.admin_password}
