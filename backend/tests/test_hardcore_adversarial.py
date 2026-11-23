@@ -24,6 +24,10 @@ from app.modules.punches.repository import list_punch_events
 from app.modules.punches.service import process_and_ingest_punches
 from app.services.idempotency import replay_or_reserve, store_response
 
+# Open follow-ups live in .agents/skills/hardcore-testing/SKILL.md section 4:
+# sub-second debounce, same-timestamp multi-device punches, Aadhaar HMAC,
+# and cross-tenant shift, employee, and attendance mutations.
+
 IST = ZoneInfo("Asia/Kolkata")
 
 

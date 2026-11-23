@@ -73,3 +73,14 @@ Every hardcore test must follow the **Arrange-Act-Assert** paradigm with zero am
 ```
 - **Never mock database queries** when testing RLS or composite foreign keys.
 - **Always clean up / randomize** tenant codes, employee codes, and identifiers (`uuid4().hex[:6]`) so tests are fully idempotent on persistent databases.
+
+---
+
+## 4. Open follow-ups
+
+`backend/tests/test_hardcore_adversarial.py` does not yet cover these skill lines. Add them in a later fix; do not treat the current suite as complete for them.
+
+- **Sub-second debounce.** The suite asserts 59s `DUPLICATE_IGNORED` and 61s `ACTIVE`. The engine window is whole seconds (`timedelta(seconds=60)`). Still missing: a punch at 59.99s stays ignored, and a punch at 60.01s stays active.
+- **Same-timestamp multi-device collision.** `GATE_2` is currently 15 seconds after `GATE_1`. Still missing: both devices send the same `punch_time` for one employee, and the second punch is `DUPLICATE_IGNORED`.
+- **Aadhaar vault.** The plaintext probe checks `pan_encrypted` and `bank_account_encrypted` only. Still missing: `aadhaar_encrypted` contains no plaintext, and each fingerprint is the HMAC-SHA256 of `{tenant_id}:{value}` (64 hex chars, case-insensitive match, no raw identifier).
+- **Cross-tenant mutations beyond designations.** Tenant B can already be shown to see zero punch rows and to receive 404 on Tenant A's designation read, update, and delete. Still missing: the same 404, with zero rows under Tenant B's RLS context, for Tenant A's shifts, employees, and attendance records.
