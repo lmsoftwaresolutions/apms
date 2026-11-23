@@ -8,8 +8,12 @@ from app.core.database import MigrateSession, SessionLocal, set_tenant
 from app.core.errors import ProblemError
 from app.models.branch import Branch
 from app.models.iam import Tenant
-from app.schemas.employee import EmployeeCreate, EmployeeUpdate
-from app.services.employee import (
+from app.modules.branches.schemas import BranchCreate
+from app.modules.branches.service import create_branch
+from app.modules.departments.schemas import DepartmentCreate
+from app.modules.departments.service import create_department
+from app.modules.employees.schemas import EmployeeCreate, EmployeeUpdate
+from app.modules.employees.service import (
     create_employee,
     get_employee,
     list_employees,
@@ -216,3 +220,57 @@ async def test_composite_foreign_key_cross_tenant_branch_rejected(
                 ),
             )
         assert exc_info.value.status == 400
+
+
+@pytest.mark.asyncio
+async def test_department_must_belong_to_employee_branch(seeded_tenants: tuple[Tenant, Tenant]) -> None:
+    tenant, _ = seeded_tenants
+    suffix = uuid4().hex[:6].upper()
+
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant.id)
+        branch_a = await create_branch(session, tenant.id, BranchCreate(name=f"Mill A {suffix}", code=f"A{suffix[:4]}"))
+        branch_b = await create_branch(session, tenant.id, BranchCreate(name=f"Mill B {suffix}", code=f"B{suffix[:4]}"))
+        other_dept = await create_department(
+            session,
+            tenant.id,
+            DepartmentCreate(branch_id=branch_b.id, name=f"Other {suffix}", code=f"O{suffix[:4]}"),
+        )
+        same_dept = await create_department(
+            session,
+            tenant.id,
+            DepartmentCreate(branch_id=branch_a.id, name=f"Same {suffix}", code=f"S{suffix[:4]}"),
+        )
+
+        with pytest.raises(ProblemError) as exc_info:
+            await create_employee(
+                session,
+                tenant.id,
+                EmployeeCreate(
+                    employee_code=f"EMP-XBRANCH-{suffix}",
+                    full_name="Cross Branch Department",
+                    branch_id=branch_a.id,
+                    department_id=other_dept.id,
+                    date_of_joining=date(2026, 1, 1),
+                ),
+            )
+        assert exc_info.value.status == 400
+
+        created = await create_employee(
+            session,
+            tenant.id,
+            EmployeeCreate(
+                employee_code=f"EMP-SAME-{suffix}",
+                full_name="Same Branch Department",
+                branch_id=branch_a.id,
+                department_id=same_dept.id,
+                date_of_joining=date(2026, 1, 1),
+            ),
+        )
+        cleared = await update_employee(
+            session,
+            tenant.id,
+            created.id,
+            EmployeeUpdate(department_id=None),
+        )
+        assert cleared.department_id is None

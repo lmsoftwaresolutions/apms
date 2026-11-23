@@ -3,6 +3,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.common import DeletedOut
+
+__all__ = ["EmployeeCreate", "EmployeeUpdate", "EmployeeOut", "DeletedOut"]
+
 
 class EmployeeCreate(BaseModel):
     employee_code: str = Field(min_length=1, max_length=50)
@@ -86,7 +90,3 @@ class EmployeeOut(BaseModel):
     biometric_consent_at: datetime | None
     created_at: datetime
     updated_at: datetime
-
-
-class DeletedOut(BaseModel):
-    id: UUID

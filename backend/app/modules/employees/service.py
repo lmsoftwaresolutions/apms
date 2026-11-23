@@ -14,8 +14,11 @@ from app.core.crypto import (
 )
 from app.core.errors import ProblemError
 from app.models.employee import Employee
+from app.modules.branches import repository as branch_repo
+from app.modules.departments import repository as dept_repo
 from app.modules.employees import repository as emp_repo
 from app.modules.employees.schemas import EmployeeCreate, EmployeeOut, EmployeeUpdate
+from app.modules.iam import repository as iam_repo
 
 
 def employee_to_out(emp: Employee) -> EmployeeOut:
@@ -53,23 +56,36 @@ def employee_to_out(emp: Employee) -> EmployeeOut:
     )
 
 
-async def create_employee(session: AsyncSession, tenant_id: UUID, payload: EmployeeCreate) -> EmployeeOut:
-    # Verify branch belongs to tenant
-    branch = await emp_repo.get_branch(session, tenant_id, payload.branch_id)
-    if branch is None:
+async def _require_branch(session: AsyncSession, tenant_id: UUID, branch_id: UUID) -> None:
+    if await branch_repo.get_branch_by_id(session, tenant_id, branch_id) is None:
         raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
 
-    # Verify department if provided
-    if payload.department_id is not None:
-        dept = await emp_repo.get_department(session, tenant_id, payload.department_id)
-        if dept is None:
-            raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
 
-    # Verify user link if provided
+async def _require_department_in_branch(
+    session: AsyncSession,
+    tenant_id: UUID,
+    department_id: UUID,
+    branch_id: UUID,
+) -> None:
+    dept = await dept_repo.get_department_by_id(session, tenant_id, department_id)
+    if dept is None:
+        raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
+    if dept.branch_id != branch_id:
+        raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
+
+
+async def _require_user(session: AsyncSession, tenant_id: UUID, user_id: UUID) -> None:
+    user = await iam_repo.get_user_by_id(session, user_id)
+    if user is None or user.tenant_id != tenant_id:
+        raise ProblemError(400, "Invalid user", "User does not exist in this tenant.")
+
+
+async def create_employee(session: AsyncSession, tenant_id: UUID, payload: EmployeeCreate) -> EmployeeOut:
+    await _require_branch(session, tenant_id, payload.branch_id)
+    if payload.department_id is not None:
+        await _require_department_in_branch(session, tenant_id, payload.department_id, payload.branch_id)
     if payload.user_id is not None:
-        user = await emp_repo.get_user(session, tenant_id, payload.user_id)
-        if user is None:
-            raise ProblemError(400, "Invalid user", "User does not exist in this tenant.")
+        await _require_user(session, tenant_id, payload.user_id)
 
     context = str(tenant_id)
     now = datetime.now(UTC)
@@ -147,22 +163,26 @@ async def update_employee(
     if emp is None:
         raise ProblemError(404, "Employee not found", "No employee with that id exists in this tenant.")
 
+    original_branch_id = emp.branch_id
+    target_branch_id = payload.branch_id if payload.branch_id is not None else original_branch_id
+    if payload.branch_id is not None and payload.branch_id != original_branch_id:
+        await _require_branch(session, tenant_id, payload.branch_id)
+
+    if "department_id" in payload.model_fields_set:
+        new_department_id = payload.department_id
+    else:
+        new_department_id = emp.department_id
+    if new_department_id is not None:
+        await _require_department_in_branch(session, tenant_id, new_department_id, target_branch_id)
+
+    if "user_id" in payload.model_fields_set and payload.user_id is not None:
+        await _require_user(session, tenant_id, payload.user_id)
+
     if payload.branch_id is not None:
-        branch = await emp_repo.get_branch(session, tenant_id, payload.branch_id)
-        if branch is None:
-            raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
         emp.branch_id = payload.branch_id
-
-    if payload.department_id is not None:
-        dept = await emp_repo.get_department(session, tenant_id, payload.department_id)
-        if dept is None:
-            raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
+    if "department_id" in payload.model_fields_set:
         emp.department_id = payload.department_id
-
-    if payload.user_id is not None:
-        user = await emp_repo.get_user(session, tenant_id, payload.user_id)
-        if user is None:
-            raise ProblemError(400, "Invalid user", "User does not exist in this tenant.")
+    if "user_id" in payload.model_fields_set:
         emp.user_id = payload.user_id
 
     if payload.full_name is not None:
