@@ -2,6 +2,18 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import DeletedOut
+
+__all__ = [
+    "UserOut",
+    "AssignmentIn",
+    "PermissionOut",
+    "RoleOut",
+    "RoleCreate",
+    "RoleUpdate",
+    "DeletedOut",
+]
+
 
 class UserOut(BaseModel):
     id: UUID
@@ -40,8 +52,3 @@ class PermissionOut(BaseModel):
     resource: str
     action: str
     description: str
-
-
-class DeletedOut(BaseModel):
-    id: UUID
-    deleted: bool = True

@@ -16,7 +16,13 @@ async def login(payload: LoginIn, session: SessionDep) -> TokenOut:
 
 @router.get("/me", response_model=MeOut, summary="Current user, tenant, and permissions")
 async def me(current: Annotated[CurrentUser, Depends(get_current_user)], session: SessionDep) -> MeOut:
-    return await auth_service.get_current_user_profile(session, current.tenant_id, current.user)
+    return await auth_service.get_current_user_profile(
+        session,
+        current.tenant_id,
+        current.user.id,
+        current.user.email,
+        current.user.full_name,
+    )
 
 
 @router.patch("/tenant", response_model=TenantOut, summary="Update tenant display name or logo")
