@@ -1,4 +1,25 @@
 export type Tenant = { id: string; display_name: string; logo_url: string | null };
+export type PlatformTenant = {
+  id: string;
+  name: string;
+  subdomain: string;
+  display_name: string;
+  logo_url: string | null;
+  is_active: boolean;
+  created_at: string;
+  employee_count: number;
+  branch_count: number;
+};
+export type TenantProvisionInput = {
+  name: string;
+  subdomain: string;
+  display_name: string;
+  admin_email: string;
+  admin_full_name: string;
+  admin_password: string;
+  branch_name: string;
+  branch_code: string;
+};
 export type Me = {
   id: string;
   email: string;
@@ -365,4 +386,17 @@ export const api = {
   getAttendanceTrace: (recordId: string) => request<AttendanceTrace>(`/api/v1/attendance/${recordId}/trace`),
   recalculateAttendance: (payload: { employee_id: string; calendar_date: string }) =>
     request<DailyAttendance>("/api/v1/attendance/recalculate", { method: "POST", body: JSON.stringify(payload) }),
+
+  // Platform & Multi-Tenant Provisioning (Super Admin)
+  platformTenants: () => request<PlatformTenant[]>("/api/v1/platform/tenants"),
+  provisionTenant: (payload: TenantProvisionInput) =>
+    request<PlatformTenant>("/api/v1/platform/tenants", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateTenantStatus: (tenantId: string, is_active: boolean) =>
+    request<PlatformTenant>(`/api/v1/platform/tenants/${tenantId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ is_active }),
+    }),
 };

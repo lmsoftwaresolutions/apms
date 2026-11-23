@@ -9,6 +9,7 @@ import { EmployeesPage } from "./pages/Employees/EmployeesPage";
 import { OrganizationPage } from "./pages/Organization/OrganizationPage";
 import { IAMPage } from "./pages/IAM/IAMPage";
 import { SettingsPage } from "./pages/Settings/SettingsPage";
+import { TenantsPage } from "./pages/Platform/TenantsPage";
 
 export function App() {
   const { me, token, loading, error, login } = useAuth();
@@ -49,6 +50,7 @@ export function App() {
       {currentTab === "organization" && <OrganizationPage />}
       {currentTab === "iam" && <IAMPage />}
       {currentTab === "settings" && <SettingsPage />}
+      {currentTab === "tenants" && <TenantsPage />}
     </AppShell>
   );
 }

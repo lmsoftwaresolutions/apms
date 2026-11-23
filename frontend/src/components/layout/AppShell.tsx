@@ -11,11 +11,12 @@ import {
   Moon,
   Monitor,
   Menu,
+  Globe,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
-export type NavTab = "attendance" | "roster" | "shifts" | "employees" | "organization" | "iam" | "settings";
+export type NavTab = "attendance" | "roster" | "shifts" | "employees" | "organization" | "iam" | "settings" | "tenants";
 
 export function AppShell({
   currentTab,
@@ -140,6 +141,17 @@ export function AppShell({
             >
               <Settings size={18} />
               {!collapsed && <span>Settings</span>}
+            </li>
+          ) : null}
+
+          {can("org.tenant.update") ? (
+            <li
+              className={`nav-item ${currentTab === "tenants" ? "active" : ""}`}
+              onClick={() => onSelectTab("tenants")}
+              title="Platform Tenants"
+            >
+              <Globe size={18} />
+              {!collapsed && <span>Platform Tenants</span>}
             </li>
           ) : null}
         </ul>
