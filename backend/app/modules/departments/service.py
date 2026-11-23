@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
 from app.models.department import Department
+from app.modules.branches import repository as branch_repo
 from app.modules.departments import repository as dept_repo
 from app.modules.departments.schemas import (
     DepartmentCreate,
@@ -42,8 +43,7 @@ async def create_department(
     tenant_id: UUID,
     payload: DepartmentCreate,
 ) -> DepartmentOut:
-    branch_ok = await dept_repo.branch_exists_in_tenant(session, tenant_id, payload.branch_id)
-    if not branch_ok:
+    if await branch_repo.get_branch_by_id(session, tenant_id, payload.branch_id) is None:
         raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
 
     if payload.parent_dept_id is not None:
@@ -84,8 +84,7 @@ async def update_department(
 
     target_branch_id = payload.branch_id if payload.branch_id is not None else department.branch_id
     if payload.branch_id is not None:
-        branch_ok = await dept_repo.branch_exists_in_tenant(session, tenant_id, payload.branch_id)
-        if not branch_ok:
+        if await branch_repo.get_branch_by_id(session, tenant_id, payload.branch_id) is None:
             raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
         if payload.branch_id != department.branch_id:
             if await dept_repo.has_sub_departments(session, tenant_id, department_id):
@@ -110,7 +109,7 @@ async def update_department(
 
         # Cycle detection: traverse parent hierarchy
         curr = parent
-        visited = set()
+        visited: set[UUID] = set()
         depth = 0
         while curr is not None and depth < MAX_DEPT_DEPTH:
             if curr.id == department_id:
@@ -120,6 +119,13 @@ async def update_department(
             visited.add(curr.id)
             depth += 1
             curr = await dept_repo.get_department_by_id(session, tenant_id, curr.parent_dept_id)
+        else:
+            if curr is not None:
+                raise ProblemError(
+                    400,
+                    "Department hierarchy too deep",
+                    "Parent chain exceeds the maximum depth.",
+                )
 
     try:
         updated = await dept_repo.update_department_fields(

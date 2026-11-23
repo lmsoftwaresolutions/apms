@@ -1,14 +1,15 @@
 """Department schema and permissions.
 
-Revision ID: 003_departments
-Revises: 002_rls_fail_closed
-Create Date: 2026-11-19
+Revision ID: 004_departments
+Revises: 003_rls_fail_closed
+Create Date: 2026-11-23
 """
 
 from alembic import op
+from sqlalchemy import bindparam, text
 
-revision = "003_departments"
-down_revision = "002_rls_fail_closed"
+revision = "004_departments"
+down_revision = "003_rls_fail_closed"
 branch_labels = None
 depends_on = None
 
@@ -61,31 +62,45 @@ STATEMENTS = [
     "GRANT SELECT, INSERT, UPDATE, DELETE ON departments TO apms_app",
 ]
 
+INSERT_PERMISSION = text(
+    """
+    INSERT INTO permissions (code, module, resource, action, description)
+    VALUES (:code, :module, :resource, :action, :description)
+    ON CONFLICT (code) DO NOTHING
+    """
+)
+DELETE_ROLE_GRANTS = text(
+    """
+    DELETE FROM role_permissions
+    WHERE permission_id IN (SELECT id FROM permissions WHERE code IN :codes)
+    """
+).bindparams(bindparam("codes", expanding=True))
+DELETE_PERMISSIONS = text(
+    "DELETE FROM permissions WHERE code IN :codes"
+).bindparams(bindparam("codes", expanding=True))
+
 
 def upgrade() -> None:
     for statement in STATEMENTS:
         op.execute(statement)
 
-    values = ",\n".join(
-        f"('{code}', '{module}', '{resource}', '{action}', '{description}')"
-        for code, module, resource, action, description in PERMISSIONS
-    )
-    op.execute(
-        f"""
-        INSERT INTO permissions (code, module, resource, action, description)
-        VALUES {values}
-        ON CONFLICT (code) DO NOTHING
-        """
-    )
+    bind = op.get_bind()
+    for code, module, resource, action, description in PERMISSIONS:
+        bind.execute(
+            INSERT_PERMISSION,
+            {
+                "code": code,
+                "module": module,
+                "resource": resource,
+                "action": action,
+                "description": description,
+            },
+        )
 
 
 def downgrade() -> None:
-    codes = ", ".join(f"'{p[0]}'" for p in PERMISSIONS)
-    op.execute(
-        f"""
-        DELETE FROM role_permissions
-        WHERE permission_id IN (SELECT id FROM permissions WHERE code IN ({codes}))
-        """
-    )
-    op.execute(f"DELETE FROM permissions WHERE code IN ({codes})")
+    codes = [item[0] for item in PERMISSIONS]
+    bind = op.get_bind()
+    bind.execute(DELETE_ROLE_GRANTS, {"codes": codes})
+    bind.execute(DELETE_PERMISSIONS, {"codes": codes})
     op.execute("DROP TABLE IF EXISTS departments CASCADE")

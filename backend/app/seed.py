@@ -7,8 +7,10 @@ from sqlalchemy import select, text
 from app.core.database import MigrateSession
 from app.core.security import hash_password
 from app.models.branch import Branch
-from app.models.department import Department
 from app.models.iam import Permission, Role, RolePermission, Tenant, User, UserRole
+from app.modules.departments.repository import get_department_by_code
+from app.modules.departments.schemas import DepartmentCreate
+from app.modules.departments.service import create_department
 
 PASSWORD = "ChangeMe-Admin-1"
 SUPERVISOR_PASSWORD = "ChangeMe-Supervisor-1"
@@ -148,24 +150,12 @@ async def seed() -> None:
                 await session.flush()
 
             for dept_name, dept_code in spec.get("departments", ()):
-                existing_dept = await session.scalar(
-                    select(Department).where(
-                        Department.tenant_id == tenant.id,
-                        Department.branch_id == existing_branch.id,
-                        Department.code == dept_code,
-                    )
-                )
+                existing_dept = await get_department_by_code(session, tenant.id, existing_branch.id, dept_code)
                 if existing_dept is None:
-                    session.add(
-                        Department(
-                            id=uuid4(),
-                            tenant_id=tenant.id,
-                            branch_id=existing_branch.id,
-                            name=dept_name,
-                            code=dept_code,
-                            is_active=True,
-                            created_at=tenant.created_at,
-                        )
+                    await create_department(
+                        session,
+                        tenant.id,
+                        DepartmentCreate(branch_id=existing_branch.id, name=dept_name, code=dept_code),
                     )
 
         await session.commit()

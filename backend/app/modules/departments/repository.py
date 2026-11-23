@@ -3,7 +3,6 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.branch import Branch
 from app.models.department import Department
 
 
@@ -85,13 +84,17 @@ async def has_sub_departments(
     return sub is not None
 
 
-async def branch_exists_in_tenant(
+async def get_department_by_code(
     session: AsyncSession,
     tenant_id: UUID,
     branch_id: UUID,
-) -> bool:
-    result = await session.scalar(
-        select(Branch.id).where(Branch.tenant_id == tenant_id, Branch.id == branch_id)
+    code: str,
+) -> Department | None:
+    return await session.scalar(
+        select(Department).where(
+            Department.tenant_id == tenant_id,
+            Department.branch_id == branch_id,
+            Department.code == code,
+        )
     )
-    return result is not None
 
