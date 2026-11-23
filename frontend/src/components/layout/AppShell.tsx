@@ -14,11 +14,12 @@ import {
   Globe,
   LayoutDashboard,
   FileCode2,
+  UserCog,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
-export type NavTab = "dashboard" | "attendance" | "trace" | "roster" | "shifts" | "employees" | "organization" | "iam" | "settings" | "tenants";
+export type NavTab = "dashboard" | "attendance" | "trace" | "shift-assignment" | "roster" | "shifts" | "employees" | "organization" | "iam" | "settings" | "tenants";
 
 export function AppShell({
   currentTab,
@@ -104,6 +105,17 @@ export function AppShell({
             >
               <FileCode2 size={18} />
               {!collapsed && <span>Rule Trace</span>}
+            </li>
+          ) : null}
+
+          {can("roster.instance.create") || can("shift.template.read") || can("roster.instance.read") ? (
+            <li
+              className={`nav-item ${currentTab === "shift-assignment" ? "active" : ""}`}
+              onClick={() => onSelectTab("shift-assignment")}
+              title="Fixed Shift Assignment"
+            >
+              <UserCog size={18} />
+              {!collapsed && <span>Shift Assignment</span>}
             </li>
           ) : null}
 

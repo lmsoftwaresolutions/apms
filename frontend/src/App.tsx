@@ -5,6 +5,7 @@ import { AppShell, NavTab } from "./components/layout/AppShell";
 import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { AttendancePage } from "./pages/Attendance/AttendancePage";
 import { TracePage } from "./pages/Trace/TracePage";
+import { ShiftAssignmentPage } from "./pages/ShiftAssignment/ShiftAssignmentPage";
 import { RosterPage } from "./pages/Roster/RosterPage";
 import { ShiftsPage } from "./pages/Shifts/ShiftsPage";
 import { EmployeesPage } from "./pages/Employees/EmployeesPage";
@@ -54,6 +55,7 @@ export function App() {
       {currentTab === "dashboard" && <DashboardPage onSelectTab={setCurrentTab} />}
       {currentTab === "attendance" && <AttendancePage onOpenTrace={handleOpenTrace} />}
       {currentTab === "trace" && <TracePage initialRecordId={traceRecordId} onSelectTab={setCurrentTab} />}
+      {currentTab === "shift-assignment" && <ShiftAssignmentPage />}
       {currentTab === "roster" && <RosterPage />}
       {currentTab === "shifts" && <ShiftsPage />}
       {currentTab === "employees" && <EmployeesPage />}
