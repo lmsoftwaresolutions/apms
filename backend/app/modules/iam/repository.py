@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.iam import Permission, Role, RolePermission, User, UserRole
+from app.models.iam import Permission, Role, RolePermission, Tenant, User, UserRole
 
 
 async def list_users(session: AsyncSession, tenant_id: UUID) -> list[User]:
@@ -128,3 +128,30 @@ async def delete_role_record(session: AsyncSession, tenant_id: UUID, role: Role)
 async def list_all_permissions(session: AsyncSession) -> list[Permission]:
     stmt = select(Permission).order_by(Permission.module, Permission.resource, Permission.action)
     return list((await session.scalars(stmt)).all())
+
+
+async def get_user_permissions(session: AsyncSession, tenant_id: UUID, user_id: UUID) -> list[str]:
+    rows = await session.scalars(
+        select(Permission.code)
+        .join(RolePermission, RolePermission.permission_id == Permission.id)
+        .join(
+            UserRole,
+            (UserRole.role_id == RolePermission.role_id) & (UserRole.tenant_id == RolePermission.tenant_id),
+        )
+        .where(UserRole.tenant_id == tenant_id, UserRole.user_id == user_id)
+        .order_by(Permission.code)
+    )
+    return list(dict.fromkeys(rows.all()))
+
+
+async def get_tenant(session: AsyncSession, tenant_id: UUID) -> Tenant | None:
+    return await session.get(Tenant, tenant_id)
+
+
+async def update_tenant(session: AsyncSession, tenant: Tenant, display_name: str | None, logo_url: str | None) -> Tenant:
+    if display_name is not None:
+        tenant.display_name = display_name
+    if logo_url is not None:
+        tenant.logo_url = logo_url
+    await session.flush()
+    return tenant

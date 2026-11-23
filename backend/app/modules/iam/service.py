@@ -9,6 +9,10 @@ from app.modules.iam import repository as iam_repo
 from app.modules.iam.schemas import PermissionOut, RoleCreate, RoleOut, RoleUpdate, UserOut
 
 
+def has_permission(granted: set[str], required: str) -> bool:
+    return required in granted
+
+
 async def list_users(session: AsyncSession, tenant_id: UUID) -> list[UserOut]:
     users = await iam_repo.list_users(session, tenant_id)
     out: list[UserOut] = []

@@ -2,6 +2,10 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.common import DeletedOut
+
+__all__ = ["BranchOut", "BranchCreate", "BranchUpdate", "DeletedOut"]
+
 
 class BranchOut(BaseModel):
     id: UUID
@@ -19,8 +23,3 @@ class BranchUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     code: str | None = Field(default=None, min_length=2, max_length=20, pattern=r"^[A-Z0-9_-]+$")
     is_active: bool | None = None
-
-
-class DeletedOut(BaseModel):
-    id: UUID
-    deleted: bool = True

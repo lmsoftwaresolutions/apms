@@ -10,7 +10,7 @@ from app.core.database import SessionLocal, set_tenant
 from app.core.errors import ProblemError
 from app.core.security import decode_access_token
 from app.models.iam import User
-from app.services.access import permissions_for_user
+from app.modules.iam import repository as iam_repo
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -43,10 +43,10 @@ async def get_current_user(
     except ValueError as exc:
         raise ProblemError(401, "Sign-in required", "The bearer token is invalid or expired.") from exc
     await set_tenant(session, tenant_id)
-    user = await session.get(User, user_id)
+    user = await iam_repo.get_user_by_id(session, user_id)
     if user is None or not user.is_active or user.tenant_id != tenant_id:
         raise ProblemError(401, "Sign-in required", "The account is inactive or no longer exists.")
-    permissions = set(await permissions_for_user(session, tenant_id, user_id))
+    permissions = set(await iam_repo.get_user_permissions(session, tenant_id, user_id))
     return CurrentUser(user, permissions)
 
 

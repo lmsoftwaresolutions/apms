@@ -1,4 +1,4 @@
-from app.services.access import has_permission
+from app.modules.iam.service import has_permission
 
 
 def test_permission_is_exact_key() -> None:
