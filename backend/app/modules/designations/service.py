@@ -8,6 +8,7 @@ from app.core.errors import ProblemError
 from app.models.designation import Designation
 from app.modules.departments import repository as dept_repo
 from app.modules.designations import repository as desig_repo
+from app.modules.employees import repository as emp_repo
 from app.modules.designations.schemas import (
     DesignationCreate,
     DesignationOut,
@@ -127,6 +128,7 @@ async def update_designation(
                 )
 
     update_description = "description" in payload.model_fields_set
+    previous_name = designation.name
 
     try:
         updated = await desig_repo.update_designation_fields(
@@ -145,6 +147,9 @@ async def update_designation(
             "A designation with this code or name already exists in this department.",
         ) from exc
 
+    if updated.name != previous_name:
+        await emp_repo.sync_designation_label(session, tenant_id, designation_id, updated.name)
+
     return designation_to_out(updated)
 
 
@@ -157,7 +162,7 @@ async def delete_designation(
     if designation is None:
         raise ProblemError(404, "Designation not found", "No designation with that id exists in this tenant.")
 
-    employee_count = await desig_repo.count_employees_with_designation(session, tenant_id, designation_id)
+    employee_count = await emp_repo.count_employees_with_designation(session, tenant_id, designation_id)
     if employee_count > 0:
         raise ProblemError(
             409,

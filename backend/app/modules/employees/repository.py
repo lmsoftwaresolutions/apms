@@ -1,7 +1,8 @@
 from collections.abc import Sequence
+from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.employee import Employee
@@ -68,6 +69,36 @@ async def list_employees_by_tenant(
 
 
 async def flush_employee(session: AsyncSession) -> None:
+    await session.flush()
+
+
+async def count_employees_with_designation(
+    session: AsyncSession,
+    tenant_id: UUID,
+    designation_id: UUID,
+) -> int:
+    count = await session.scalar(
+        select(func.count(Employee.id)).where(
+            Employee.tenant_id == tenant_id,
+            Employee.designation_id == designation_id,
+        )
+    )
+    return int(count or 0)
+
+
+async def sync_designation_label(
+    session: AsyncSession,
+    tenant_id: UUID,
+    designation_id: UUID,
+    name: str,
+) -> None:
+    stmt = (
+        update(Employee)
+        .where(Employee.tenant_id == tenant_id, Employee.designation_id == designation_id)
+        .values(designation=name, updated_at=datetime.now(UTC))
+        .execution_options(synchronize_session="fetch")
+    )
+    await session.execute(stmt)
     await session.flush()
 
 

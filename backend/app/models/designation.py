@@ -1,7 +1,17 @@
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, ForeignKeyConstraint, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    ForeignKeyConstraint,
+    Index,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -12,7 +22,13 @@ class Designation(Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "id", name="uq_designations_tenant_id"),
         UniqueConstraint("tenant_id", "department_id", "code", name="uq_designations_tenant_dept_code"),
-        UniqueConstraint("tenant_id", "department_id", "name", name="uq_designations_tenant_dept_name"),
+        Index(
+            "uq_designations_tenant_dept_name",
+            "tenant_id",
+            "department_id",
+            text("lower(name)"),
+            unique=True,
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "department_id"],
             ["departments.tenant_id", "departments.id"],

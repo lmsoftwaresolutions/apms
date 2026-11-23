@@ -17,7 +17,7 @@ from app.modules.designations.service import (
     update_designation,
 )
 from app.modules.employees.schemas import EmployeeCreate, EmployeeUpdate
-from app.modules.employees.service import create_employee, delete_employee, update_employee
+from app.modules.employees.service import create_employee, delete_employee, get_employee, update_employee
 
 
 @pytest.fixture
@@ -196,18 +196,40 @@ async def test_designation_employee_linkage_and_cross_validation(seeded_tenants:
         assert emp.designation_id == desig_1.id
         assert emp.designation == desig_1.name
 
+        renamed = await update_designation(
+            session,
+            tenant_a.id,
+            desig_1.id,
+            DesignationUpdate(name=f"Renamed {code_1}"),
+        )
+        linked = await get_employee(session, tenant_a.id, emp.id)
+        assert linked.designation == renamed.name
+
+        same_branch = [dept for dept in depts if dept.branch_id == dept_1.branch_id and dept.id != dept_1.id]
+        if same_branch:
+            with pytest.raises(ProblemError) as exc_move:
+                await update_employee(
+                    session,
+                    tenant_a.id,
+                    emp.id,
+                    EmployeeUpdate(department_id=same_branch[0].id),
+                )
+            assert exc_move.value.status == 400
+
         # 3. Deleting designation while assigned to employee fails with 409
         with pytest.raises(ProblemError) as exc_del_busy:
             await delete_designation(session, tenant_a.id, desig_1.id)
         assert exc_del_busy.value.status == 409
 
         # 4. Updating employee to clear designation_id allows deleting designation
-        await update_employee(
+        cleared = await update_employee(
             session,
             tenant_a.id,
             emp.id,
             EmployeeUpdate(designation_id=None),
         )
+        assert cleared.designation_id is None
+        assert cleared.designation is None
         await delete_designation(session, tenant_a.id, desig_1.id)
 
         # Clean up test employee

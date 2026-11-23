@@ -34,7 +34,6 @@ STATEMENTS = [
       updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
       CONSTRAINT uq_designations_tenant_id UNIQUE (tenant_id, id),
       CONSTRAINT uq_designations_tenant_dept_code UNIQUE (tenant_id, department_id, code),
-      CONSTRAINT uq_designations_tenant_dept_name UNIQUE (tenant_id, department_id, name),
       CONSTRAINT fk_designations_department FOREIGN KEY (tenant_id, department_id)
         REFERENCES departments (tenant_id, id) ON DELETE CASCADE
     )
@@ -60,12 +59,13 @@ STATEMENTS = [
     )
     """,
     "GRANT SELECT, INSERT, UPDATE, DELETE ON designations TO apms_app",
+    "CREATE UNIQUE INDEX uq_designations_tenant_dept_name ON designations (tenant_id, department_id, lower(name))",
     "ALTER TABLE employees ADD COLUMN designation_id uuid",
     """
     ALTER TABLE employees ADD CONSTRAINT fk_employees_designation
       FOREIGN KEY (tenant_id, designation_id)
       REFERENCES designations (tenant_id, id)
-      ON DELETE SET NULL
+      ON DELETE RESTRICT
     """,
     "CREATE INDEX ix_employees_tenant_designation ON employees (tenant_id, designation_id)",
 ]
@@ -77,16 +77,30 @@ INSERT_PERMISSION = text(
     ON CONFLICT (code) DO NOTHING
     """
 )
-GRANT_TENANT_ADMIN = text(
+GRANT_ROLE = text(
     """
     INSERT INTO role_permissions (tenant_id, role_id, permission_id)
     SELECT r.tenant_id, r.id, p.id
     FROM roles r
     JOIN permissions p ON p.code IN :codes
-    WHERE r.code = 'TENANT_ADMIN'
+    WHERE r.code = :role_code
     ON CONFLICT ON CONSTRAINT uq_role_permission DO NOTHING
     """
 ).bindparams(bindparam("codes", expanding=True))
+
+ROLE_GRANTS = (
+    (
+        "TENANT_ADMIN",
+        (
+            "org.designation.create",
+            "org.designation.read",
+            "org.designation.update",
+            "org.designation.delete",
+        ),
+    ),
+    ("SUPERVISOR", ("org.designation.read", "org.designation.update")),
+    ("EMPLOYEE", ("org.designation.read",)),
+)
 DELETE_ROLE_GRANTS = text(
     """
     DELETE FROM role_permissions
@@ -114,8 +128,8 @@ def upgrade() -> None:
                 "description": description,
             },
         )
-    codes = [item[0] for item in PERMISSIONS]
-    bind.execute(GRANT_TENANT_ADMIN, {"codes": codes})
+    for role_code, codes in ROLE_GRANTS:
+        bind.execute(GRANT_ROLE, {"role_code": role_code, "codes": list(codes)})
 
 
 def downgrade() -> None:

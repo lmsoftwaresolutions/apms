@@ -39,6 +39,7 @@ class Employee(Base):
             ["tenant_id", "designation_id"],
             ["designations.tenant_id", "designations.id"],
             name="fk_employees_designation",
+            ondelete="RESTRICT",
         ),
         ForeignKeyConstraint(
             ["tenant_id", "user_id"],

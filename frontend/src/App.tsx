@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api, Branch, Department, Designation, DirectoryUser, loadToken, Me, Permission, Role, saveToken } from "./api";
+import { api, Branch, Department, Designation, DirectoryUser, EmployeeRow, loadToken, Me, Permission, Role, saveToken } from "./api";
 
 function can(me: Me, code: string) {
   return me.permissions.includes(code);
@@ -350,6 +350,7 @@ function Designations({ me }: { me: Me }) {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [selectedDeptId, setSelectedDeptId] = useState("");
   const [name, setName] = useState("");
@@ -380,8 +381,14 @@ function Designations({ me }: { me: Me }) {
       if (activeDeptId) {
         const desigList = await api.designations(activeDeptId);
         setDesignations(desigList);
+        if (can(me, "employee.employee.read")) {
+          setEmployees(await api.employees(activeDeptId));
+        } else {
+          setEmployees([]);
+        }
       } else {
         setDesignations([]);
+        setEmployees([]);
       }
       setError("");
     } catch (err) {
@@ -536,10 +543,35 @@ function Designations({ me }: { me: Me }) {
               placeholder="Optional description"
             />
           </label>
-          <button className="primary" type="submit" disabled={!name || code.length < 1 || !selectedDeptId}>
+          <button className="primary" type="submit" disabled={!name || code.length < 2 || !selectedDeptId}>
             Add designation
           </button>
         </form>
+      ) : null}
+      {can(me, "employee.employee.update") && employees.length > 0 ? (
+        <div className="stack">
+          <h3>Assign to employees</h3>
+          {employees.map((employee) => (
+            <label key={employee.id}>
+              {employee.full_name} ({employee.employee_code})
+              <select
+                value={employee.designation_id ?? ""}
+                onChange={(event) =>
+                  run(() => api.assignDesignation(employee.id, event.target.value || null))
+                }
+              >
+                <option value="">None</option>
+                {designations
+                  .filter((desig) => desig.is_active || desig.id === employee.designation_id)
+                  .map((desig) => (
+                    <option key={desig.id} value={desig.id}>
+                      {desig.name} ({desig.code})
+                    </option>
+                  ))}
+              </select>
+            </label>
+          ))}
+        </div>
       ) : null}
     </section>
   );

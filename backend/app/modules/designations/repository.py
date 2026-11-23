@@ -1,10 +1,10 @@
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.designation import Designation
-from app.models.employee import Employee
 
 
 async def list_designations_by_tenant(
@@ -60,20 +60,6 @@ async def get_designation_by_name(
     )
 
 
-async def count_employees_with_designation(
-    session: AsyncSession,
-    tenant_id: UUID,
-    designation_id: UUID,
-) -> int:
-    count = await session.scalar(
-        select(func.count(Employee.id)).where(
-            Employee.tenant_id == tenant_id,
-            Employee.designation_id == designation_id,
-        )
-    )
-    return int(count or 0)
-
-
 async def insert_designation(
     session: AsyncSession,
     designation: Designation,
@@ -101,6 +87,7 @@ async def update_designation_fields(
         designation.description = description
     if is_active is not None:
         designation.is_active = is_active
+    designation.updated_at = datetime.now(UTC)
     await session.flush()
     return designation
 
