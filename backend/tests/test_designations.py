@@ -129,7 +129,7 @@ async def test_designation_department_scoping_and_uniqueness(seeded_tenants: tup
             await create_designation(
                 session,
                 tenant_a.id,
-                DesignationCreate(department_id=dept_1.id, name=name.lower(), code=f"OTHER-{uuid4().hex[:4]}"),
+                DesignationCreate(department_id=dept_1.id, name=name.lower(), code=f"OTHER-{uuid4().hex[:4].upper()}"),
             )
         assert exc_dup_name.value.status_code == 409
 
