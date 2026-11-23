@@ -139,6 +139,7 @@ Table branches [note: 'Physical branches / legal entities within a tenant. ORG-0
     created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
 
     indexes {
+        (tenant_id, id) [unique]
         (tenant_id, code) [unique]
     }
 }
@@ -146,20 +147,24 @@ Table branches [note: 'Physical branches / legal entities within a tenant. ORG-0
 // ─────────────────────────────────────────────────────────────
 // TABLE 3: departments  // inferred
 // ─────────────────────────────────────────────────────────────
-Table departments [note: 'Departments / sub-departments under a branch. ORG-01. RLS: tenant_id. // inferred'] {
+Table departments [note: 'Departments / sub-departments under a branch. ORG-01. RLS: tenant_id.'] {
     id              UUID        [pk, default: `gen_random_uuid()`]
     tenant_id       UUID        [not null, ref: > tenants.id, note: 'RLS column']
-    branch_id       UUID        [not null, ref: > branches.id]
+    branch_id       UUID        [not null]
     name            VARCHAR(200) [not null]
     code            VARCHAR(20)  [not null]
-    parent_dept_id  UUID        [ref: > departments.id, note: 'Self-referential for sub-departments // inferred']
+    parent_dept_id  UUID        [note: 'Parent department in the same branch']
     is_active       BOOLEAN      [not null, default: true]
     created_at      TIMESTAMPTZ  [not null, default: `clock_timestamp()`]
 
     indexes {
+        (tenant_id, id) [unique]
         (tenant_id, branch_id, code) [unique]
     }
 }
+
+Ref: departments.(tenant_id, branch_id) > branches.(tenant_id, id) [delete: cascade]
+Ref: departments.(tenant_id, parent_dept_id) > departments.(tenant_id, id)
 
 // ─────────────────────────────────────────────────────────────
 // TABLE 4: users  (authentication & identity)

@@ -8,6 +8,9 @@ from app.core.database import MigrateSession
 from app.core.security import hash_password
 from app.models.branch import Branch
 from app.models.iam import Permission, Role, RolePermission, Tenant, User, UserRole
+from app.modules.departments.repository import get_department_by_code
+from app.modules.departments.schemas import DepartmentCreate
+from app.modules.departments.service import create_department
 
 PASSWORD = "ChangeMe-Admin-1"
 SUPERVISOR_PASSWORD = "ChangeMe-Supervisor-1"
@@ -22,6 +25,7 @@ TENANTS = (
             ("supervisor@northmill.example", "Shift Supervisor", SUPERVISOR_PASSWORD, "SUPERVISOR"),
         ),
         "branch": ("Main Gate", "MAIN"),
+        "departments": (("Spinning", "SPIN"), ("Weaving", "WEAV")),
     },
     {
         "name": "South Mill",
@@ -29,6 +33,7 @@ TENANTS = (
         "display_name": "South Mill",
         "users": (("admin@southmill.example", "South Mill Admin", PASSWORD, "TENANT_ADMIN"),),
         "branch": ("Dock", "DOCK"),
+        "departments": (("Logistics", "LOG"),),
     },
 )
 
@@ -51,8 +56,13 @@ async def seed() -> None:
         by_code = {row.code: row for row in catalog}
         bundles = {
             "TENANT_ADMIN": list(by_code),
-            "SUPERVISOR": ["org.branch.read", "org.branch.update"],
-            "EMPLOYEE": ["org.branch.read"],
+            "SUPERVISOR": [
+                "org.branch.read",
+                "org.branch.update",
+                "org.department.read",
+                "org.department.update",
+            ],
+            "EMPLOYEE": ["org.branch.read", "org.department.read"],
         }
 
         for spec in TENANTS:
@@ -84,7 +94,20 @@ async def seed() -> None:
                     )
                     session.add(role)
                     await session.flush()
-                    for permission_code in bundles[code]:
+                roles[code] = role
+
+                existing_perm_ids = set(
+                    (
+                        await session.scalars(
+                            select(RolePermission.permission_id).where(
+                                RolePermission.tenant_id == tenant.id,
+                                RolePermission.role_id == role.id,
+                            )
+                        )
+                    ).all()
+                )
+                for permission_code in bundles[code]:
+                    if permission_code in by_code and by_code[permission_code].id not in existing_perm_ids:
                         session.add(
                             RolePermission(
                                 id=uuid4(),
@@ -93,7 +116,6 @@ async def seed() -> None:
                                 permission_id=by_code[permission_code].id,
                             )
                         )
-                roles[code] = role
 
             for email, full_name, password, role_code in spec["users"]:
                 user = await session.scalar(select(User).where(User.email == email))
@@ -116,16 +138,25 @@ async def seed() -> None:
                 select(Branch).where(Branch.tenant_id == tenant.id, Branch.code == branch_code)
             )
             if existing_branch is None:
-                session.add(
-                    Branch(
-                        id=uuid4(),
-                        tenant_id=tenant.id,
-                        name=branch_name,
-                        code=branch_code,
-                        is_active=True,
-                        created_at=tenant.created_at,
-                    )
+                existing_branch = Branch(
+                    id=uuid4(),
+                    tenant_id=tenant.id,
+                    name=branch_name,
+                    code=branch_code,
+                    is_active=True,
+                    created_at=tenant.created_at,
                 )
+                session.add(existing_branch)
+                await session.flush()
+
+            for dept_name, dept_code in spec.get("departments", ()):
+                existing_dept = await get_department_by_code(session, tenant.id, existing_branch.id, dept_code)
+                if existing_dept is None:
+                    await create_department(
+                        session,
+                        tenant.id,
+                        DepartmentCreate(branch_id=existing_branch.id, name=dept_name, code=dept_code),
+                    )
 
         await session.commit()
 
