@@ -18,6 +18,7 @@ from app.core.errors import ProblemError
 from app.models.employee import Employee
 from app.modules.branches import repository as branch_repo
 from app.modules.departments import repository as dept_repo
+from app.modules.designations import repository as desig_repo
 from app.modules.employees import repository as emp_repo
 from app.modules.employees.schemas import EmployeeCreate, EmployeeOut, EmployeeUpdate
 from app.modules.iam import repository as iam_repo
@@ -39,6 +40,7 @@ def employee_to_out(emp: Employee) -> EmployeeOut:
         user_id=emp.user_id,
         branch_id=emp.branch_id,
         department_id=emp.department_id,
+        designation_id=emp.designation_id,
         employee_code=emp.employee_code,
         full_name=emp.full_name,
         designation=emp.designation,
@@ -78,6 +80,22 @@ async def _require_department_in_branch(
         raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
 
 
+async def _require_designation_in_department(
+    session: AsyncSession,
+    tenant_id: UUID,
+    designation_id: UUID,
+    department_id: UUID | None,
+) -> str:
+    desig = await desig_repo.get_designation_by_id(session, tenant_id, designation_id)
+    if desig is None:
+        raise ProblemError(400, "Invalid designation", "Designation does not exist in this tenant.")
+    if not desig.is_active:
+        raise ProblemError(400, "Inactive designation", "Cannot assign an inactive designation.")
+    if department_id is None or desig.department_id != department_id:
+        raise ProblemError(400, "Invalid designation", "Designation does not belong to the employee's department.")
+    return desig.name
+
+
 def _assign_identifier(
     emp: Employee,
     fields_set: set[str],
@@ -106,6 +124,14 @@ async def create_employee(session: AsyncSession, tenant_id: UUID, payload: Emplo
     if payload.user_id is not None:
         await _require_user(session, tenant_id, payload.user_id)
 
+    designation_name: str | None = None
+    if payload.designation_id is not None:
+        designation_name = await _require_designation_in_department(
+            session, tenant_id, payload.designation_id, payload.department_id
+        )
+    elif payload.designation:
+        designation_name = payload.designation.strip()
+
     context = str(tenant_id)
     now = datetime.now(UTC)
 
@@ -115,9 +141,10 @@ async def create_employee(session: AsyncSession, tenant_id: UUID, payload: Emplo
         user_id=payload.user_id,
         branch_id=payload.branch_id,
         department_id=payload.department_id,
+        designation_id=payload.designation_id,
         employee_code=payload.employee_code.strip(),
         full_name=payload.full_name.strip(),
-        designation=payload.designation.strip() if payload.designation else None,
+        designation=designation_name,
         date_of_joining=payload.date_of_joining,
         date_of_birth=payload.date_of_birth,
         employment_type=payload.employment_type,
@@ -210,7 +237,29 @@ async def update_employee(
 
     if payload.full_name is not None:
         emp.full_name = payload.full_name.strip()
-    if payload.designation is not None:
+    if "designation_id" in payload.model_fields_set:
+        if payload.designation_id is not None:
+            desig_name = await _require_designation_in_department(
+                session, tenant_id, payload.designation_id, new_department_id
+            )
+            emp.designation_id = payload.designation_id
+            emp.designation = desig_name
+        else:
+            emp.designation_id = None
+            if payload.designation is not None:
+                emp.designation = payload.designation.strip()
+    elif "department_id" in payload.model_fields_set and payload.department_id != emp.department_id:  # noqa: SIM102
+        if emp.designation_id is not None:
+            cur_desig = await desig_repo.get_designation_by_id(session, tenant_id, emp.designation_id)
+            if cur_desig is None or cur_desig.department_id != new_department_id:
+                raise ProblemError(
+                    400,
+                    "Invalid designation",
+                    "Existing employee designation does not belong to the new department. Reassign or clear designation first.",
+                )
+        if payload.designation is not None:
+            emp.designation = payload.designation.strip()
+    elif payload.designation is not None:
         emp.designation = payload.designation.strip()
     if payload.date_of_joining is not None:
         emp.date_of_joining = payload.date_of_joining

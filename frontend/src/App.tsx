@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { api, Branch, Department, DirectoryUser, loadToken, Me, Permission, Role, saveToken } from "./api";
+import { api, Branch, Department, Designation, DirectoryUser, loadToken, Me, Permission, Role, saveToken } from "./api";
 
 function can(me: Me, code: string) {
   return me.permissions.includes(code);
@@ -91,6 +91,7 @@ function Console({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
       <div className="layout">
         <Branches me={me} />
         {can(me, "org.department.read") ? <Departments me={me} /> : null}
+        {can(me, "org.designation.read") ? <Designations me={me} /> : null}
         {can(me, "iam.role.read") ? <Roles me={me} /> : <p className="empty">Role administration is not on this account.</p>}
       </div>
     </div>
@@ -338,6 +339,205 @@ function Departments({ me }: { me: Me }) {
           </label>
           <button className="primary" type="submit" disabled={!name || code.length < 2 || !selectedBranchId}>
             Add department
+          </button>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
+function Designations({ me }: { me: Me }) {
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [designations, setDesignations] = useState<Designation[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  const [selectedDeptId, setSelectedDeptId] = useState("");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
+  const [description, setDescription] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  async function refresh(targetBranchId?: string, targetDeptId?: string) {
+    setLoading(true);
+    try {
+      const branchList = await api.branches();
+      setBranches(branchList);
+      const activeBranchId = targetBranchId ?? selectedBranchId ?? branchList[0]?.id ?? "";
+      if (!selectedBranchId && branchList.length > 0) {
+        setSelectedBranchId(branchList[0].id);
+      }
+      const deptList = await api.departments(activeBranchId || undefined);
+      setDepartments(deptList);
+      const activeDeptId =
+        targetDeptId !== undefined
+          ? targetDeptId
+          : selectedDeptId && deptList.some((d) => d.id === selectedDeptId)
+            ? selectedDeptId
+            : deptList[0]?.id ?? "";
+      setSelectedDeptId(activeDeptId);
+
+      if (activeDeptId) {
+        const desigList = await api.designations(activeDeptId);
+        setDesignations(desigList);
+      } else {
+        setDesignations([]);
+      }
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not load designations");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Initial load only — selection changes are driven by explicit refresh() calls
+  // in the onChange handlers, so we exclude selectedBranchId/selectedDeptId from deps
+  // to avoid a double-fetch loop.
+  useEffect(() => {
+    void refresh();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
+    if (!selectedDeptId) return;
+    setError("");
+    try {
+      await api.createDesignation(selectedDeptId, name, code.toUpperCase(), description || null);
+      setName("");
+      setCode("");
+      setDescription("");
+      await refresh(selectedBranchId, selectedDeptId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create designation");
+    }
+  }
+
+  async function run(action: () => Promise<unknown>) {
+    setError("");
+    try {
+      await action();
+      await refresh(selectedBranchId, selectedDeptId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update designation");
+    }
+  }
+
+  const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+
+  return (
+    <section className="panel">
+      <h2>Designations</h2>
+      <div className="stack">
+        {branches.length > 0 ? (
+          <label>
+            Filter by Branch
+            <select
+              value={selectedBranchId}
+              onChange={(e) => {
+                setSelectedBranchId(e.target.value);
+                void refresh(e.target.value, "");
+              }}
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        {departments.length > 0 ? (
+          <label>
+            Department
+            <select
+              value={selectedDeptId}
+              onChange={(e) => {
+                setSelectedDeptId(e.target.value);
+                void refresh(selectedBranchId, e.target.value);
+              }}
+            >
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name} ({d.code})
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <p className="empty">No departments found for the selected branch. Create a department first.</p>
+        )}
+      </div>
+      {loading ? <p>Loading designations…</p> : null}
+      {error ? <p className="error">{error}</p> : null}
+      {!loading && selectedDeptId && designations.length === 0 ? (
+        <p className="empty">No designations in this department yet.</p>
+      ) : null}
+      {designations.length > 0 ? (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Name</th>
+              <th>Department</th>
+              <th>Description</th>
+              <th>State</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {designations.map((desig) => (
+              <tr key={desig.id}>
+                <td>{desig.code}</td>
+                <td>{desig.name}</td>
+                <td>{deptNameById.get(desig.department_id) || desig.department_id.slice(0, 8)}</td>
+                <td>{desig.description || "—"}</td>
+                <td>{desig.is_active ? "Active" : "Inactive"}</td>
+                <td className="row">
+                  {can(me, "org.designation.update") ? (
+                    <button
+                      type="button"
+                      onClick={() => run(() => api.updateDesignation(desig.id, { is_active: !desig.is_active }))}
+                    >
+                      {desig.is_active ? "Deactivate" : "Activate"}
+                    </button>
+                  ) : null}
+                  {can(me, "org.designation.delete") ? (
+                    <button className="danger" type="button" onClick={() => run(() => api.deleteDesignation(desig.id))}>
+                      Delete
+                    </button>
+                  ) : null}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : null}
+      {can(me, "org.designation.create") && selectedDeptId ? (
+        <form className="stack" onSubmit={create}>
+          <label>
+            Name
+            <input value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Spinning Operator" />
+          </label>
+          <label>
+            Code
+            <input
+              value={code}
+              onChange={(event) => setCode(event.target.value.toUpperCase())}
+              placeholder="e.g. OPR-SPIN"
+            />
+          </label>
+          <label>
+            Description
+            <input
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              placeholder="Optional description"
+            />
+          </label>
+          <button className="primary" type="submit" disabled={!name || code.length < 1 || !selectedDeptId}>
+            Add designation
           </button>
         </form>
       ) : null}
