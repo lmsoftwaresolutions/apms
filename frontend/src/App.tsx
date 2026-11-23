@@ -1,384 +1,158 @@
-import { FormEvent, useEffect, useState } from "react";
-import { api, Branch, Department, DirectoryUser, loadToken, Me, Permission, Role, saveToken } from "./api";
-
-function can(me: Me, code: string) {
-  return me.permissions.includes(code);
-}
+import React, { FormEvent, useEffect, useState } from "react";
+import { api } from "./api";
+import { useAuth } from "./context/AuthContext";
+import { AppShell, NavTab } from "./components/layout/AppShell";
+import { AttendancePage } from "./pages/Attendance/AttendancePage";
+import { RosterPage } from "./pages/Roster/RosterPage";
+import { ShiftsPage } from "./pages/Shifts/ShiftsPage";
+import { EmployeesPage } from "./pages/Employees/EmployeesPage";
+import { OrganizationPage } from "./pages/Organization/OrganizationPage";
+import { IAMPage } from "./pages/IAM/IAMPage";
+import { SettingsPage } from "./pages/Settings/SettingsPage";
 
 export function App() {
-  const [token, setToken] = useState<string | null>(() => loadToken());
-  const [me, setMe] = useState<Me | null>(null);
-  const [error, setError] = useState("");
+  const { me, token, loading, error, login } = useAuth();
+  const [currentTab, setCurrentTab] = useState<NavTab>("attendance");
 
+  // Determine initial valid tab based on permissions
   useEffect(() => {
-    if (!token) return;
-    api.me().then(setMe).catch((err: Error) => {
-      setError(err.message);
-      saveToken(null);
-      setToken(null);
-    });
-  }, [token]);
+    if (!me) return;
+    if (me.permissions.includes("attendance.daily.read")) setCurrentTab("attendance");
+    else if (me.permissions.includes("roster.instance.read")) setCurrentTab("roster");
+    else if (me.permissions.includes("shift.template.read")) setCurrentTab("shifts");
+    else if (me.permissions.includes("employee.employee.read")) setCurrentTab("employees");
+    else if (me.permissions.includes("org.department.read") || me.permissions.includes("org.branch.read")) setCurrentTab("organization");
+    else if (me.permissions.includes("iam.role.read")) setCurrentTab("iam");
+    else if (me.permissions.includes("org.tenant.update")) setCurrentTab("settings");
+  }, [me]);
 
-  if (!token || !me) {
-    return <SignIn error={error} onSignedIn={(next) => { setError(""); setToken(next); }} />;
+  if (loading) {
+    return (
+      <div className="gate">
+        <div style={{ color: "var(--text-muted)", fontSize: "0.85rem" }}>
+          Authenticating APMS tenant session…
+        </div>
+      </div>
+    );
   }
 
-  return <Console me={me} onSignOut={() => { saveToken(null); setToken(null); setMe(null); }} />;
+  if (!token || !me) {
+    return <SignIn initialError={error} onSignedIn={login} />;
+  }
+
+  return (
+    <AppShell currentTab={currentTab} onSelectTab={setCurrentTab}>
+      {currentTab === "attendance" && <AttendancePage />}
+      {currentTab === "roster" && <RosterPage />}
+      {currentTab === "shifts" && <ShiftsPage />}
+      {currentTab === "employees" && <EmployeesPage />}
+      {currentTab === "organization" && <OrganizationPage />}
+      {currentTab === "iam" && <IAMPage />}
+      {currentTab === "settings" && <SettingsPage />}
+    </AppShell>
+  );
 }
 
-function SignIn({ error, onSignedIn }: { error: string; onSignedIn: (token: string) => void }) {
+function SignIn({
+  initialError,
+  onSignedIn,
+}: {
+  initialError: string;
+  onSignedIn: (token: string) => Promise<void>;
+}) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
-  const [localError, setLocalError] = useState("");
+  const [error, setError] = useState(initialError);
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
     setPending(true);
-    setLocalError("");
+    setError("");
     try {
-      const result = await api.login(email, password);
-      saveToken(result.access_token);
-      onSignedIn(result.access_token);
+      const res = await api.login(email.trim(), password);
+      await onSignedIn(res.access_token);
     } catch (err) {
-      setLocalError(err instanceof Error ? err.message : "Sign-in failed");
+      setError(err instanceof Error ? err.message : "Sign-in failed. Please verify credentials.");
     } finally {
       setPending(false);
     }
-  }
+  };
 
   return (
     <main className="gate">
-      <form className="card" onSubmit={submit}>
-        <h1>APMS</h1>
-        <p className="lede">Sign in to manage branches and who may change them.</p>
-        <label>
-          Email
-          <input value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="username" />
-        </label>
-        <label>
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            autoComplete="current-password"
-          />
-        </label>
-        {(localError || error) && <p className="error">{localError || error}</p>}
-        <button className="primary" type="submit" disabled={pending || password.length < 8}>
-          {pending ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
-    </main>
-  );
-}
-
-function Console({ me, onSignOut }: { me: Me; onSignOut: () => void }) {
-  const initial = me.tenant.display_name.slice(0, 1).toUpperCase();
-  return (
-    <div className="shell">
-      <header className="top">
-        <div className="brand">
-          {me.tenant.logo_url ? <img className="mark" src={me.tenant.logo_url} alt="" /> : <span className="mark">{initial}</span>}
-          <div>
-            <h1>{me.tenant.display_name}</h1>
-            <p className="who">{me.full_name}</p>
-          </div>
-        </div>
-        <button type="button" onClick={onSignOut}>Sign out</button>
-      </header>
-      <div className="layout">
-        <Branches me={me} />
-        {can(me, "org.department.read") ? <Departments me={me} /> : null}
-        {can(me, "iam.role.read") ? <Roles me={me} /> : <p className="empty">Role administration is not on this account.</p>}
-      </div>
-    </div>
-  );
-}
-
-function Branches({ me }: { me: Me }) {
-  const [rows, setRows] = useState<Branch[]>([]);
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  async function refresh() {
-    setLoading(true);
-    try {
-      setRows(await api.branches());
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load branches");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => { void refresh(); }, []);
-
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    try {
-      await api.createBranch(name, code.toUpperCase());
-      setName("");
-      setCode("");
-      await refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create the branch");
-    }
-  }
-
-  return (
-    <section className="panel">
-      <h2>Branches</h2>
-      {loading ? <p>Loading branches…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {!loading && rows.length === 0 ? <p className="empty">No branches yet.</p> : null}
-      {rows.length > 0 ? (
-        <table className="table">
-          <thead>
-            <tr><th>Code</th><th>Name</th><th>State</th><th></th></tr>
-          </thead>
-          <tbody>
-            {rows.map((branch) => (
-              <tr key={branch.id}>
-                <td>{branch.code}</td>
-                <td>{branch.name}</td>
-                <td>{branch.is_active ? "Active" : "Inactive"}</td>
-                <td className="row">
-                  {can(me, "org.branch.update") ? (
-                    <button type="button" onClick={() => api.updateBranch(branch.id, { is_active: !branch.is_active }).then(refresh)}>
-                      {branch.is_active ? "Deactivate" : "Activate"}
-                    </button>
-                  ) : null}
-                  {can(me, "org.branch.delete") ? (
-                    <button className="danger" type="button" onClick={() => api.deleteBranch(branch.id).then(refresh)}>
-                      Delete
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
-      {can(me, "org.branch.create") ? (
-        <form className="stack" onSubmit={create}>
-          <label>Name<input value={name} onChange={(event) => setName(event.target.value)} /></label>
-          <label>Code<input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} /></label>
-          <button className="primary" type="submit" disabled={!name || code.length < 2}>Add branch</button>
-        </form>
-      ) : null}
-    </section>
-  );
-}
-
-function Departments({ me }: { me: Me }) {
-  const [branches, setBranches] = useState<Branch[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [name, setName] = useState("");
-  const [code, setCode] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  async function refresh(targetBranchId?: string) {
-    setLoading(true);
-    try {
-      const branchList = await api.branches();
-      setBranches(branchList);
-      const activeBranchId = targetBranchId ?? selectedBranchId ?? branchList[0]?.id ?? "";
-      if (!selectedBranchId && branchList.length > 0) {
-        setSelectedBranchId(branchList[0].id);
-      }
-      const deptList = await api.departments(activeBranchId || undefined);
-      setDepartments(deptList);
-      setError("");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load departments");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void refresh();
-  }, [selectedBranchId]);
-
-  async function create(event: FormEvent) {
-    event.preventDefault();
-    if (!selectedBranchId) return;
-    setError("");
-    try {
-      await api.createDepartment(selectedBranchId, name, code.toUpperCase());
-      setName("");
-      setCode("");
-      await refresh(selectedBranchId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not create the department");
-    }
-  }
-
-  const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
-
-  return (
-    <section className="panel">
-      <h2>Departments</h2>
-      <div className="stack">
-        {branches.length > 0 ? (
-          <label>
-            Filter by Branch
-            <select
-              value={selectedBranchId}
-              onChange={(e) => {
-                setSelectedBranchId(e.target.value);
-                void refresh(e.target.value);
+      <div className="login-card">
+        <div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "0.5rem" }}>
+            <span
+              style={{
+                width: "28px",
+                height: "28px",
+                background: "var(--action-primary)",
+                color: "var(--action-fg)",
+                borderRadius: "4px",
+                display: "grid",
+                placeItems: "center",
+                fontWeight: 700,
+                fontSize: "0.9rem",
               }}
             >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
-          </label>
+              A
+            </span>
+            <span style={{ fontSize: "1.2rem", fontWeight: 700, letterSpacing: "-0.02em" }}>
+              APMS
+            </span>
+          </div>
+          <p className="text-secondary" style={{ fontSize: "0.82rem" }}>
+            Attendance Capture, Shift Rostering & Statutory Payroll Console
+          </p>
+        </div>
+
+        {error ? (
+          <div style={{ padding: "0.6rem 0.8rem", background: "var(--danger-bg)", color: "var(--danger-fg)", borderRadius: "4px", fontSize: "0.8rem" }}>
+            {error}
+          </div>
         ) : null}
-      </div>
-      {loading ? <p>Loading departments…</p> : null}
-      {error ? <p className="error">{error}</p> : null}
-      {!loading && departments.length === 0 ? <p className="empty">No departments yet.</p> : null}
-      {departments.length > 0 ? (
-        <table className="table">
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Name</th>
-              <th>Branch</th>
-              <th>State</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {departments.map((dept) => (
-              <tr key={dept.id}>
-                <td>{dept.code}</td>
-                <td>{dept.name}</td>
-                <td>{branchNameById.get(dept.branch_id) || dept.branch_id.slice(0, 8)}</td>
-                <td>{dept.is_active ? "Active" : "Inactive"}</td>
-                <td className="row">
-                  {can(me, "org.department.update") ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        api.updateDepartment(dept.id, { is_active: !dept.is_active }).then(() => refresh(selectedBranchId))
-                      }
-                    >
-                      {dept.is_active ? "Deactivate" : "Activate"}
-                    </button>
-                  ) : null}
-                  {can(me, "org.department.delete") ? (
-                    <button
-                      className="danger"
-                      type="button"
-                      onClick={() => api.deleteDepartment(dept.id).then(() => refresh(selectedBranchId))}
-                    >
-                      Delete
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : null}
-      {can(me, "org.department.create") ? (
-        <form className="stack" onSubmit={create}>
-          <label>
-            Branch
-            <select value={selectedBranchId} onChange={(e) => setSelectedBranchId(e.target.value)}>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Name
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <label>
-            Code
-            <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
-          </label>
-          <button className="primary" type="submit" disabled={!name || code.length < 2 || !selectedBranchId}>
-            Add department
+
+        <form className="flex flex-col gap-3" onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Work Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="admin@apms.local"
+              autoComplete="username"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••••••"
+              autoComplete="current-password"
+              required
+            />
+          </div>
+
+          <button
+            className="primary"
+            type="submit"
+            disabled={pending || !email || password.length < 6}
+            style={{ marginTop: "0.5rem", width: "100%", padding: "0.6rem" }}
+          >
+            {pending ? "Signing in…" : "Sign in to Console"}
           </button>
         </form>
-      ) : null}
-    </section>
-  );
-}
 
-function Roles({ me }: { me: Me }) {
-  const [roles, setRoles] = useState<Role[]>([]);
-  const [catalog, setCatalog] = useState<Permission[]>([]);
-  const [users, setUsers] = useState<DirectoryUser[]>([]);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    Promise.all([api.roles(), api.permissions(), api.users().catch(() => [])])
-      .then(([nextRoles, nextCatalog, nextUsers]) => {
-        setRoles(nextRoles);
-        setCatalog(nextCatalog);
-        setUsers(nextUsers);
-      })
-      .catch((err: Error) => setError(err.message));
-  }, []);
-
-  async function toggle(role: Role, code: string) {
-    const permissions = role.permissions.includes(code)
-      ? role.permissions.filter((item) => item !== code)
-      : [...role.permissions, code];
-    try {
-      const updated = await api.updateRole(role.id, permissions);
-      setRoles((current) => current.map((item) => (item.id === role.id ? updated : item)));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update the role");
-    }
-  }
-
-  return (
-    <section className="panel">
-      <h2>Roles</h2>
-      {error ? <p className="error">{error}</p> : null}
-      {roles.map((role) => (
-        <article key={role.id} className="stack">
-          <h3>{role.name}</h3>
-          <div className="checks">
-            {catalog.map((permission) => (
-              <label key={permission.code}>
-                <input
-                  type="checkbox"
-                  checked={role.permissions.includes(permission.code)}
-                  disabled={!can(me, "iam.role.update")}
-                  onChange={() => toggle(role, permission.code)}
-                />
-                {permission.code}
-              </label>
-            ))}
-          </div>
-        </article>
-      ))}
-      {users.length > 0 ? (
-        <ul>
-          {users.map((user) => (
-            <li key={user.id}>{user.full_name} · {user.roles.join(", ") || "no role"}</li>
-          ))}
-        </ul>
-      ) : null}
-    </section>
+        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)", textAlign: "center", borderTop: "1px solid var(--border-default)", paddingTop: "0.75rem" }}>
+          Protected by Row-Level Security & AES-256 Tenant Vault
+        </div>
+      </div>
+    </main>
   );
 }
