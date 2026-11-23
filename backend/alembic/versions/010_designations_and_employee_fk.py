@@ -1,15 +1,15 @@
 """Designations schema, RLS policies, permissions and employee designation_id FK.
 
-Revision ID: 009_designations_and_employee_fk
-Revises: 008_attendance_roster_fk
+Revision ID: 010_designations_and_employee_fk
+Revises: 009_grant_org_employee_admin
 Create Date: 2026-11-23
 """
 
 from alembic import op
 from sqlalchemy import bindparam, text
 
-revision = "009_designations_and_employee_fk"
-down_revision = "008_attendance_roster_fk"
+revision = "010_designations_and_employee_fk"
+down_revision = "009_grant_org_employee_admin"
 branch_labels = None
 depends_on = None
 
@@ -77,6 +77,16 @@ INSERT_PERMISSION = text(
     ON CONFLICT (code) DO NOTHING
     """
 )
+GRANT_TENANT_ADMIN = text(
+    """
+    INSERT INTO role_permissions (tenant_id, role_id, permission_id)
+    SELECT r.tenant_id, r.id, p.id
+    FROM roles r
+    JOIN permissions p ON p.code IN :codes
+    WHERE r.code = 'TENANT_ADMIN'
+    ON CONFLICT ON CONSTRAINT uq_role_permission DO NOTHING
+    """
+).bindparams(bindparam("codes", expanding=True))
 DELETE_ROLE_GRANTS = text(
     """
     DELETE FROM role_permissions
@@ -104,6 +114,8 @@ def upgrade() -> None:
                 "description": description,
             },
         )
+    codes = [item[0] for item in PERMISSIONS]
+    bind.execute(GRANT_TENANT_ADMIN, {"codes": codes})
 
 
 def downgrade() -> None:
@@ -116,4 +128,3 @@ def downgrade() -> None:
     bind.execute(DELETE_ROLE_GRANTS, {"codes": codes})
     bind.execute(DELETE_PERMISSIONS, {"codes": codes})
     op.execute("DROP TABLE IF EXISTS designations CASCADE")
-
