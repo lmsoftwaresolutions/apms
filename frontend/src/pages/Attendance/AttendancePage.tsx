@@ -26,7 +26,7 @@ function getMondayOfCurrentWeek(): string {
   return monday.toISOString().slice(0, 10);
 }
 
-export function AttendancePage() {
+export function AttendancePage({ onOpenTrace }: { onOpenTrace?: (recordId: string) => void } = {}) {
   const { can } = useAuth();
   const [activeTab, setActiveTab] = useState<"register" | "punches">("register");
   const [records, setRecords] = useState<DailyAttendance[]>([]);
@@ -616,9 +616,24 @@ export function AttendancePage() {
             : "Explanation Trace"
         }
         footer={
-          <button className="primary small" type="button" onClick={() => setIsTraceOpen(false)}>
-            Close
-          </button>
+          <div className="flex justify-between w-full">
+            {onOpenTrace && selectedRecord ? (
+              <button
+                className="ghost small"
+                type="button"
+                onClick={() => {
+                  setIsTraceOpen(false);
+                  onOpenTrace(selectedRecord.id);
+                }}
+                title="Inspect in dedicated full-page Explanation Trace Inspector"
+              >
+                Inspect in Rule Trace Inspector →
+              </button>
+            ) : <span />}
+            <button className="primary small" type="button" onClick={() => setIsTraceOpen(false)}>
+              Close
+            </button>
+          </div>
         }
       >
         {selectedRecord ? (

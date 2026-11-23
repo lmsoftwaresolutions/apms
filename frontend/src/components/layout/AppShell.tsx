@@ -12,11 +12,13 @@ import {
   Monitor,
   Menu,
   Globe,
+  LayoutDashboard,
+  FileCode2,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 
-export type NavTab = "attendance" | "roster" | "shifts" | "employees" | "organization" | "iam" | "settings" | "tenants";
+export type NavTab = "dashboard" | "attendance" | "trace" | "roster" | "shifts" | "employees" | "organization" | "iam" | "settings" | "tenants";
 
 export function AppShell({
   currentTab,
@@ -72,6 +74,17 @@ export function AppShell({
             <li className="nav-group-label">Operational</li>
           )}
 
+          {can("attendance.daily.read") || can("employee.employee.read") ? (
+            <li
+              className={`nav-item ${currentTab === "dashboard" ? "active" : ""}`}
+              onClick={() => onSelectTab("dashboard")}
+              title="Operations Dashboard"
+            >
+              <LayoutDashboard size={18} />
+              {!collapsed && <span>Dashboard</span>}
+            </li>
+          ) : null}
+
           {can("attendance.daily.read") ? (
             <li
               className={`nav-item ${currentTab === "attendance" ? "active" : ""}`}
@@ -80,6 +93,17 @@ export function AppShell({
             >
               <Calendar size={18} />
               {!collapsed && <span>Attendance</span>}
+            </li>
+          ) : null}
+
+          {can("attendance.trace.read") || can("attendance.daily.read") ? (
+            <li
+              className={`nav-item ${currentTab === "trace" ? "active" : ""}`}
+              onClick={() => onSelectTab("trace")}
+              title="Explanation Trace Inspector"
+            >
+              <FileCode2 size={18} />
+              {!collapsed && <span>Rule Trace</span>}
             </li>
           ) : null}
 

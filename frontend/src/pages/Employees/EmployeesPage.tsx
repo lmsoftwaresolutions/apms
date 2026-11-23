@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Users, Upload, Search, Filter, ShieldCheck, CheckCircle2, AlertCircle, FileSpreadsheet, Eye } from "lucide-react";
+import { Plus, Users, Upload, Search, Filter, ShieldCheck, CheckCircle2, AlertCircle, FileSpreadsheet, Eye, Trash2 } from "lucide-react";
 import { api, Branch, Department, Employee, EmployeeCreateInput } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Badge, Drawer, Modal, EmptyState, SkeletonTable, Alert } from "../../components/common/UIComponents";
@@ -192,6 +192,17 @@ export function EmployeesPage() {
   };
 
   // CSV Bulk Wizard Logic (Gap 1 resolution)
+  const deleteEmployee = async (id: string, name: string) => {
+    if (!confirm(`Are you sure you want to delete employee '${name}'? This action cannot be undone.`)) return;
+    try {
+      await api.deleteEmployee(id);
+      if (detailEmployee?.id === id) setDetailEmployee(null);
+      await loadEmployees();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete employee");
+    }
+  };
+
   const downloadTemplate = () => {
     const csvContent =
       "employee_code,full_name,branch_code,department_code,designation,date_of_joining,employment_type,pan,aadhaar,epf_uan\n" +
@@ -457,6 +468,16 @@ export function EmployeesPage() {
                             title="Edit Employee"
                           >
                             Edit
+                          </button>
+                        ) : null}
+                        {can("employee.employee.delete") ? (
+                          <button
+                            className="danger small"
+                            type="button"
+                            onClick={() => deleteEmployee(emp.id, emp.full_name)}
+                            title="Delete Employee"
+                          >
+                            <Trash2 size={13} />
                           </button>
                         ) : null}
                       </div>
@@ -774,19 +795,30 @@ export function EmployeesPage() {
             <button className="ghost small" type="button" onClick={() => setDetailEmployee(null)}>
               Close
             </button>
-            {can("employee.employee.update") && detailEmployee ? (
-              <button
-                className="primary small"
-                type="button"
-                onClick={() => {
-                  const emp = detailEmployee;
-                  setDetailEmployee(null);
-                  openEdit(emp);
-                }}
-              >
-                Edit Profile
-              </button>
-            ) : null}
+            <div className="flex gap-2">
+              {can("employee.employee.delete") && detailEmployee ? (
+                <button
+                  className="danger small"
+                  type="button"
+                  onClick={() => deleteEmployee(detailEmployee.id, detailEmployee.full_name)}
+                >
+                  Delete
+                </button>
+              ) : null}
+              {can("employee.employee.update") && detailEmployee ? (
+                <button
+                  className="primary small"
+                  type="button"
+                  onClick={() => {
+                    const emp = detailEmployee;
+                    setDetailEmployee(null);
+                    openEdit(emp);
+                  }}
+                >
+                  Edit Profile
+                </button>
+              ) : null}
+            </div>
           </div>
         }
       >

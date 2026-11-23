@@ -6,11 +6,21 @@ export function Badge({
   children,
   className = "",
 }: {
-  variant?: "present" | "halfday" | "absent" | "info" | "neutral";
+  variant?: "present" | "halfday" | "absent" | "info" | "neutral" | "success" | "warning" | "danger" | "default";
   children: React.ReactNode;
   className?: string;
 }) {
-  return <span className={`badge ${variant} ${className}`}>{children}</span>;
+  const normVariant =
+    variant === "success"
+      ? "present"
+      : variant === "warning"
+      ? "halfday"
+      : variant === "danger"
+      ? "absent"
+      : variant === "default"
+      ? "neutral"
+      : variant;
+  return <span className={`badge ${normVariant} ${className}`}>{children}</span>;
 }
 
 export function Modal({

@@ -2,7 +2,9 @@ import React, { FormEvent, useEffect, useState } from "react";
 import { api } from "./api";
 import { useAuth } from "./context/AuthContext";
 import { AppShell, NavTab } from "./components/layout/AppShell";
+import { DashboardPage } from "./pages/Dashboard/DashboardPage";
 import { AttendancePage } from "./pages/Attendance/AttendancePage";
+import { TracePage } from "./pages/Trace/TracePage";
 import { RosterPage } from "./pages/Roster/RosterPage";
 import { ShiftsPage } from "./pages/Shifts/ShiftsPage";
 import { EmployeesPage } from "./pages/Employees/EmployeesPage";
@@ -13,12 +15,18 @@ import { TenantsPage } from "./pages/Platform/TenantsPage";
 
 export function App() {
   const { me, token, loading, error, login } = useAuth();
-  const [currentTab, setCurrentTab] = useState<NavTab>("attendance");
+  const [currentTab, setCurrentTab] = useState<NavTab>("dashboard");
+  const [traceRecordId, setTraceRecordId] = useState<string | null>(null);
+
+  const handleOpenTrace = (recordId: string) => {
+    setTraceRecordId(recordId);
+    setCurrentTab("trace");
+  };
 
   // Determine initial valid tab based on permissions
   useEffect(() => {
     if (!me) return;
-    if (me.permissions.includes("attendance.daily.read")) setCurrentTab("attendance");
+    if (me.permissions.includes("attendance.daily.read") || me.permissions.includes("employee.employee.read")) setCurrentTab("dashboard");
     else if (me.permissions.includes("roster.instance.read")) setCurrentTab("roster");
     else if (me.permissions.includes("shift.template.read")) setCurrentTab("shifts");
     else if (me.permissions.includes("employee.employee.read")) setCurrentTab("employees");
@@ -43,7 +51,9 @@ export function App() {
 
   return (
     <AppShell currentTab={currentTab} onSelectTab={setCurrentTab}>
-      {currentTab === "attendance" && <AttendancePage />}
+      {currentTab === "dashboard" && <DashboardPage onSelectTab={setCurrentTab} />}
+      {currentTab === "attendance" && <AttendancePage onOpenTrace={handleOpenTrace} />}
+      {currentTab === "trace" && <TracePage initialRecordId={traceRecordId} onSelectTab={setCurrentTab} />}
       {currentTab === "roster" && <RosterPage />}
       {currentTab === "shifts" && <ShiftsPage />}
       {currentTab === "employees" && <EmployeesPage />}
