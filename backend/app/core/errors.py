@@ -8,6 +8,10 @@ class ProblemError(Exception):
         self.title = title
         self.detail = detail
 
+    @property
+    def status_code(self) -> int:
+        return self.status
+
 
 def problem_body(status: int, title: str, detail: str) -> dict[str, object]:
     return {

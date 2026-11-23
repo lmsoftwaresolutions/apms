@@ -75,12 +75,12 @@ async def test_designation_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) -
                 desig_a.id,
                 DesignationUpdate(name="Hacked Name"),
             )
-        assert exc_update.value.status_code == 404
+        assert exc_update.value.status == 404
 
         # 4. Delete fails with 404
         with pytest.raises(ProblemError) as exc_del:
             await delete_designation(session_b, tenant_b.id, desig_a.id)
-        assert exc_del.value.status_code == 404
+        assert exc_del.value.status == 404
 
 
 @pytest.mark.asyncio
@@ -104,7 +104,7 @@ async def test_designation_department_scoping_and_uniqueness(seeded_tenants: tup
                 tenant_a.id,
                 DesignationCreate(department_id=uuid4(), name=name, code=code),
             )
-        assert exc_bad_dept.value.status_code == 400
+        assert exc_bad_dept.value.status == 400
 
         # 2. Creation in dept_1 succeeds
         created_1 = await create_designation(
@@ -122,7 +122,7 @@ async def test_designation_department_scoping_and_uniqueness(seeded_tenants: tup
                 tenant_a.id,
                 DesignationCreate(department_id=dept_1.id, name="Different Name", code=code),
             )
-        assert exc_dup_code.value.status_code == 409
+        assert exc_dup_code.value.status == 409
 
         # 4. Duplicate name in SAME department fails with 409
         with pytest.raises(ProblemError) as exc_dup_name:
@@ -131,7 +131,7 @@ async def test_designation_department_scoping_and_uniqueness(seeded_tenants: tup
                 tenant_a.id,
                 DesignationCreate(department_id=dept_1.id, name=name.lower(), code=f"OTHER-{uuid4().hex[:4].upper()}"),
             )
-        assert exc_dup_name.value.status_code == 409
+        assert exc_dup_name.value.status == 409
 
         # 5. Same code in a DIFFERENT department succeeds
         created_2 = await create_designation(
@@ -178,7 +178,7 @@ async def test_designation_employee_linkage_and_cross_validation(seeded_tenants:
                     date_of_joining=date(2025, 1, 1),
                 ),
             )
-        assert exc_mismatch.value.status_code == 400
+        assert exc_mismatch.value.status == 400
 
         # 2. Creating employee in dept_1 with desig_1 succeeds
         emp = await create_employee(
@@ -199,7 +199,7 @@ async def test_designation_employee_linkage_and_cross_validation(seeded_tenants:
         # 3. Deleting designation while assigned to employee fails with 409
         with pytest.raises(ProblemError) as exc_del_busy:
             await delete_designation(session, tenant_a.id, desig_1.id)
-        assert exc_del_busy.value.status_code == 409
+        assert exc_del_busy.value.status == 409
 
         # 4. Updating employee to clear designation_id allows deleting designation
         await update_employee(
