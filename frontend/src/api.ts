@@ -80,14 +80,16 @@ export const api = {
   deleteBranch: (id: string) => request(`/api/v1/branches/${id}`, { method: "DELETE" }),
   departments: (branchId?: string) =>
     request<Department[]>(branchId ? `/api/v1/departments?branch_id=${encodeURIComponent(branchId)}` : "/api/v1/departments"),
-  createDepartment: (branch_id: string, name: string, code: string) =>
+  createDepartment: (branch_id: string, name: string, code: string, parent_dept_id?: string | null) =>
     request<Department>("/api/v1/departments", {
       method: "POST",
       headers: { "Idempotency-Key": crypto.randomUUID() },
-      body: JSON.stringify({ branch_id, name, code }),
+      body: JSON.stringify({ branch_id, name, code, parent_dept_id: parent_dept_id || null }),
     }),
-  updateDepartment: (id: string, body: Partial<Pick<Department, "name" | "code" | "branch_id" | "is_active">>) =>
-    request<Department>(`/api/v1/departments/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  updateDepartment: (
+    id: string,
+    body: Partial<Pick<Department, "name" | "code" | "branch_id" | "parent_dept_id" | "is_active">>,
+  ) => request<Department>(`/api/v1/departments/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDepartment: (id: string) => request(`/api/v1/departments/${id}`, { method: "DELETE" }),
   roles: () => request<Role[]>("/api/v1/roles"),
   permissions: () => request<Permission[]>("/api/v1/permissions"),

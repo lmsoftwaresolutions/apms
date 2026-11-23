@@ -181,6 +181,7 @@ function Departments({ me }: { me: Me }) {
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
+  const [parentId, setParentId] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -212,9 +213,10 @@ function Departments({ me }: { me: Me }) {
     if (!selectedBranchId) return;
     setError("");
     try {
-      await api.createDepartment(selectedBranchId, name, code.toUpperCase());
+      await api.createDepartment(selectedBranchId, name, code.toUpperCase(), parentId || null);
       setName("");
       setCode("");
+      setParentId("");
       await refresh(selectedBranchId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the department");
@@ -222,6 +224,23 @@ function Departments({ me }: { me: Me }) {
   }
 
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
+  const departmentById = new Map(departments.map((dept) => [dept.id, dept]));
+
+  function parentLabel(parentDeptId: string | null | undefined) {
+    if (!parentDeptId) return "—";
+    const parent = departmentById.get(parentDeptId);
+    return parent ? `${parent.name} (${parent.code})` : parentDeptId.slice(0, 8);
+  }
+
+  async function run(action: () => Promise<unknown>) {
+    setError("");
+    try {
+      await action();
+      await refresh(selectedBranchId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update the department");
+    }
+  }
 
   return (
     <section className="panel">
@@ -256,6 +275,7 @@ function Departments({ me }: { me: Me }) {
               <th>Code</th>
               <th>Name</th>
               <th>Branch</th>
+              <th>Parent</th>
               <th>State</th>
               <th></th>
             </tr>
@@ -266,24 +286,16 @@ function Departments({ me }: { me: Me }) {
                 <td>{dept.code}</td>
                 <td>{dept.name}</td>
                 <td>{branchNameById.get(dept.branch_id) || dept.branch_id.slice(0, 8)}</td>
+                <td>{parentLabel(dept.parent_dept_id)}</td>
                 <td>{dept.is_active ? "Active" : "Inactive"}</td>
                 <td className="row">
                   {can(me, "org.department.update") ? (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        api.updateDepartment(dept.id, { is_active: !dept.is_active }).then(() => refresh(selectedBranchId))
-                      }
-                    >
+                    <button type="button" onClick={() => run(() => api.updateDepartment(dept.id, { is_active: !dept.is_active }))}>
                       {dept.is_active ? "Deactivate" : "Activate"}
                     </button>
                   ) : null}
                   {can(me, "org.department.delete") ? (
-                    <button
-                      className="danger"
-                      type="button"
-                      onClick={() => api.deleteDepartment(dept.id).then(() => refresh(selectedBranchId))}
-                    >
+                    <button className="danger" type="button" onClick={() => run(() => api.deleteDepartment(dept.id))}>
                       Delete
                     </button>
                   ) : null}
@@ -312,6 +324,17 @@ function Departments({ me }: { me: Me }) {
           <label>
             Code
             <input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} />
+          </label>
+          <label>
+            Parent
+            <select value={parentId} onChange={(event) => setParentId(event.target.value)}>
+              <option value="">None</option>
+              {departments.map((dept) => (
+                <option key={dept.id} value={dept.id}>
+                  {dept.name} ({dept.code})
+                </option>
+              ))}
+            </select>
           </label>
           <button className="primary" type="submit" disabled={!name || code.length < 2 || !selectedBranchId}>
             Add department
