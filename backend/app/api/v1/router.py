@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
 from app.modules.attendance.router import router as attendance_router
+from app.modules.ess.router import router as ess_router
+from app.modules.regularizations.router import router as regularizations_router
 from app.modules.auth.router import router as auth_router
 from app.modules.branches.router import router as branches_router
 from app.modules.departments.router import router as departments_router
@@ -21,4 +23,6 @@ api_router.include_router(employees_router)
 api_router.include_router(shifts_router)
 api_router.include_router(roster_router)
 api_router.include_router(punches_router)
+api_router.include_router(regularizations_router)
+api_router.include_router(ess_router)
 api_router.include_router(attendance_router)

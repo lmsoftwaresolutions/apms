@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -16,6 +16,7 @@ from app.modules.attendance.schemas import (
     DailyAttendanceRead,
     RecalculateAttendanceRequest,
 )
+from app.modules.attendance.cutoff import run_cutoff_rollup
 from app.modules.attendance.service import calculate_and_save_daily_attendance
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -93,6 +94,15 @@ async def get_trace_endpoint(
         trace_payload=trace.trace_payload,
         evaluated_at=trace.evaluated_at,
     )
+
+
+@router.post("/rollup/cutoff", summary="Evaluate dated shifts whose post-window has closed")
+async def run_cutoff(
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("attendance.daily.recalculate"))],
+) -> dict[str, int]:
+    evaluated = await run_cutoff_rollup(session, current.tenant_id, datetime.now(UTC))
+    return {"evaluated": evaluated}
 
 
 @router.post(

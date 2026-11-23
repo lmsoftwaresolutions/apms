@@ -63,8 +63,18 @@ async def seed() -> None:
                 "org.department.update",
                 "org.designation.read",
                 "org.designation.update",
+                "attendance.regularization.read",
+                "attendance.regularization.review",
+                "attendance.rollup.read",
             ],
-            "EMPLOYEE": ["org.branch.read", "org.department.read", "org.designation.read"],
+            "EMPLOYEE": [
+                "org.branch.read",
+                "org.department.read",
+                "org.designation.read",
+                "ess.calendar.read",
+                "attendance.regularization.create",
+                "attendance.regularization.read",
+            ],
         }
 
         for spec in TENANTS:

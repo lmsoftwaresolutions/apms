@@ -60,6 +60,7 @@ Each phase: confirm the spec links, implement, wire permission keys, test, then 
 
 ## Links
 
+- Issue sequence: [`ATTENDANCE_MVP_IMPLEMENTATION_PLAN.md`](ATTENDANCE_MVP_IMPLEMENTATION_PLAN.md)
 - Architecture: [`SYSTEM_ARCHITECTURE.md`](SYSTEM_ARCHITECTURE.md)
 - Access control: [`IAM_RBAC.md`](IAM_RBAC.md)
 - Module order: [`MODULE_BUILD_ORDER.md`](MODULE_BUILD_ORDER.md)

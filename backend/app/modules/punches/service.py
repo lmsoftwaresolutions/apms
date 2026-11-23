@@ -10,6 +10,7 @@ from app.adapters.csv_bulk import CSVBulkAdapter
 from app.adapters.etimeoffice import ETimeOfficeAdapter
 from app.adapters.zkteco import ZKTecoADMSAdapter
 from app.models.punch import PunchEvent, RawEnvelope
+from app.modules.attendance.cutoff import record_rollup_failure
 from app.modules.attendance.service import calculate_and_save_daily_attendance
 from app.modules.punches.repository import (
     find_envelope_by_hash,
@@ -159,15 +160,15 @@ async def process_and_ingest_punches(
 
         for emp_id, cal_date in affected_dates:
             try:
-                await calculate_and_save_daily_attendance(
-                    session=session,
-                    tenant_id=tenant_id,
-                    employee_id=emp_id,
-                    calendar_date=cal_date,
-                )
-            except Exception:
-                # Do not block punch ingest if attendance rollup fails
-                pass
+                async with session.begin_nested():
+                    await calculate_and_save_daily_attendance(
+                        session=session,
+                        tenant_id=tenant_id,
+                        employee_id=emp_id,
+                        calendar_date=cal_date,
+                    )
+            except Exception as exc:
+                await record_rollup_failure(session, tenant_id, emp_id, cal_date, exc)
 
     return PunchIngestResult(
         raw_envelope_id=envelope.id,
