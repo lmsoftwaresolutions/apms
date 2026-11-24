@@ -51,6 +51,26 @@ export function App() {
               />
             }
           />
+          <Route
+            path="/anomalies"
+            element={
+              <PlaceholderPage
+                title="Punch Anomalies & Continuous Absentees"
+                moduleName="Operations"
+                description="Unpaired punches, missing in/out timestamps, and continuous 3-day absence exception queues."
+              />
+            }
+          />
+          <Route
+            path="/devices"
+            element={
+              <PlaceholderPage
+                title="Biometric Device Fleet"
+                moduleName="Operations"
+                description="Terminal connectivity heartbeats, push/pull communication telemetry, and template sync queues."
+              />
+            }
+          />
 
           {/* Scheduling */}
           <Route

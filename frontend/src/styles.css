@@ -129,9 +129,32 @@
   --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.6);
 }
 
-/* Base reset & typography */
+/* Base reset, typography & sleek scrollbars */
 *, *::before, *::after {
   box-sizing: border-box;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
 }
 
 body {
@@ -180,11 +203,32 @@ a {
   top: 0;
   height: 100vh;
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 40;
 }
 
 .app-sidebar.collapsed {
   width: var(--sidebar-collapsed-width);
+  overflow-x: hidden;
+  scrollbar-width: none; /* Hide scrollbar in collapsed state so icons remain centered */
+  -ms-overflow-style: none;
+}
+
+.app-sidebar.collapsed::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.app-sidebar.collapsed nav {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.app-sidebar.collapsed nav::-webkit-scrollbar {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 .app-sidebar-backdrop {

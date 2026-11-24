@@ -20,6 +20,8 @@ import {
   LogOut,
   User as UserIcon,
   Menu,
+  AlertTriangle,
+  Cpu,
   LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -29,6 +31,8 @@ interface NavItem {
   to: string;
   icon: LucideIcon;
   permission?: string;
+  badge?: string;
+  badgeType?: "live" | "count" | "neutral";
 }
 
 interface NavGroup {
@@ -41,8 +45,10 @@ const NAV_GROUPS: NavGroup[] = [
     group: "Operations",
     items: [
       { label: "Attendance", to: "/attendance", icon: CalendarCheck },
-      { label: "Live Punches", to: "/punches", icon: Zap },
+      { label: "Live Punches", to: "/punches", icon: Zap, badge: "Live", badgeType: "live" },
       { label: "Muster Roll", to: "/muster", icon: FileSpreadsheet },
+      { label: "Anomalies", to: "/anomalies", icon: AlertTriangle },
+      { label: "Devices", to: "/devices", icon: Cpu },
     ],
   },
   {
@@ -229,11 +235,12 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
       <nav
         style={{
           flex: 1,
-          padding: collapsed ? "1rem 0.5rem" : "1rem 0.75rem",
+          padding: collapsed ? "0.75rem 0.25rem" : "1rem 0.75rem",
           overflowY: "auto",
+          overflowX: "hidden",
           display: "flex",
           flexDirection: "column",
-          gap: "1.25rem",
+          gap: collapsed ? "0.625rem" : "1.25rem",
         }}
       >
         {NAV_GROUPS.map((group) => {
@@ -311,7 +318,40 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
                         })}
                       >
                         <Icon size={18} style={{ flexShrink: 0 }} />
-                        {!collapsed ? <span>{item.label}</span> : null}
+                        {!collapsed ? (
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flex: 1, minWidth: 0 }}>
+                            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.label}</span>
+                            {item.badge ? (
+                              <span
+                                style={{
+                                  fontSize: "0.6875rem",
+                                  fontWeight: 700,
+                                  padding: "0.1rem 0.45rem",
+                                  borderRadius: "9999px",
+                                  backgroundColor: item.badgeType === "live" ? "rgba(16, 185, 129, 0.15)" : "var(--bg-subtle)",
+                                  color: item.badgeType === "live" ? "#10b981" : "var(--text-muted)",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "0.25rem",
+                                  flexShrink: 0,
+                                }}
+                              >
+                                {item.badgeType === "live" ? (
+                                  <span
+                                    style={{
+                                      width: 6,
+                                      height: 6,
+                                      borderRadius: "50%",
+                                      backgroundColor: "#10b981",
+                                      display: "inline-block",
+                                    }}
+                                  />
+                                ) : null}
+                                {item.badge}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
                       </NavLink>
                     );
                   })}

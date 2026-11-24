@@ -45,6 +45,57 @@ const ROLE_CAPABILITIES: Record<string, { summary: string; detail: string }> = {
   },
 };
 
+const SPECIFIC_PERM_TITLES: Record<string, string> = {
+  "attendance.regularization.create": "Submit punch regularization requests",
+  "attendance.regularization.read": "View punch regularizations and approvals",
+  "attendance.regularization.approve": "Approve employee punch regularizations",
+  "ess.calendar.read": "View personal work calendar & shifts",
+  "leave.request.create": "Apply for leave (CL, SL, EL, Comp-Off)",
+  "leave.request.read": "View personal leave applications and balance",
+  "leave.request.approve": "Approve or reject team leave requests",
+  "org.branch.read": "View branch and office locations",
+  "org.department.read": "View department directory",
+  "org.designation.read": "View designation directory",
+  "overtime.record.read": "View personal overtime records and comp-offs",
+  "overtime.record.approve": "Approve team overtime hours",
+  "overtime_record:read": "View personal overtime records and comp-offs",
+  "work_mode.request.create": "Apply for work from home or remote duty",
+  "work_mode.request.read": "View work from home / remote requests",
+  "work_mode.request.approve": "Approve work from home requests",
+};
+
+function humanizePermTitle(code: string, rawDesc?: string): string {
+  const normalized = code.toLowerCase().trim();
+  if (SPECIFIC_PERM_TITLES[normalized]) {
+    return SPECIFIC_PERM_TITLES[normalized];
+  }
+  if (rawDesc && rawDesc !== code && !rawDesc.includes(".")) {
+    return rawDesc.replace(/\s*\(dot alias\)/i, "").trim();
+  }
+  const parts = code.replace(/:/g, ".").split(".");
+  if (parts.length >= 2) {
+    const action = parts[parts.length - 1].toLowerCase();
+    const entity = parts.slice(0, parts.length - 1).join(" ");
+    const actionVerbMap: Record<string, string> = {
+      create: "Create / submit",
+      read: "View",
+      update: "Edit / manage",
+      delete: "Remove / cancel",
+      approve: "Approve",
+      reject: "Reject",
+      export: "Export",
+    };
+    const verb = actionVerbMap[action] || (action.charAt(0).toUpperCase() + action.slice(1));
+    const titleEntity = entity
+      .replace(/_/g, " ")
+      .split(" ")
+      .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(" ");
+    return `${verb} ${titleEntity}`;
+  }
+  return code;
+}
+
 export function UsersPage() {
   const { can } = useAuth();
   const [users, setUsers] = useState<DirectoryUser[]>([]);
@@ -960,8 +1011,30 @@ export function UsersPage() {
 
             {/* Section 1: CURRENT ROLE */}
             <div>
-              <div style={{ fontSize: "0.6875rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>
-                CURRENT ROLE
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "0.4rem" }}>
+                <span style={{ fontSize: "0.6875rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em" }}>
+                  CURRENT ROLE
+                </span>
+                {Array.from(stagedRoleCodes).length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPermSearchQuery("");
+                      setIsPermsListOpen(true);
+                    }}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "var(--color-primary-fg)",
+                      fontSize: "0.6875rem",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      padding: 0,
+                    }}
+                  >
+                    View capabilities
+                  </button>
+                ) : null}
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                 {Array.from(stagedRoleCodes).length === 0 ? (
@@ -1365,9 +1438,8 @@ export function UsersPage() {
 
                 for (const pCode of rawPermCodes) {
                   const permObj = permByCode.get(pCode);
-                  const rawDesc = permObj?.description || pCode;
-                  const cleanDesc = rawDesc.replace(/\s*\(dot alias\)/i, "").trim();
-                  const normalizedKey = cleanDesc.toLowerCase();
+                  const cleanTitle = humanizePermTitle(pCode, permObj?.description);
+                  const normalizedKey = cleanTitle.toLowerCase();
 
                   if (seenDescriptions.has(normalizedKey)) continue;
                   seenDescriptions.add(normalizedKey);
@@ -1375,7 +1447,7 @@ export function UsersPage() {
                   const modKey = permObj?.module || pCode.split(/[.:]/)[0] || "other";
                   resolvedPerms.push({
                     code: pCode,
-                    title: cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1),
+                    title: cleanTitle,
                     module: modKey.toLowerCase(),
                   });
                 }
