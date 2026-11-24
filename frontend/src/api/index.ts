@@ -28,6 +28,80 @@ export type EmployeeRow = {
   designation: string | null;
 };
 
+export type Employee = {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  branch_id: string;
+  department_id: string | null;
+  designation_id: string | null;
+  designation: string | null;
+  employee_code: string;
+  full_name: string;
+  date_of_joining: string;
+  date_of_birth: string | null;
+  employment_type: string;
+  probation_end_date: string | null;
+  confirmation_date: string | null;
+  pan_masked: string | null;
+  aadhaar_masked: string | null;
+  bank_account_masked: string | null;
+  bank_ifsc_masked: string | null;
+  epf_uan_masked: string | null;
+  esic_number_masked: string | null;
+  is_active: boolean;
+  biometric_consent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeCreateInput = {
+  employee_code: string;
+  full_name: string;
+  branch_id: string;
+  department_id?: string | null;
+  designation_id?: string | null;
+  user_id?: string | null;
+  designation?: string | null;
+  date_of_joining: string;
+  date_of_birth?: string | null;
+  employment_type?: string;
+  probation_end_date?: string | null;
+  confirmation_date?: string | null;
+  pan?: string | null;
+  aadhaar?: string | null;
+  bank_account?: string | null;
+  bank_ifsc?: string | null;
+  epf_uan?: string | null;
+  esic_number?: string | null;
+  biometric_consent?: boolean;
+  is_active?: boolean;
+};
+
+export type EmployeeUpdateInput = {
+  full_name?: string | null;
+  branch_id?: string | null;
+  department_id?: string | null;
+  designation_id?: string | null;
+  user_id?: string | null;
+  designation?: string | null;
+  date_of_joining?: string | null;
+  date_of_birth?: string | null;
+  employment_type?: string | null;
+  probation_end_date?: string | null;
+  confirmation_date?: string | null;
+  pan?: string | null;
+  aadhaar?: string | null;
+  bank_account?: string | null;
+  bank_ifsc?: string | null;
+  epf_uan?: string | null;
+  esic_number?: string | null;
+  biometric_consent?: boolean | null;
+  is_active?: boolean | null;
+};
+
+export type UnmaskPiiResult = Record<string, string | null>;
+
 export type Designation = {
   id: string;
   department_id: string;
@@ -139,6 +213,33 @@ export const api = {
   deleteDesignation: (id: string) => request(`/api/v1/designations/${id}`, { method: "DELETE" }),
   employees: (departmentId: string) =>
     request<EmployeeRow[]>(`/api/v1/employees?department_id=${encodeURIComponent(departmentId)}`),
+  employeesList: (params?: { branch_id?: string; department_id?: string; is_active?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.branch_id) query.set("branch_id", params.branch_id);
+    if (params?.department_id) query.set("department_id", params.department_id);
+    if (params?.is_active !== undefined) query.set("is_active", String(params.is_active));
+    const qs = query.toString();
+    return request<Employee[]>(`/api/v1/employees${qs ? `?${qs}` : ""}`);
+  },
+  employee: (id: string) => request<Employee>(`/api/v1/employees/${id}`),
+  createEmployee: (payload: EmployeeCreateInput) =>
+    request<Employee>("/api/v1/employees", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    }),
+  updateEmployee: (id: string, payload: EmployeeUpdateInput) =>
+    request<Employee>(`/api/v1/employees/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deleteEmployee: (id: string) =>
+    request<{ ok: boolean; id: string }>(`/api/v1/employees/${id}`, { method: "DELETE" }),
+  unmaskPii: (id: string, fields: string[]) =>
+    request<UnmaskPiiResult>(`/api/v1/employees/${id}/unmask`, {
+      method: "POST",
+      body: JSON.stringify({ fields }),
+    }),
   assignDesignation: (id: string, designation_id: string | null) =>
     request<EmployeeRow>(`/api/v1/employees/${id}`, {
       method: "PATCH",

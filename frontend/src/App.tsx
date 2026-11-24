@@ -7,6 +7,7 @@ import { DepartmentsPage } from "./modules/org/DepartmentsPage";
 import { DesignationsPage } from "./modules/org/DesignationsPage";
 import { RolesPage } from "./modules/iam/RolesPage";
 import { UsersPage } from "./modules/iam/UsersPage";
+import { EmployeesPage } from "./modules/employees/EmployeesPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -128,16 +129,7 @@ export function App() {
           />
 
           {/* People & Organization */}
-          <Route
-            path="/employees"
-            element={
-              <PlaceholderPage
-                title="Employees Directory"
-                moduleName="People"
-                description="Worker master vault, statutory PAN/Aadhaar/UAN profiles, and onboarding coming soon."
-              />
-            }
-          />
+          <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/org/branches" element={<Navigate to="/admin/branches" replace />} />
           <Route path="/org/departments" element={<DepartmentsPage />} />
           <Route path="/org/designations" element={<DesignationsPage />} />
