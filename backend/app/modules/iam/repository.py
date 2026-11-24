@@ -44,6 +44,7 @@ async def find_user_role(session: AsyncSession, tenant_id: UUID, user_id: UUID, 
 
 async def remove_user_role(session: AsyncSession, link: UserRole) -> None:
     await session.delete(link)
+    await session.flush()
 
 
 async def list_roles(session: AsyncSession, tenant_id: UUID) -> list[Role]:

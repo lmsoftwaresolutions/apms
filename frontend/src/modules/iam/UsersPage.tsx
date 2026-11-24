@@ -63,6 +63,7 @@ export function UsersPage() {
   const [stagedRoleCodes, setStagedRoleCodes] = useState<Set<string>>(new Set());
   const [savingRoles, setSavingRoles] = useState(false);
   const [drawerSuccessMsg, setDrawerSuccessMsg] = useState("");
+  const [drawerErrorMsg, setDrawerErrorMsg] = useState("");
 
   // Invite User Modal
   const [isInviteOpen, setIsInviteOpen] = useState(false);
@@ -95,7 +96,7 @@ export function UsersPage() {
       setPermissions(permList);
       if (userList.length > 0 && !activeUserId) {
         setActiveUserId(userList[0].id);
-        setStagedRoleCodes(new Set(userList[0].roles || []));
+        setStagedRoleCodes(new Set((userList[0].roles || []).map((r) => r.toUpperCase())));
       }
       setError("");
     } catch (err) {
@@ -117,8 +118,9 @@ export function UsersPage() {
 
   useEffect(() => {
     if (activeUser) {
-      setStagedRoleCodes(new Set(activeUser.roles || []));
+      setStagedRoleCodes(new Set((activeUser.roles || []).map((r) => r.toUpperCase())));
       setDrawerSuccessMsg("");
+      setDrawerErrorMsg("");
     }
   }, [activeUser?.id]);
 
@@ -177,7 +179,7 @@ export function UsersPage() {
 
   // Active Role Staging
   const originalUserRoles = useMemo(
-    () => new Set(activeUser?.roles || []),
+    () => new Set((activeUser?.roles || []).map((r) => r.toUpperCase())),
     [activeUser]
   );
 
@@ -194,24 +196,30 @@ export function UsersPage() {
     const next = new Set(stagedRoleCodes);
     next.add(code.toUpperCase());
     setStagedRoleCodes(next);
+    setDrawerSuccessMsg("");
+    setDrawerErrorMsg("");
   }
 
   function handleRemoveRole(code: string) {
     const next = new Set(stagedRoleCodes);
     next.delete(code.toUpperCase());
     setStagedRoleCodes(next);
+    setDrawerSuccessMsg("");
+    setDrawerErrorMsg("");
   }
 
   function handleCancelRoleChanges() {
     if (activeUser) {
-      setStagedRoleCodes(new Set(activeUser.roles || []));
+      setStagedRoleCodes(new Set((activeUser.roles || []).map((r) => r.toUpperCase())));
+      setDrawerSuccessMsg("");
+      setDrawerErrorMsg("");
     }
   }
 
   async function handleSaveRoleChanges() {
     if (!activeUser) return;
     setSavingRoles(true);
-    setError("");
+    setDrawerErrorMsg("");
     setDrawerSuccessMsg("");
     try {
       const rolesToAdd = Array.from(stagedRoleCodes).filter((r) => !originalUserRoles.has(r));
@@ -220,27 +228,43 @@ export function UsersPage() {
       for (const code of rolesToAdd) {
         const role = roleByCode.get(code);
         if (role) {
-          await api.assignRole(activeUser.id, role.id);
+          try {
+            await api.assignRole(activeUser.id, role.id);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (!msg.toLowerCase().includes("already assigned")) {
+              throw err;
+            }
+          }
         }
       }
 
       for (const code of rolesToRemove) {
         const role = roleByCode.get(code);
         if (role) {
-          await api.unassignRole(activeUser.id, role.id);
+          try {
+            await api.unassignRole(activeUser.id, role.id);
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            if (!msg.toLowerCase().includes("not found")) {
+              throw err;
+            }
+          }
         }
       }
 
-      // Update local user state
-      setUsers((prev) =>
-        prev.map((u) =>
-          u.id === activeUser.id ? { ...u, roles: Array.from(stagedRoleCodes) } : u
-        )
-      );
+      // Re-fetch authoritative users from API to guarantee backend sync
+      const updatedList = await api.users();
+      setUsers(updatedList);
+      const updatedUser = updatedList.find((u) => u.id === activeUser.id);
+      if (updatedUser) {
+        setStagedRoleCodes(new Set((updatedUser.roles || []).map((r) => r.toUpperCase())));
+      }
+
       setDrawerSuccessMsg("Roles updated successfully.");
-      setTimeout(() => setDrawerSuccessMsg(""), 3000);
+      setTimeout(() => setDrawerSuccessMsg(""), 3500);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update user roles");
+      setDrawerErrorMsg(err instanceof Error ? err.message : "Failed to update user roles");
     } finally {
       setSavingRoles(false);
     }
@@ -357,6 +381,26 @@ export function UsersPage() {
         </span>
       );
     }
+    if (upper === "EMPLOYEE") {
+      return (
+        <span
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            padding: "0.25rem 0.65rem",
+            borderRadius: "9999px",
+            fontSize: "0.75rem",
+            fontWeight: 600,
+            backgroundColor: "rgba(16, 185, 129, 0.15)",
+            color: "#34d399",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+          }}
+        >
+          Employee
+        </span>
+      );
+    }
+    const customRole = roleByCode.get(upper);
     return (
       <span
         style={{
@@ -366,12 +410,12 @@ export function UsersPage() {
           borderRadius: "9999px",
           fontSize: "0.75rem",
           fontWeight: 600,
-          backgroundColor: "rgba(16, 185, 129, 0.15)",
-          color: "#34d399",
-          border: "1px solid rgba(16, 185, 129, 0.35)",
+          backgroundColor: "rgba(147, 51, 234, 0.15)",
+          color: "#c084fc",
+          border: "1px solid rgba(147, 51, 234, 0.35)",
         }}
       >
-        Employee
+        {customRole?.name || roleCode}
       </span>
     );
   }
@@ -641,7 +685,15 @@ export function UsersPage() {
                           {u.email}
                         </td>
                         <td>
-                          {getRoleBadge(u.roles && u.roles[0])}
+                          {!u.roles || u.roles.length === 0 ? (
+                            getRoleBadge(undefined)
+                          ) : (
+                            <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", alignItems: "center" }}>
+                              {u.roles.map((rCode) => (
+                                <span key={rCode}>{getRoleBadge(rCode)}</span>
+                              ))}
+                            </div>
+                          )}
                         </td>
                         <td>
                           <span
@@ -816,56 +868,62 @@ export function UsersPage() {
                 ADD ANOTHER ROLE
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                {roles
-                  .filter((r) => !stagedRoleCodes.has(r.code.toUpperCase()))
-                  .map((r) => {
-                    const cap = ROLE_CAPABILITIES[r.code.toUpperCase()] || {
-                      summary: `${r.permissions.length} permissions`,
-                      detail: "",
-                    };
-                    return (
-                      <div
-                        key={r.id}
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                          padding: "0.75rem 0.875rem",
-                          borderRadius: "0.5rem",
-                          backgroundColor: "var(--bg-card)",
-                          border: "1px solid var(--border-subtle)",
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 650, fontSize: "0.875rem", color: "var(--text-primary)" }}>
-                            {r.name}
+                {roles.filter((r) => !stagedRoleCodes.has(r.code.toUpperCase())).length === 0 ? (
+                  <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontStyle: "italic", padding: "0.5rem 0" }}>
+                    All available roles are currently assigned.
+                  </div>
+                ) : (
+                  roles
+                    .filter((r) => !stagedRoleCodes.has(r.code.toUpperCase()))
+                    .map((r) => {
+                      const cap = ROLE_CAPABILITIES[r.code.toUpperCase()] || {
+                        summary: `${r.permissions.length} permissions`,
+                        detail: "",
+                      };
+                      return (
+                        <div
+                          key={r.id}
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            padding: "0.75rem 0.875rem",
+                            borderRadius: "0.5rem",
+                            backgroundColor: "var(--bg-card)",
+                            border: "1px solid var(--border-subtle)",
+                          }}
+                        >
+                          <div>
+                            <div style={{ fontWeight: 650, fontSize: "0.875rem", color: "var(--text-primary)" }}>
+                              {r.name}
+                            </div>
+                            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                              {cap.summary}
+                            </div>
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
-                            {cap.summary}
-                          </div>
-                        </div>
 
-                        {can("iam.assignment.create") ? (
-                          <button
-                            type="button"
-                            onClick={() => handleAddRole(r.code)}
-                            style={{
-                              background: "none",
-                              border: "1px solid var(--border-strong)",
-                              color: "var(--text-primary)",
-                              borderRadius: "0.375rem",
-                              padding: "0.3rem 0.75rem",
-                              fontSize: "0.75rem",
-                              fontWeight: 600,
-                              cursor: "pointer",
-                            }}
-                          >
-                            Add
-                          </button>
-                        ) : null}
-                      </div>
-                    );
-                  })}
+                          {can("iam.assignment.create") ? (
+                            <button
+                              type="button"
+                              onClick={() => handleAddRole(r.code)}
+                              style={{
+                                background: "none",
+                                border: "1px solid var(--border-strong)",
+                                color: "var(--text-primary)",
+                                borderRadius: "0.375rem",
+                                padding: "0.3rem 0.75rem",
+                                fontSize: "0.75rem",
+                                fontWeight: 600,
+                                cursor: "pointer",
+                              }}
+                            >
+                              Add
+                            </button>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                )}
               </div>
             </div>
 
@@ -895,6 +953,41 @@ export function UsersPage() {
               </button>
             </div>
 
+            {hasRoleChanges ? (
+              <div
+                style={{
+                  padding: "0.6rem 0.85rem",
+                  backgroundColor: "rgba(245, 158, 11, 0.12)",
+                  color: "#fbbf24",
+                  border: "1px solid rgba(245, 158, 11, 0.3)",
+                  borderRadius: "0.5rem",
+                  fontSize: "0.8125rem",
+                  fontWeight: 500,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                }}
+              >
+                <AlertCircle size={15} />
+                <span>You have unsaved changes. Click <strong>Save changes</strong> below to apply.</span>
+              </div>
+            ) : null}
+
+            {drawerErrorMsg ? (
+              <div
+                style={{
+                  padding: "0.6rem 0.85rem",
+                  backgroundColor: "var(--color-danger-bg)",
+                  color: "var(--color-danger-fg)",
+                  border: "1px solid var(--color-danger-border)",
+                  borderRadius: "0.5rem",
+                  fontSize: "0.8125rem",
+                }}
+              >
+                {drawerErrorMsg}
+              </div>
+            ) : null}
+
             {/* Action Bar (Cancel / Save) */}
             <div
               style={{
@@ -918,18 +1011,21 @@ export function UsersPage() {
                 variant="primary"
                 onClick={handleSaveRoleChanges}
                 loading={savingRoles}
-                disabled={!hasRoleChanges}
+                disabled={!hasRoleChanges || savingRoles}
                 style={{
-                  backgroundColor: "#10b981",
-                  borderColor: "#10b981",
-                  color: "#ffffff",
+                  backgroundColor: hasRoleChanges ? "#10b981" : "var(--bg-card)",
+                  borderColor: hasRoleChanges ? "#10b981" : "var(--border-strong)",
+                  color: hasRoleChanges ? "#ffffff" : "var(--text-muted)",
                   borderRadius: "0.5rem",
-                  fontWeight: 600,
+                  fontWeight: 650,
                   fontSize: "0.875rem",
                   padding: "0.45rem 1.25rem",
+                  boxShadow: hasRoleChanges ? "0 0 12px rgba(16, 185, 129, 0.35)" : "none",
+                  cursor: hasRoleChanges ? "pointer" : "not-allowed",
+                  transition: "all 0.2s ease",
                 }}
               >
-                Save
+                {hasRoleChanges ? "Save changes" : "Save"}
               </Button>
             </div>
           </div>

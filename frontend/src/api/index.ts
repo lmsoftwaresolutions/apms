@@ -80,7 +80,14 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   if (token) headers.set("Authorization", `Bearer ${token}`);
   const response = await fetch(path, { ...init, headers });
   if (!response.ok) await readError(response);
-  return response.json() as Promise<T>;
+  if (response.status === 204 || response.status === 205) {
+    return undefined as unknown as T;
+  }
+  const text = await response.text();
+  if (!text || text.trim() === "") {
+    return undefined as unknown as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export const api = {
