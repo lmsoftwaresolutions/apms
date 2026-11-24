@@ -41,7 +41,8 @@ async def test_employee_crypto_round_trip(seeded_tenants: tuple[Tenant, Tenant])
         branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant.id))
         assert branch is not None, "Branch missing"
 
-        raw_pan = "ABCDE1234F"
+        pan_suffix = uuid4().int % 9000 + 1000
+        raw_pan = f"ABCDE{pan_suffix}F"
         raw_aadhaar = "123456781234"
         raw_bank = "9876543210"
         raw_ifsc = "SBIN0001234"
@@ -62,7 +63,7 @@ async def test_employee_crypto_round_trip(seeded_tenants: tuple[Tenant, Tenant])
         created = await create_employee(session, tenant.id, payload)
 
         # 1. API Output verification: must return masked PII
-        assert created.pan_masked == "XXXXX1234"
+        assert created.pan_masked == f"XXXXX{pan_suffix}"
         assert created.aadhaar_masked == "XXXXXXXX1234"
         assert created.bank_account_masked == "XXXXXX3210"
         assert created.bank_ifsc_masked == "XXXXXXX1234"
@@ -113,7 +114,7 @@ async def test_negative_rls_cross_tenant_isolation(seeded_tenants: tuple[Tenant,
                 full_name="Tenant A Secret Employee",
                 branch_id=branch_a.id,
                 date_of_joining=date(2026, 1, 1),
-                pan="ABCDE9999F",
+                pan=f"ABCDE{uuid4().int % 9000 + 1000}F",
             ),
         )
         await session_a.commit()
