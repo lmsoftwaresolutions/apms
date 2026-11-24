@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, FormEvent } from "react";
-import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle } from "lucide-react";
+import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle, ChevronLeft, ChevronRight } from "lucide-react";
 import { api, DirectoryUser, Role, Permission } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -58,6 +58,10 @@ export function UsersPage() {
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>("ALL");
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   const [activeUserId, setActiveUserId] = useState<string | null>(null);
+
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   // Staged role modifications for the active user in the right drawer
   const [stagedRoleCodes, setStagedRoleCodes] = useState<Set<string>>(new Set());
@@ -152,21 +156,32 @@ export function UsersPage() {
     return result;
   }, [users, searchQuery, selectedRoleFilter]);
 
-  // Checkbox Selection
-  const allFilteredSelected =
-    filteredUsers.length > 0 &&
-    filteredUsers.every((u) => selectedUserIds.has(u.id));
+  // Reset page to 1 when filters or search change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedRoleFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredUsers.length / pageSize));
+  const validCurrentPage = Math.min(currentPage, totalPages);
+
+  const paginatedUsers = useMemo(() => {
+    const start = (validCurrentPage - 1) * pageSize;
+    return filteredUsers.slice(start, start + pageSize);
+  }, [filteredUsers, validCurrentPage, pageSize]);
+
+  // Checkbox Selection for the current page
+  const allPageSelected =
+    paginatedUsers.length > 0 &&
+    paginatedUsers.every((u) => selectedUserIds.has(u.id));
 
   function handleToggleSelectAll() {
-    if (allFilteredSelected) {
-      const next = new Set(selectedUserIds);
-      for (const u of filteredUsers) next.delete(u.id);
-      setSelectedUserIds(next);
+    const next = new Set(selectedUserIds);
+    if (allPageSelected) {
+      for (const u of paginatedUsers) next.delete(u.id);
     } else {
-      const next = new Set(selectedUserIds);
-      for (const u of filteredUsers) next.add(u.id);
-      setSelectedUserIds(next);
+      for (const u of paginatedUsers) next.add(u.id);
     }
+    setSelectedUserIds(next);
   }
 
   function handleToggleSelectUser(userId: string, e: React.MouseEvent) {
@@ -619,7 +634,7 @@ export function UsersPage() {
                   <th style={{ width: "42px", padding: "0.75rem 0.75rem 0.75rem 1rem", textAlign: "left" }}>
                     <input
                       type="checkbox"
-                      checked={allFilteredSelected}
+                      checked={allPageSelected}
                       onChange={handleToggleSelectAll}
                       style={{ cursor: "pointer", width: "16px", height: "16px" }}
                     />
@@ -641,14 +656,14 @@ export function UsersPage() {
               <tbody>
                 {loading ? (
                   <LoadingRow cols={5} rows={6} />
-                ) : filteredUsers.length === 0 ? (
+                ) : paginatedUsers.length === 0 ? (
                   <tr>
                     <td colSpan={5} style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)" }}>
                       No users match the search criteria.
                     </td>
                   </tr>
                 ) : (
-                  filteredUsers.map((u) => {
+                  paginatedUsers.map((u) => {
                     const isSelectedInDrawer = u.id === activeUser?.id;
                     const isChecked = selectedUserIds.has(u.id);
                     return (
@@ -719,8 +734,163 @@ export function UsersPage() {
             </table>
           </div>
 
-          <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", paddingLeft: "0.25rem" }}>
-            Showing {filteredUsers.length} of {users.length} users
+          {/* Pagination Controls */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+              padding: "0.25rem 0.25rem 0.5rem",
+              fontSize: "0.8125rem",
+              color: "var(--text-muted)",
+            }}
+          >
+            <div>
+              {filteredUsers.length === 0 ? (
+                "0 users"
+              ) : (
+                <>
+                  Showing{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>
+                    {(validCurrentPage - 1) * pageSize + 1}
+                  </strong>{" "}
+                  to{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>
+                    {Math.min(validCurrentPage * pageSize, filteredUsers.length)}
+                  </strong>{" "}
+                  of{" "}
+                  <strong style={{ color: "var(--text-primary)" }}>
+                    {filteredUsers.length}
+                  </strong>{" "}
+                  users
+                </>
+              )}
+            </div>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+              {/* Rows per page selector */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                <span>Rows:</span>
+                <select
+                  value={pageSize}
+                  onChange={(e) => {
+                    setPageSize(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                  className="input"
+                  style={{
+                    height: "30px",
+                    padding: "0.15rem 0.5rem",
+                    fontSize: "0.75rem",
+                    borderRadius: "0.375rem",
+                    backgroundColor: "var(--bg-surface)",
+                    borderColor: "var(--border-default)",
+                    color: "var(--text-primary)",
+                    cursor: "pointer",
+                  }}
+                >
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                  <option value={50}>50</option>
+                </select>
+              </div>
+
+              {/* Prev / Page numbers / Next */}
+              <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={validCurrentPage <= 1}
+                  title="Previous page"
+                  aria-label="Previous page"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 30,
+                    height: 30,
+                    borderRadius: "0.375rem",
+                    border: "1px solid var(--border-default)",
+                    backgroundColor: "var(--bg-surface)",
+                    color: validCurrentPage <= 1 ? "var(--text-muted)" : "var(--text-primary)",
+                    cursor: validCurrentPage <= 1 ? "not-allowed" : "pointer",
+                    opacity: validCurrentPage <= 1 ? 0.4 : 1,
+                  }}
+                >
+                  <ChevronLeft size={15} />
+                </button>
+
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => {
+                    if (p === 1 || p === totalPages) return true;
+                    return Math.abs(p - validCurrentPage) <= 1;
+                  })
+                  .reduce<(number | string)[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && typeof arr[idx - 1] === "number" && (p as number) - (arr[idx - 1] as number) > 1) {
+                      acc.push("...");
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((item, idx) =>
+                    typeof item === "string" ? (
+                      <span key={`dots-${idx}`} style={{ padding: "0 0.25rem", color: "var(--text-muted)" }}>
+                        ...
+                      </span>
+                    ) : (
+                      <button
+                        key={item}
+                        type="button"
+                        onClick={() => setCurrentPage(item)}
+                        style={{
+                          width: 30,
+                          height: 30,
+                          borderRadius: "0.375rem",
+                          fontSize: "0.75rem",
+                          fontWeight: item === validCurrentPage ? 700 : 500,
+                          border: item === validCurrentPage
+                            ? "1px solid var(--color-primary-border, #10b981)"
+                            : "1px solid var(--border-default)",
+                          backgroundColor: item === validCurrentPage
+                            ? "var(--color-primary-bg, rgba(16, 185, 129, 0.15))"
+                            : "var(--bg-surface)",
+                          color: item === validCurrentPage
+                            ? "var(--color-primary-fg, #10b981)"
+                            : "var(--text-secondary)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        {item}
+                      </button>
+                    )
+                  )}
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={validCurrentPage >= totalPages}
+                  title="Next page"
+                  aria-label="Next page"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    width: 30,
+                    height: 30,
+                    borderRadius: "0.375rem",
+                    border: "1px solid var(--border-default)",
+                    backgroundColor: "var(--bg-surface)",
+                    color: validCurrentPage >= totalPages ? "var(--text-muted)" : "var(--text-primary)",
+                    cursor: validCurrentPage >= totalPages ? "not-allowed" : "pointer",
+                    opacity: validCurrentPage >= totalPages ? 0.4 : 1,
+                  }}
+                >
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -731,36 +901,39 @@ export function UsersPage() {
               backgroundColor: "var(--bg-surface)",
               borderRadius: "0.75rem",
               border: "1px solid var(--border-default)",
-              padding: "1.25rem",
+              padding: "1rem",
               display: "flex",
               flexDirection: "column",
-              gap: "1.25rem",
+              gap: "0.85rem",
+              position: "sticky",
+              top: "1rem",
             }}
           >
             {/* Header: User avatar + info */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.625rem" }}>
                 <div
                   style={{
-                    width: "40px",
-                    height: "40px",
+                    width: "36px",
+                    height: "36px",
                     borderRadius: "50%",
                     backgroundColor: "rgba(99, 102, 241, 0.15)",
                     color: "#818cf8",
                     display: "grid",
                     placeItems: "center",
                     fontWeight: 700,
-                    fontSize: "0.875rem",
+                    fontSize: "0.8125rem",
                     border: "1px solid rgba(99, 102, 241, 0.3)",
+                    flexShrink: 0,
                   }}
                 >
                   {getUserInitials(activeUser.full_name)}
                 </div>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)" }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {activeUser.full_name}
                   </div>
-                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {activeUser.email}
                   </div>
                 </div>
@@ -770,12 +943,13 @@ export function UsersPage() {
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  padding: "0.2rem 0.6rem",
+                  padding: "0.15rem 0.5rem",
                   borderRadius: "9999px",
-                  fontSize: "0.75rem",
+                  fontSize: "0.6875rem",
                   fontWeight: 600,
                   backgroundColor: "rgba(16, 185, 129, 0.12)",
                   color: "#10b981",
+                  flexShrink: 0,
                 }}
               >
                 Active
@@ -785,11 +959,11 @@ export function UsersPage() {
             {drawerSuccessMsg ? (
               <div
                 style={{
-                  padding: "0.5rem 0.75rem",
+                  padding: "0.4rem 0.65rem",
                   backgroundColor: "rgba(16, 185, 129, 0.12)",
                   color: "#10b981",
                   borderRadius: "0.375rem",
-                  fontSize: "0.8125rem",
+                  fontSize: "0.75rem",
                   fontWeight: 500,
                 }}
               >
@@ -799,12 +973,12 @@ export function UsersPage() {
 
             {/* Section 1: CURRENT ROLE */}
             <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.6rem" }}>
+              <div style={{ fontSize: "0.6875rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>
                 CURRENT ROLE
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                 {Array.from(stagedRoleCodes).length === 0 ? (
-                  <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontStyle: "italic", padding: "0.5rem 0" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "0.25rem 0" }}>
                     No roles assigned yet.
                   </div>
                 ) : (
@@ -822,17 +996,17 @@ export function UsersPage() {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "space-between",
-                          padding: "0.75rem 0.875rem",
-                          borderRadius: "0.5rem",
+                          padding: "0.5rem 0.75rem",
+                          borderRadius: "0.375rem",
                           backgroundColor: "var(--bg-card)",
                           border: "1px solid var(--border-subtle)",
                         }}
                       >
                         <div>
-                          <div style={{ fontWeight: 650, fontSize: "0.875rem", color: "var(--text-primary)" }}>
+                          <div style={{ fontWeight: 650, fontSize: "0.8125rem", color: "var(--text-primary)" }}>
                             {title}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                          <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", marginTop: "1px" }}>
                             {cap.summary}
                           </div>
                         </div>
@@ -845,8 +1019,8 @@ export function UsersPage() {
                               background: "none",
                               border: "1px solid rgba(239, 68, 68, 0.35)",
                               color: "#f87171",
-                              borderRadius: "0.375rem",
-                              padding: "0.3rem 0.65rem",
+                              borderRadius: "0.25rem",
+                              padding: "0.2rem 0.5rem",
                               fontSize: "0.75rem",
                               fontWeight: 600,
                               cursor: "pointer",
@@ -864,13 +1038,13 @@ export function UsersPage() {
 
             {/* Section 2: ADD ANOTHER ROLE */}
             <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.6rem" }}>
+              <div style={{ fontSize: "0.6875rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", marginBottom: "0.4rem" }}>
                 ADD ANOTHER ROLE
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "0.4rem" }}>
                 {roles.filter((r) => !stagedRoleCodes.has(r.code.toUpperCase())).length === 0 ? (
-                  <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontStyle: "italic", padding: "0.5rem 0" }}>
-                    All available roles are currently assigned.
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic", padding: "0.25rem 0" }}>
+                    All available roles are assigned.
                   </div>
                 ) : (
                   roles
@@ -887,17 +1061,17 @@ export function UsersPage() {
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "space-between",
-                            padding: "0.75rem 0.875rem",
-                            borderRadius: "0.5rem",
+                            padding: "0.5rem 0.75rem",
+                            borderRadius: "0.375rem",
                             backgroundColor: "var(--bg-card)",
                             border: "1px solid var(--border-subtle)",
                           }}
                         >
                           <div>
-                            <div style={{ fontWeight: 650, fontSize: "0.875rem", color: "var(--text-primary)" }}>
+                            <div style={{ fontWeight: 650, fontSize: "0.8125rem", color: "var(--text-primary)" }}>
                               {r.name}
                             </div>
-                            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: "2px" }}>
+                            <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", marginTop: "1px" }}>
                               {cap.summary}
                             </div>
                           </div>
@@ -910,8 +1084,8 @@ export function UsersPage() {
                                 background: "none",
                                 border: "1px solid var(--border-strong)",
                                 color: "var(--text-primary)",
-                                borderRadius: "0.375rem",
-                                padding: "0.3rem 0.75rem",
+                                borderRadius: "0.25rem",
+                                padding: "0.2rem 0.6rem",
                                 fontSize: "0.75rem",
                                 fontWeight: 600,
                                 cursor: "pointer",
@@ -927,61 +1101,35 @@ export function UsersPage() {
               </div>
             </div>
 
-            {/* Section 3: WHAT THEY CAN DO NOW */}
-            <div style={{ paddingTop: "0.25rem" }}>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>
-                WHAT THEY CAN DO NOW
-              </div>
-              <p style={{ margin: "0 0 0.5rem", fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.45 }}>
-                {effectiveCapabilitiesText}
-              </p>
-              <button
-                type="button"
-                onClick={() => setIsPermsListOpen(true)}
-                style={{
-                  background: "none",
-                  border: "none",
-                  padding: 0,
-                  color: "#10b981",
-                  fontSize: "0.8125rem",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  textDecoration: "underline",
-                }}
-              >
-                See full list
-              </button>
-            </div>
-
             {hasRoleChanges ? (
               <div
                 style={{
-                  padding: "0.6rem 0.85rem",
+                  padding: "0.45rem 0.65rem",
                   backgroundColor: "rgba(245, 158, 11, 0.12)",
                   color: "#fbbf24",
                   border: "1px solid rgba(245, 158, 11, 0.3)",
-                  borderRadius: "0.5rem",
-                  fontSize: "0.8125rem",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.75rem",
                   fontWeight: 500,
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.5rem",
+                  gap: "0.4rem",
                 }}
               >
-                <AlertCircle size={15} />
-                <span>You have unsaved changes. Click <strong>Save changes</strong> below to apply.</span>
+                <AlertCircle size={14} />
+                <span>Unsaved changes. Click <strong>Save changes</strong> below.</span>
               </div>
             ) : null}
 
             {drawerErrorMsg ? (
               <div
                 style={{
-                  padding: "0.6rem 0.85rem",
+                  padding: "0.45rem 0.65rem",
                   backgroundColor: "var(--color-danger-bg)",
                   color: "var(--color-danger-fg)",
                   border: "1px solid var(--color-danger-border)",
-                  borderRadius: "0.5rem",
-                  fontSize: "0.8125rem",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.75rem",
                 }}
               >
                 {drawerErrorMsg}
@@ -993,9 +1141,8 @@ export function UsersPage() {
               style={{
                 display: "flex",
                 justifyContent: "flex-end",
-                gap: "0.75rem",
-                marginTop: "0.5rem",
-                paddingTop: "1rem",
+                gap: "0.5rem",
+                paddingTop: "0.65rem",
                 borderTop: "1px solid var(--border-subtle)",
               }}
             >
@@ -1003,7 +1150,7 @@ export function UsersPage() {
                 variant="ghost"
                 onClick={handleCancelRoleChanges}
                 disabled={!hasRoleChanges || savingRoles}
-                style={{ borderRadius: "0.5rem", fontSize: "0.875rem" }}
+                style={{ borderRadius: "0.375rem", fontSize: "0.8125rem", padding: "0.35rem 0.85rem" }}
               >
                 Cancel
               </Button>
@@ -1016,11 +1163,11 @@ export function UsersPage() {
                   backgroundColor: hasRoleChanges ? "#10b981" : "var(--bg-card)",
                   borderColor: hasRoleChanges ? "#10b981" : "var(--border-strong)",
                   color: hasRoleChanges ? "#ffffff" : "var(--text-muted)",
-                  borderRadius: "0.5rem",
+                  borderRadius: "0.375rem",
                   fontWeight: 650,
-                  fontSize: "0.875rem",
-                  padding: "0.45rem 1.25rem",
-                  boxShadow: hasRoleChanges ? "0 0 12px rgba(16, 185, 129, 0.35)" : "none",
+                  fontSize: "0.8125rem",
+                  padding: "0.35rem 1rem",
+                  boxShadow: hasRoleChanges ? "0 0 10px rgba(16, 185, 129, 0.3)" : "none",
                   cursor: hasRoleChanges ? "pointer" : "not-allowed",
                   transition: "all 0.2s ease",
                 }}

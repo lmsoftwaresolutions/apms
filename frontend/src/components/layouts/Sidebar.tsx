@@ -17,6 +17,9 @@ import {
   UserCheck,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  LogOut,
+  User as UserIcon,
   LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -81,8 +84,29 @@ export interface SidebarProps {
 }
 
 export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
-  const { me, can } = useAuth();
+  const { me, can, logout } = useAuth();
   const initial = me?.tenant.display_name?.slice(0, 1).toUpperCase() || "A";
+
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("apms.sidebar.collapsed");
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleGroup = (groupName: string) => {
+    setCollapsedGroups((prev) => {
+      const next = { ...prev, [groupName]: !prev[groupName] };
+      try {
+        localStorage.setItem("apms.sidebar.collapsed", JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  };
 
   return (
     <aside
@@ -176,22 +200,37 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
           );
 
           if (visibleItems.length === 0) return null;
+          const isGroupCollapsed = !collapsed && !!collapsedGroups[group.group];
 
           return (
             <div key={group.group}>
               {!collapsed ? (
-                <div
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.group)}
                   style={{
+                    width: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    background: "none",
+                    border: "none",
+                    padding: "0.25rem 0.5rem 0.4rem",
+                    cursor: "pointer",
+                    color: "var(--text-muted)",
                     fontSize: "0.6875rem",
                     fontWeight: 700,
                     textTransform: "uppercase",
                     letterSpacing: "0.06em",
-                    color: "var(--text-muted)",
-                    padding: "0.25rem 0.5rem 0.5rem",
+                    borderRadius: "0.25rem",
+                    transition: "color 0.15s ease",
                   }}
+                  onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text-primary)")}
+                  onMouseLeave={(e) => (e.currentTarget.style.color = "var(--text-muted)")}
                 >
-                  {group.group}
-                </div>
+                  <span>{group.group}</span>
+                  {isGroupCollapsed ? <ChevronRight size={13} /> : <ChevronDown size={13} />}
+                </button>
               ) : (
                 <div
                   style={{
@@ -202,69 +241,207 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                 />
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                {visibleItems.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <NavLink
-                      key={item.to}
-                      to={item.to}
-                      title={collapsed ? item.label : undefined}
-                      style={({ isActive }) => ({
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: collapsed ? "center" : "flex-start",
-                        gap: "0.75rem",
-                        padding: collapsed ? "0.625rem" : "0.5rem 0.75rem",
-                        borderRadius: "0.375rem",
-                        fontSize: "0.875rem",
-                        fontWeight: isActive ? 600 : 500,
-                        color: isActive ? "var(--color-primary-fg)" : "var(--text-secondary)",
-                        backgroundColor: isActive ? "var(--color-primary-bg)" : "transparent",
-                        border: isActive ? "1px solid var(--color-primary-border)" : "1px solid transparent",
-                        textDecoration: "none",
-                        transition: "all 0.15s ease",
-                      })}
-                    >
-                      <Icon size={18} style={{ flexShrink: 0 }} />
-                      {!collapsed ? <span>{item.label}</span> : null}
-                    </NavLink>
-                  );
-                })}
-              </div>
+              {!isGroupCollapsed ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                  {visibleItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <NavLink
+                        key={item.to}
+                        to={item.to}
+                        title={collapsed ? item.label : undefined}
+                        style={({ isActive }) => ({
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: collapsed ? "center" : "flex-start",
+                          gap: "0.75rem",
+                          padding: collapsed ? "0.625rem" : "0.5rem 0.75rem",
+                          borderRadius: "0.375rem",
+                          fontSize: "0.875rem",
+                          fontWeight: isActive ? 600 : 500,
+                          color: isActive ? "var(--color-primary-fg)" : "var(--text-secondary)",
+                          backgroundColor: isActive ? "var(--color-primary-bg)" : "transparent",
+                          border: isActive ? "1px solid var(--color-primary-border)" : "1px solid transparent",
+                          textDecoration: "none",
+                          transition: "all 0.15s ease",
+                        })}
+                      >
+                        <Icon size={18} style={{ flexShrink: 0 }} />
+                        {!collapsed ? <span>{item.label}</span> : null}
+                      </NavLink>
+                    );
+                  })}
+                </div>
+              ) : null}
             </div>
           );
         })}
       </nav>
 
-      {/* Collapse Toggle Footer */}
+      {/* Bottom Footer: User Profile + Collapse Toggle */}
       <div
         style={{
-          padding: "0.75rem",
+          padding: collapsed ? "0.75rem 0.35rem" : "0.75rem",
           borderTop: "1px solid var(--border-default)",
+          backgroundColor: "var(--bg-surface)",
           display: "flex",
-          justifyContent: collapsed ? "center" : "flex-end",
+          flexDirection: "column",
+          gap: "0.625rem",
         }}
       >
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 32,
-            height: 32,
-            borderRadius: "0.375rem",
-            border: "1px solid var(--border-default)",
-            backgroundColor: "var(--bg-surface)",
-            color: "var(--text-secondary)",
-            cursor: "pointer",
-          }}
-        >
-          {collapsed ? <ChevronRight size={16} /> : <ChevronLeft size={16} />}
-        </button>
+        {/* User profile card (img2 moved here) */}
+        {!collapsed ? (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "0.5rem",
+              padding: "0.45rem 0.5rem",
+              borderRadius: "0.5rem",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-subtle)",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: 0, flex: 1 }}>
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: "50%",
+                  backgroundColor: "var(--bg-subtle)",
+                  border: "1px solid var(--border-strong)",
+                  display: "grid",
+                  placeItems: "center",
+                  color: "var(--text-secondary)",
+                  flexShrink: 0,
+                }}
+              >
+                <UserIcon size={16} />
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", minWidth: 0, lineHeight: 1.25 }}>
+                <span
+                  style={{
+                    fontSize: "0.8125rem",
+                    fontWeight: 650,
+                    color: "var(--text-primary)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {me?.full_name || "User"}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.6875rem",
+                    color: "var(--text-muted)",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {me?.email}
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={logout}
+              title="Sign out"
+              aria-label="Sign out"
+              style={{
+                background: "none",
+                border: "none",
+                padding: "0.35rem",
+                borderRadius: "0.375rem",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+                display: "grid",
+                placeItems: "center",
+                flexShrink: 0,
+                transition: "all 0.15s ease",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--color-danger-fg, #f87171)";
+                e.currentTarget.style.backgroundColor = "rgba(239, 68, 68, 0.1)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "0.4rem" }}>
+            <div
+              title={`${me?.full_name || "User"} (${me?.email})`}
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                backgroundColor: "var(--bg-subtle)",
+                border: "1px solid var(--border-strong)",
+                display: "grid",
+                placeItems: "center",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <UserIcon size={16} />
+            </div>
+            <button
+              type="button"
+              onClick={logout}
+              title="Sign out"
+              aria-label="Sign out"
+              style={{
+                background: "none",
+                border: "none",
+                padding: "0.35rem",
+                borderRadius: "0.25rem",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+                display: "grid",
+                placeItems: "center",
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = "var(--color-danger-fg, #f87171)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = "var(--text-muted)";
+              }}
+            >
+              <LogOut size={15} />
+            </button>
+          </div>
+        )}
+
+        {/* Collapse Sidebar Button */}
+        <div style={{ display: "flex", justifyContent: collapsed ? "center" : "flex-end" }}>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 28,
+              height: 28,
+              borderRadius: "0.375rem",
+              border: "1px solid var(--border-default)",
+              backgroundColor: "var(--bg-surface)",
+              color: "var(--text-secondary)",
+              cursor: "pointer",
+              transition: "all 0.15s ease",
+            }}
+          >
+            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+          </button>
+        </div>
       </div>
     </aside>
   );

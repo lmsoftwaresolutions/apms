@@ -1,8 +1,7 @@
 import { useLocation } from "react-router-dom";
-import { Sun, Moon, Monitor, LogOut, User as UserIcon } from "lucide-react";
+import { Sun, Moon, Monitor } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
-import { Button } from "../common/Button";
 import { Badge } from "../common/Badge";
 
 const ROUTE_TITLES: Record<string, { title: string; category: string }> = {
@@ -90,51 +89,6 @@ export function TopBar() {
             <Sun size={17} />
           )}
         </button>
-
-        {/* User profile */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "0.625rem",
-            paddingLeft: "0.5rem",
-            borderLeft: "1px solid var(--border-default)",
-          }}
-        >
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: "50%",
-              backgroundColor: "var(--bg-subtle)",
-              border: "1px solid var(--border-strong)",
-              display: "grid",
-              placeItems: "center",
-              color: "var(--text-secondary)",
-            }}
-          >
-            <UserIcon size={16} />
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-            <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)" }}>
-              {me?.full_name || "User"}
-            </span>
-            <span style={{ fontSize: "0.6875rem", color: "var(--text-muted)" }}>
-              {me?.email}
-            </span>
-          </div>
-
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={logout}
-            title="Sign out"
-            aria-label="Sign out"
-            style={{ marginLeft: "0.25rem", color: "var(--text-muted)" }}
-          >
-            <LogOut size={16} />
-          </Button>
-        </div>
       </div>
     </header>
   );
