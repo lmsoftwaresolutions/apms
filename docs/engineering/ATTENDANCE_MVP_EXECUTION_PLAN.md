@@ -35,7 +35,7 @@
 
 ### ⏳ Pending (Open & Not Yet Implemented)
 
-#### Frontend Operator UI Track (Wave B)
+#### Frontend Operator & ESS UI Track (Wave B)
 | Issue | Target Module | Scope | Status |
 |---|---|---|---|
 | **#33** | **Core UI** | `feat(ui-core): Enterprise AppShell, Theme Switcher & Common UI Kit` | ⏳ Pending |
@@ -44,6 +44,13 @@
 | **#36** | **M08** | `feat(ui-M08): Roster & Shift Assignment UI — 30-Day Calendar & N67 Overrides` | ⏳ Pending |
 | **#37** | **M09** | `feat(ui-M09): Punch Stream & Device Ingest UI — Live Stream & CSV Import` | ⏳ Pending |
 | **#38** | **M10** | `feat(ui-M10): Daily Attendance Rollup & Human-Friendly Trace Inspector UI` | ⏳ Pending |
+| **#45** | **UI / Ops**| `feat(ui-leave-regularization): Leave & Regularization Operator UI` | ⏳ Pending |
+| **#46** | **UI / ESS**| `feat(ui-ess): Employee Self-Service Mobile Web Portal UI` | ⏳ Pending |
+
+#### Reporting & Export Track
+| Issue | Target Module | Scope | Status |
+|---|---|---|---|
+| **#44** | **M17** | `feat(M17-Export): Statutory Muster Roll File Download (Excel / CSV / Printable PDF)` | ⏳ Pending |
 
 #### Policy, Overtime & Field Track (Wave E & D)
 | Issue | Target Module | Scope | Status |
@@ -51,8 +58,8 @@
 | **#25** | **M06/M07** | `feat(M06/M07): Shift Attendance Policy Master — policy-linked shift templates` | ⏳ Pending |
 | **#39** | **M06/M18** | `feat(M06/M18): Work Modes (WFH / On-Duty) & Mode-Gated Policy Controls` | ⏳ Pending |
 | **#31** | **M12** | `feat(M12): Overtime (OT) Verification, Approval Workflow & Comp-Off Ledger` | ⏳ Pending |
-| **#29** | **M16** | `feat(M16): Biometric Device Telemetry, Heartbeat & Edge Agent Ingestion Monitor` | ⏳ Pending (Buffer on branch; Cloud monitor pending) |
 | **#32** | **M19** | `feat(M19): Mobile Geofenced Punch & Branch Geofence Registry` | ⏳ Pending |
+| **#29** | **M16** | `feat(M16): Biometric Device Telemetry, Heartbeat & Edge Agent Ingestion Monitor` | ⏸️ **Deferred / Pending (Not Needed Now)** |
 
 #### Platform Administration (Wave F)
 | Issue | Target Module | Scope | Status |
@@ -62,32 +69,48 @@
 
 ---
 
-### 🔍 Gaps / Not Raised in GitHub
+### 🔍 Deferred & Gap Analysis Status
 
-1. **`feat(M16-Agent): Edge Sync Agent On-Premise TCP 4370 Polling Daemon`**: The SQLite buffer (`backend/edge_agent/buffer.py`) is complete on the branches, but the local daemon that connects to hardware over LAN port 4370 and uploads to `/api/v1/punches/ingest` is not issued.
-2. **`feat(M17-Export): Statutory Muster Roll File Download (Excel / CSV / Printable PDF)`**: #28 delivers raw JSON matrix lines (`/api/v1/muster/lines`). Generating formatted Excel/PDF statutory downloads (Form 25 / Form II / Form T) can be a separate export enhancement.
-3. **`feat(ui-leave-regularization): Leave & Regularization Operator UI`**: UI for supervisors to view and approve leave applications and regularization requests.
-4. **`feat(ui-ess): Employee Self-Service Mobile Web Portal UI`**: Front-end view for workers to view personal attendance calendar, today's punches, and submit requests using the `/api/v1/ess/` endpoints.
+1. **#29 / M16 Biometric Device Telemetry & Edge Agent Hardware Daemon**:
+   - **Status:** **Deferred / Pending (Not Needed in Current Phase)** per Product Owner decision.
+   - **Rationale:** Factory hardware telemetry daemons and physical edge heartbeat monitors are deferred until software-first attendance, leave, regularization, statutory muster export, and operator/ESS UI workflows are fully established and operational.
+2. **Newly Raised Enhancements (Active in Backlog)**:
+   - **#44**: `feat(M17-Export): Statutory Muster Roll File Download (Excel / CSV / Printable PDF)`
+   - **#45**: `feat(ui-leave-regularization): Leave & Regularization Operator UI`
+   - **#46**: `feat(ui-ess): Employee Self-Service Mobile Web Portal UI`
 
 ---
 
 ## 3. Recommended Sequential Next Steps
 
 ```
-Option 1: Merge `origin/feat/leave-and-muster` directly
-          ├── It already contains all commits from `feat/attendance-mvp-foundation`!
-          ├── Merges cleanly into `main` with 0 conflicts.
-          └── Lands Wave A (#26, #40, #41, SEC-01/03, CAP-02) AND Wave C (#27, #28) together!
+Step 1: Land Backend Foundations into `main`
+          ├── Merge `origin/feat/leave-and-muster` (which subsumes `origin/feat/attendance-mvp-foundation`)
+          ├── Lands Wave A (#26, #40, #41, SEC-01/03, CAP-02, Migration 011)
+          └── Lands Wave C (#27, #28, Migration 012) cleanly with 0 conflicts.
 
-Option 2: Merge in two progressive steps
-          ├── Step A: Merge `origin/feat/attendance-mvp-foundation` (Lands Wave A, migration 011).
-          └── Step B: Merge `origin/feat/leave-and-muster` (Lands Wave C, migration 012).
+Step 2: Execute Frontend UI & ESS Tracks
+          ├── Wave B1 (Core AppShell & Masters):
+          │     ├── #33: Enterprise AppShell, Theme Switcher & Common UI Kit
+          │     ├── #34: Employee Master UI (Directory, Masked PII Vault, Form)
+          │     ├── #35: Shift Templates UI (Multi-Session Bands, Break Config)
+          │     └── #36: Roster & Shift Assignment UI (30-Day Grid & Overrides)
+          ├── Wave B2 (Attendance & Daily Operations):
+          │     ├── #37: Punch Stream & Ingestion UI (Live Stream & CSV Ingest)
+          │     ├── #38: Attendance Rollup & Human-Friendly Trace Inspector UI
+          │     └── #45: Leave & Regularization Operator UI (Supervisor Approvals)
+          └── Wave B3 (Worker Self-Service):
+                └── #46: Employee Self-Service (ESS) Mobile Web Portal UI
 
-Next: Execute Operator UI (Wave B)
-          ├── #33: Enterprise AppShell & Theme Switcher
-          ├── #34: Employee Master UI
-          ├── #35: Shift Templates UI
-          ├── #36: Roster & Shift Assignment UI
-          ├── #37: Punch Stream & Ingestion UI
-          └── #38: Attendance Rollup & Human-Friendly Trace Inspector UI
+Step 3: Export & Statutory Reporting Enhancements
+          └── #44: Statutory Muster Roll File Download (Excel / CSV / Printable PDF Form 25 / Form II)
+
+Step 4: Advanced Policies & Mobility (Waves D & E)
+          ├── #25: Shift Attendance Policy Master (M06/M07 policy linking)
+          ├── #39: Work Modes (WFH / On-Duty) & Mode-Gated Policy Controls
+          ├── #31: Overtime Verification, Approval Workflow & Comp-Off Ledger
+          └── #32: Mobile Geofenced Punch & Branch Geofence Registry
+
+Deferred (Hardware Track):
+          └── #29: M16 Biometric Device Telemetry, Heartbeat & Edge Agent Ingestion Monitor (Pending/Deferred)
 ```
