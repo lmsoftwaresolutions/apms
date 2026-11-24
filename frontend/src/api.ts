@@ -35,6 +35,72 @@ export type Role = { id: string; code: string; name: string; is_system: boolean;
 export type Permission = { code: string; module: string; resource: string; action: string; description: string };
 export type DirectoryUser = { id: string; email: string; full_name: string; is_active: boolean; roles: string[] };
 
+export type ShiftSession = {
+  id?: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+  grace_period_late_minutes: number;
+  grace_period_early_minutes: number;
+  is_overnight?: boolean;
+};
+
+export type ShiftTemplate = {
+  id: string;
+  code: string;
+  name: string;
+  shift_type: string;
+  is_active: boolean;
+  sessions?: ShiftSession[];
+};
+
+export type DatedShiftInstance = {
+  id: string;
+  employee_id: string;
+  shift_template_id: string;
+  shift_code?: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+};
+
+export type DailyAttendance = {
+  id: string;
+  employee_id: string;
+  calendar_date: string;
+  dated_shift_instance_id?: string | null;
+  status: string;
+  worked_duration_minutes: number;
+  scheduled_duration_minutes: number;
+  worked_ratio: number;
+  late_minutes: number;
+  early_departure_minutes: number;
+  overtime_minutes: number;
+  is_single_punch: boolean;
+  anomaly_code?: string | null;
+};
+
+export type AttendanceTrace = {
+  id: string;
+  attendance_record_id: string;
+  employee_id: string;
+  calendar_date: string;
+  trace_payload: Record<string, unknown>;
+  evaluated_at: string;
+};
+
+export type PunchEvent = {
+  id: string;
+  raw_envelope_id: string;
+  employee_id: string;
+  punch_time: string;
+  punch_direction: string;
+  source: string;
+  status: string;
+  device_identifier?: string;
+};
+
 const TOKEN_KEY = "apms.token";
 
 export function loadToken(): string | null {
@@ -140,4 +206,58 @@ export const api = {
   updateRole: (id: string, permissions: string[]) =>
     request<Role>(`/api/v1/roles/${id}`, { method: "PATCH", body: JSON.stringify({ permissions }) }),
   users: () => request<DirectoryUser[]>("/api/v1/users"),
+
+  // Shift & Roster
+  shiftTemplates: (activeOnly = false) =>
+    request<ShiftTemplate[]>(`/api/v1/shifts/templates?active_only=${activeOnly}`),
+  createShiftTemplate: (body: { code: string; name: string; shift_type?: string; sessions: unknown[] }) =>
+    request<ShiftTemplate>("/api/v1/shifts/templates", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(body),
+    }),
+  rosterInstances: (params?: { employee_id?: string; start_date?: string; end_date?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.employee_id) q.set("employee_id", params.employee_id);
+    if (params?.start_date) q.set("start_date", params.start_date);
+    if (params?.end_date) q.set("end_date", params.end_date);
+    const query = q.toString() ? `?${q.toString()}` : "";
+    return request<DatedShiftInstance[]>(`/api/v1/roster/instances${query}`);
+  },
+  materializeRoster: (payload: { employee_ids: string[]; start_date: string; days?: number; shift_template_id?: string }) =>
+    request<{ total_materialized: number }>("/api/v1/roster/materialize", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+
+  // Attendance & Traces
+  dailyAttendance: (params?: { employee_id?: string; start_date?: string; end_date?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.employee_id) q.set("employee_id", params.employee_id);
+    if (params?.start_date) q.set("start_date", params.start_date);
+    if (params?.end_date) q.set("end_date", params.end_date);
+    const query = q.toString() ? `?${q.toString()}` : "";
+    return request<DailyAttendance[]>(`/api/v1/attendance/daily${query}`);
+  },
+  attendanceTrace: (recordId: string) =>
+    request<AttendanceTrace>(`/api/v1/attendance/${recordId}/trace`),
+  recalculateAttendance: (employee_id: string, calendar_date: string) =>
+    request<DailyAttendance>("/api/v1/attendance/recalculate", {
+      method: "POST",
+      body: JSON.stringify({ employee_id, calendar_date }),
+    }),
+
+  // Punches
+  punches: (params?: { employee_id?: string; limit?: number }) => {
+    const q = new URLSearchParams();
+    if (params?.employee_id) q.set("employee_id", params.employee_id);
+    if (params?.limit) q.set("limit", String(params.limit));
+    const query = q.toString() ? `?${q.toString()}` : "";
+    return request<PunchEvent[]>(`/api/v1/punches${query}`);
+  },
+  ingestPunch: (source: string, device_identifier: string, raw_payload: unknown) =>
+    request<{ raw_envelope_id: string; total_received: number }>("/api/v1/punches/ingest", {
+      method: "POST",
+      body: JSON.stringify({ source, device_identifier, raw_payload }),
+    }),
 };
