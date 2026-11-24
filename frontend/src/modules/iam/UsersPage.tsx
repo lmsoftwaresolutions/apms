@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, FormEvent } from "react";
-import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle, Code, Eye, Lock } from "lucide-react";
+import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle } from "lucide-react";
 import { api, DirectoryUser, Role, Branch, Permission } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -79,9 +79,8 @@ export function UsersPage() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [batchError, setBatchError] = useState("");
 
-  // Full Permissions Modal & Simplification Options
+  // Full Permissions Modal
   const [isPermsListOpen, setIsPermsListOpen] = useState(false);
-  const [showTechnicalCodes, setShowTechnicalCodes] = useState(false);
   const [permSearchQuery, setPermSearchQuery] = useState("");
 
   async function loadData() {
@@ -1098,30 +1097,9 @@ export function UsersPage() {
         title={`${activeUser?.full_name} — Permissions & Capabilities`}
         description={`Plain-English breakdown of actions authorized by assigned roles: ${Array.from(stagedRoleCodes).join(", ") || "None"}`}
         footer={
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
-            <label
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "0.45rem",
-                fontSize: "0.8125rem",
-                color: "var(--text-muted)",
-                cursor: "pointer",
-                userSelect: "none",
-              }}
-            >
-              <input
-                type="checkbox"
-                checked={showTechnicalCodes}
-                onChange={(e) => setShowTechnicalCodes(e.target.checked)}
-                style={{ cursor: "pointer", width: "15px", height: "15px" }}
-              />
-              <span>Show technical permission codes</span>
-            </label>
-            <Button variant="secondary" onClick={() => setIsPermsListOpen(false)}>
-              Close
-            </Button>
-          </div>
+          <Button variant="secondary" onClick={() => setIsPermsListOpen(false)}>
+            Close
+          </Button>
         }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
@@ -1308,19 +1286,6 @@ export function UsersPage() {
                                     >
                                       {p.title}
                                     </div>
-                                    {showTechnicalCodes ? (
-                                      <code
-                                        style={{
-                                          display: "block",
-                                          fontSize: "0.6875rem",
-                                          color: "var(--text-muted)",
-                                          marginTop: "2px",
-                                          fontFamily: "var(--font-mono, monospace)",
-                                        }}
-                                      >
-                                        {p.code}
-                                      </code>
-                                    ) : null}
                                   </div>
                                 </div>
                               ))}
