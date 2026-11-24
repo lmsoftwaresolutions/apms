@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, FormEvent } from "react";
-import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle } from "lucide-react";
-import { api, DirectoryUser, Role, Branch } from "../../api";
+import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle, Code, Eye, Lock } from "lucide-react";
+import { api, DirectoryUser, Role, Branch, Permission } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
 import { Badge } from "../../components/common/Badge";
@@ -8,6 +8,26 @@ import { Modal } from "../../components/common/Modal";
 import { Field } from "../../components/common/Field";
 import { Spinner, LoadingRow } from "../../components/common/Spinner";
 import { EmptyState } from "../../components/common/EmptyState";
+
+// Human-friendly functional module groups
+const MODULE_GROUPS: Record<string, string> = {
+  attendance: "Attendance & Regularization",
+  capture: "Punch & Biometric Capture",
+  employee: "Employee Management",
+  ess: "My Calendar & Self-Service (ESS)",
+  iam: "Roles & System Access",
+  leave: "Leaves & Holiday Calendars",
+  muster: "Muster Roll Reports",
+  org: "Organization & Locations",
+  overtime: "Overtime & Comp-Off Ledger",
+  overtime_record: "Overtime & Comp-Off Ledger",
+  policy: "Attendance Policies",
+  policy_override: "Policy Scope Overrides",
+  privacy: "Privacy & Biometric Consent",
+  roster: "Roster & Shift Schedules",
+  shift: "Shift Master Templates",
+  work_mode: "Work Modes & Remote Approvals",
+};
 
 // Human-friendly role capability summaries
 const ROLE_CAPABILITIES: Record<string, { summary: string; detail: string }> = {
@@ -30,6 +50,7 @@ export function UsersPage() {
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
+  const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -58,20 +79,24 @@ export function UsersPage() {
   const [batchSubmitting, setBatchSubmitting] = useState(false);
   const [batchError, setBatchError] = useState("");
 
-  // Full Permissions Modal
+  // Full Permissions Modal & Simplification Options
   const [isPermsListOpen, setIsPermsListOpen] = useState(false);
+  const [showTechnicalCodes, setShowTechnicalCodes] = useState(false);
+  const [permSearchQuery, setPermSearchQuery] = useState("");
 
   async function loadData() {
     setLoading(true);
     try {
-      const [userList, roleList, branchList] = await Promise.all([
+      const [userList, roleList, branchList, permList] = await Promise.all([
         api.users(),
         api.roles(),
         api.branches(),
+        api.permissions(),
       ]);
       setUsers(userList);
       setRoles(roleList);
       setBranches(branchList);
+      setPermissions(permList);
       if (userList.length > 0 && !activeUserId) {
         setActiveUserId(userList[0].id);
         setStagedRoleCodes(new Set(userList[0].roles || []));
@@ -104,6 +129,7 @@ export function UsersPage() {
   // Roles map by code and by id
   const roleByCode = useMemo(() => new Map(roles.map((r) => [r.code.toUpperCase(), r])), [roles]);
   const roleById = useMemo(() => new Map(roles.map((r) => [r.id, r])), [roles]);
+  const permByCode = useMemo(() => new Map(permissions.map((p) => [p.code, p])), [permissions]);
 
   // Filtered Users
   const filteredUsers = useMemo(() => {
@@ -1069,50 +1095,245 @@ export function UsersPage() {
       <Modal
         isOpen={isPermsListOpen}
         onClose={() => setIsPermsListOpen(false)}
-        title={`${activeUser?.full_name} — Permissions Breakdown`}
-        description={`Permissions granted by assigned roles: ${Array.from(stagedRoleCodes).join(", ") || "None"}`}
+        title={`${activeUser?.full_name} — Permissions & Capabilities`}
+        description={`Plain-English breakdown of actions authorized by assigned roles: ${Array.from(stagedRoleCodes).join(", ") || "None"}`}
         footer={
-          <Button variant="secondary" onClick={() => setIsPermsListOpen(false)}>
-            Close
-          </Button>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", width: "100%" }}>
+            <label
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "0.45rem",
+                fontSize: "0.8125rem",
+                color: "var(--text-muted)",
+                cursor: "pointer",
+                userSelect: "none",
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={showTechnicalCodes}
+                onChange={(e) => setShowTechnicalCodes(e.target.checked)}
+                style={{ cursor: "pointer", width: "15px", height: "15px" }}
+              />
+              <span>Show technical permission codes</span>
+            </label>
+            <Button variant="secondary" onClick={() => setIsPermsListOpen(false)}>
+              Close
+            </Button>
+          </div>
         }
       >
-        <div style={{ maxHeight: "420px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-          {Array.from(stagedRoleCodes).map((code) => {
-            const role = roleByCode.get(code);
-            return (
-              <div
-                key={code}
-                style={{
-                  padding: "0.75rem",
-                  borderRadius: "0.5rem",
-                  backgroundColor: "var(--bg-card)",
-                  border: "1px solid var(--border-subtle)",
-                }}
-              >
-                <div style={{ fontWeight: 650, fontSize: "0.875rem", color: "var(--text-primary)", marginBottom: "0.35rem" }}>
-                  {role?.name || code} ({role?.permissions?.length || 0} permissions)
-                </div>
-                <div style={{ display: "flex", flexWrap: "wrap", gap: "0.25rem" }}>
-                  {role?.permissions?.map((p) => (
-                    <code
-                      key={p}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Capability Search Input */}
+          <div style={{ position: "relative" }}>
+            <Search
+              size={15}
+              style={{
+                position: "absolute",
+                left: "0.75rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "var(--text-muted)",
+              }}
+            />
+            <input
+              type="text"
+              value={permSearchQuery}
+              onChange={(e) => setPermSearchQuery(e.target.value)}
+              placeholder="Search capabilities (e.g. leave, punch, calendar, overtime)..."
+              className="input"
+              style={{
+                paddingLeft: "2.25rem",
+                fontSize: "0.8125rem",
+                height: "36px",
+                borderRadius: "0.5rem",
+                width: "100%",
+              }}
+            />
+          </div>
+
+          <div
+            style={{
+              maxHeight: "440px",
+              overflowY: "auto",
+              display: "flex",
+              flexDirection: "column",
+              gap: "1rem",
+              paddingRight: "0.25rem",
+            }}
+          >
+            {Array.from(stagedRoleCodes).length === 0 ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                No roles assigned to this user.
+              </div>
+            ) : (
+              Array.from(stagedRoleCodes).map((roleCode) => {
+                const role = roleByCode.get(roleCode);
+                const roleName = role?.name || roleCode;
+                const rawPermCodes = role?.permissions || [];
+
+                // Deduplicate and resolve permissions
+                const seenDescriptions = new Set<string>();
+                const resolvedPerms: { code: string; title: string; module: string }[] = [];
+
+                for (const pCode of rawPermCodes) {
+                  const permObj = permByCode.get(pCode);
+                  const rawDesc = permObj?.description || pCode;
+                  const cleanDesc = rawDesc.replace(/\s*\(dot alias\)/i, "").trim();
+                  const normalizedKey = cleanDesc.toLowerCase();
+
+                  if (seenDescriptions.has(normalizedKey)) continue;
+                  seenDescriptions.add(normalizedKey);
+
+                  const modKey = permObj?.module || pCode.split(/[.:]/)[0] || "other";
+                  resolvedPerms.push({
+                    code: pCode,
+                    title: cleanDesc.charAt(0).toUpperCase() + cleanDesc.slice(1),
+                    module: modKey.toLowerCase(),
+                  });
+                }
+
+                // Filter by search query
+                const q = permSearchQuery.trim().toLowerCase();
+                const filtered = q
+                  ? resolvedPerms.filter(
+                      (p) =>
+                        p.title.toLowerCase().includes(q) ||
+                        p.code.toLowerCase().includes(q) ||
+                        (MODULE_GROUPS[p.module] || "").toLowerCase().includes(q)
+                    )
+                  : resolvedPerms;
+
+                // Group by functional module area
+                const grouped = new Map<string, typeof filtered>();
+                for (const p of filtered) {
+                  const areaTitle = MODULE_GROUPS[p.module] || "Other Capabilities";
+                  const existing = grouped.get(areaTitle) || [];
+                  existing.push(p);
+                  grouped.set(areaTitle, existing);
+                }
+
+                return (
+                  <div
+                    key={roleCode}
+                    style={{
+                      borderRadius: "0.625rem",
+                      backgroundColor: "var(--bg-card)",
+                      border: "1px solid var(--border-default)",
+                      overflow: "hidden",
+                    }}
+                  >
+                    {/* Role Header */}
+                    <div
                       style={{
-                        fontSize: "0.71875rem",
-                        padding: "0.2rem 0.4rem",
-                        backgroundColor: "var(--bg-surface)",
-                        border: "1px solid var(--border-subtle)",
-                        borderRadius: "0.25rem",
-                        color: "var(--text-secondary)",
+                        padding: "0.75rem 1rem",
+                        backgroundColor: "rgba(255, 255, 255, 0.03)",
+                        borderBottom: "1px solid var(--border-subtle)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
                       }}
                     >
-                      {p}
-                    </code>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
+                      <div style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)" }}>
+                        {roleName}
+                      </div>
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          padding: "0.2rem 0.55rem",
+                          borderRadius: "9999px",
+                          backgroundColor: "rgba(16, 185, 129, 0.12)",
+                          color: "#10b981",
+                        }}
+                      >
+                        {resolvedPerms.length} capabilities
+                      </span>
+                    </div>
+
+                    {/* Grouped Capabilities */}
+                    <div style={{ padding: "0.85rem 1rem", display: "flex", flexDirection: "column", gap: "1rem" }}>
+                      {grouped.size === 0 ? (
+                        <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                          No capabilities match "{permSearchQuery}".
+                        </div>
+                      ) : (
+                        Array.from(grouped.entries()).map(([areaTitle, areaPerms]) => (
+                          <div key={areaTitle}>
+                            <div
+                              style={{
+                                fontSize: "0.75rem",
+                                fontWeight: 700,
+                                color: "var(--text-muted)",
+                                textTransform: "uppercase",
+                                letterSpacing: "0.05em",
+                                marginBottom: "0.45rem",
+                              }}
+                            >
+                              {areaTitle}
+                            </div>
+                            <div
+                              style={{
+                                display: "grid",
+                                gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+                                gap: "0.45rem",
+                              }}
+                            >
+                              {areaPerms.map((p) => (
+                                <div
+                                  key={p.code}
+                                  style={{
+                                    display: "flex",
+                                    alignItems: "flex-start",
+                                    gap: "0.5rem",
+                                    padding: "0.45rem 0.65rem",
+                                    borderRadius: "0.375rem",
+                                    backgroundColor: "var(--bg-surface)",
+                                    border: "1px solid var(--border-subtle)",
+                                  }}
+                                >
+                                  <Check
+                                    size={14}
+                                    style={{ color: "#10b981", marginTop: "2px", flexShrink: 0 }}
+                                  />
+                                  <div style={{ minWidth: 0, flex: 1 }}>
+                                    <div
+                                      style={{
+                                        fontSize: "0.8125rem",
+                                        fontWeight: 600,
+                                        color: "var(--text-primary)",
+                                        lineHeight: 1.35,
+                                      }}
+                                    >
+                                      {p.title}
+                                    </div>
+                                    {showTechnicalCodes ? (
+                                      <code
+                                        style={{
+                                          display: "block",
+                                          fontSize: "0.6875rem",
+                                          color: "var(--text-muted)",
+                                          marginTop: "2px",
+                                          fontFamily: "var(--font-mono, monospace)",
+                                        }}
+                                      >
+                                        {p.code}
+                                      </code>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
         </div>
       </Modal>
     </div>
