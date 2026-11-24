@@ -11,6 +11,7 @@ from app.models.policy import PolicyMaster
 from app.models.punch import PunchEvent, RawEnvelope
 from app.models.roster import DatedShiftInstance, RosterPattern
 from app.models.shift import ShiftSession, ShiftTemplate
+from app.models.work_mode import WorkModeRequest
 from app.models.iam import (
     IdempotencyKey,
     Permission,
@@ -43,6 +44,7 @@ __all__ = [
     "RosterPattern",
     "ShiftSession",
     "ShiftTemplate",
+    "WorkModeRequest",
     "IdempotencyKey",
     "Permission",
     "Role",

@@ -111,6 +111,11 @@ async def calculate_and_save_daily_attendance(
                 policy = await get_policy(session, tenant_id, tpl.policy_id)
             shift_contract.policy = policy
 
+    # 0.1 Check approved work mode (WFH / ON_DUTY)
+    from app.modules.work_modes.repository import find_approved_work_mode
+    work_mode_req = await find_approved_work_mode(session, tenant_id, employee_id, calendar_date)
+    work_mode_code = work_mode_req.work_mode if work_mode_req else None
+
     # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin
     start_search, end_search = punch_search_window(calendar_date)
 
@@ -127,11 +132,50 @@ async def calculate_and_save_daily_attendance(
     # 2. Pair punches chronologically (BR-ATT-01, N65)
     pairing = pair_punches_for_shift(shift_contract, punches, policy=policy)
 
-    # 3. Rollup decisions (N66a, N66b, Q4)
-    decision = evaluate_daily_rollup(pairing, theta_present, theta_half_day, policy=policy)
+    # 3. Rollup decisions (N66a, N66b, Q4, BR-ATT-17, BR-OTC-01)
+    decision = evaluate_daily_rollup(
+        pairing, theta_present, theta_half_day, policy=policy, work_mode=work_mode_code
+    )
+
+    # 3.1 Monthly Late Count & Penalty Action (BR-ATT-18 / Issue #39)
+    late_penalty_info = None
+    if decision.late_minutes > 0 and work_mode_code != "ON_DUTY":
+        from app.modules.attendance.repository import count_prior_late_days_in_month
+
+        prior_late_count = await count_prior_late_days_in_month(
+            session, tenant_id, employee_id, calendar_date
+        )
+        max_free = getattr(policy, "max_free_lates_per_month", 3) if policy else 3
+        if max_free is None:
+            max_free = 3
+        penalty_action = getattr(policy, "late_penalty_action", "WARNING") if policy else "WARNING"
+        if penalty_action is None:
+            penalty_action = "WARNING"
+
+        exceeded = prior_late_count >= max_free
+        late_penalty_info = {
+            "prior_late_count": prior_late_count,
+            "max_free_lates_per_month": max_free,
+            "exceeded": exceeded,
+            "penalty_action": penalty_action if exceeded else None,
+        }
+        if exceeded:
+            if decision.anomaly_code is None:
+                decision.anomaly_code = f"LATE_PENALTY_{penalty_action}"
+            decision.explanation += (
+                f" Late arrival exceeded monthly allowance ({prior_late_count}/{max_free}). Action: {penalty_action}."
+            )
 
     # 4. Build explanation trace (Invariant 4, ATT-09)
-    trace_payload = build_explanation_trace(pairing, decision, theta_present, theta_half_day, policy=policy)
+    trace_payload = build_explanation_trace(
+        pairing,
+        decision,
+        theta_present,
+        theta_half_day,
+        policy=policy,
+        work_mode=work_mode_code,
+        late_penalty=late_penalty_info,
+    )
 
     # 5. Persist AttendanceDailyRecord
     existing = await find_attendance_record(session, tenant_id, employee_id, calendar_date)

@@ -11,6 +11,8 @@ from app.modules.employees import repository as emp_repo
 from app.modules.attendance.cutoff import ist_today
 from app.modules.punches.repository import list_punch_events
 from app.modules.roster.repository import list_dated_shift_instances
+from app.modules.work_modes.schemas import WorkModeApply, WorkModeOut
+from app.modules.work_modes.service import apply_work_mode, list_requests
 
 router = APIRouter(prefix="/ess", tags=["ess"])
 
@@ -100,3 +102,37 @@ async def shifts(
         }
         for row in rows
     ]
+
+
+@router.post("/work-modes/apply", response_model=WorkModeOut, status_code=201)
+async def ess_apply_work_mode(
+    payload: WorkModeApply,
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("work_mode.request.create"))],
+) -> WorkModeOut:
+    emp = await _own_employee(session, current)
+    row = await apply_work_mode(session, current.tenant_id, emp.id, payload)
+    return WorkModeOut.model_validate(row)
+
+
+@router.get("/work-modes/my-requests", response_model=list[WorkModeOut])
+async def ess_my_work_mode_requests(
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("work_mode.request.read"))],
+    status_filter: str | None = Query(default=None, alias="status"),
+    calendar_date: date | None = None,
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> list[WorkModeOut]:
+    emp = await _own_employee(session, current)
+    rows = await list_requests(
+        session,
+        current.tenant_id,
+        employee_id=emp.id,
+        status=status_filter,
+        calendar_date=calendar_date,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return [WorkModeOut.model_validate(r) for r in rows]
+

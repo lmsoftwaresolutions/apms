@@ -11,6 +11,8 @@ def build_explanation_trace(
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
     policy: object | None = None,
+    work_mode: str | None = None,
+    late_penalty: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generates immutable JSON audit trace payload per Invariant 4 and ATT-09."""
 
@@ -50,12 +52,21 @@ def build_explanation_trace(
             "absent_late_cutoff_minutes": getattr(policy, "absent_late_cutoff_minutes", None),
             "ot_minimum_minutes": getattr(policy, "ot_minimum_minutes", 30),
             "ot_multiplier": float(getattr(policy, "ot_multiplier", 1.50)),
+            "wfh_monthly_auto_quota": getattr(policy, "wfh_monthly_auto_quota", 4),
+            "allow_wfh_overtime": getattr(policy, "allow_wfh_overtime", False),
+            "ot_approval_mode": getattr(policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL"),
+            "max_free_lates_per_month": getattr(policy, "max_free_lates_per_month", 3),
+            "late_penalty_action": getattr(policy, "late_penalty_action", "WARNING"),
         }
 
     return {
         "engine_version": "v1.0",
         "evaluated_at": datetime.now(UTC).isoformat(),
         "calendar_date": pairing.calendar_date,
+        "work_mode": work_mode,
+        "is_on_duty_waived": (work_mode == "ON_DUTY"),
+        "wfh_ot_suppressed": bool(work_mode == "WFH" and not getattr(policy, "allow_wfh_overtime", False) if policy else False),
+        "late_penalty": late_penalty,
         "policy_bands": {
             "theta_present": theta_present,
             "theta_half_day": theta_half_day,

@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from datetime import date
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attendance import AttendanceDailyRecord, AttendanceExplanationTrace
@@ -122,3 +122,27 @@ async def list_rollup_failures(
     )
     result = await session.execute(stmt)
     return result.scalars().all()
+
+
+async def count_prior_late_days_in_month(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_id: UUID,
+    calendar_date: date,
+) -> int:
+    first_of_month = date(calendar_date.year, calendar_date.month, 1)
+    stmt = (
+        select(func.count(AttendanceDailyRecord.id))
+        .where(
+            AttendanceDailyRecord.tenant_id == tenant_id,
+            AttendanceDailyRecord.employee_id == employee_id,
+            AttendanceDailyRecord.calendar_date >= first_of_month,
+            AttendanceDailyRecord.calendar_date < calendar_date,
+            AttendanceDailyRecord.late_minutes > 0,
+        )
+    )
+    result = await session.execute(stmt)
+    return result.scalar_one() or 0
+
+
+

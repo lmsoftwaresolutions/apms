@@ -22,6 +22,7 @@ def evaluate_daily_rollup(
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
     policy: object | None = None,
+    work_mode: str | None = None,
 ) -> DailyRollupDecision:
     # 1. Employer-cancelled session (N66d / ROS-10)
     if pairing.is_cancelled_paid:
@@ -51,6 +52,22 @@ def evaluate_daily_rollup(
             is_single_punch=False,
             anomaly_code=None,
             explanation="Scheduled rest day",
+        )
+
+    # 2.5 On-Duty Work Mode (BR-ATT-17 / Issue #39)
+    if work_mode == "ON_DUTY":
+        sched = pairing.total_scheduled_minutes if pairing.total_scheduled_minutes > 0 else 480
+        return DailyRollupDecision(
+            status="PRESENT",
+            worked_ratio=1.0,
+            worked_minutes=sched,
+            scheduled_minutes=sched,
+            late_minutes=0,
+            early_exit_minutes=0,
+            overtime_minutes=0,
+            is_single_punch=False,
+            anomaly_code=None,
+            explanation="On-Duty work mode credited as PRESENT without biometric punch requirement per BR-ATT-17",
         )
 
     # 3. Single-Punch Anomaly (Q4 / BR-ATT-04 / BR-ATT-16)
@@ -162,6 +179,12 @@ def evaluate_daily_rollup(
     max_ot = getattr(policy, "max_ot_minutes_per_day", None) if policy else None
     if max_ot is not None:
         ot_minutes = min(ot_minutes, max_ot)
+
+    # WFH Overtime Suppression (BR-OTC-01 / Confirmed N20)
+    allow_wfh_ot = getattr(policy, "allow_wfh_overtime", False) if policy else False
+    if work_mode == "WFH" and not allow_wfh_ot and ot_minutes > 0:
+        ot_minutes = 0
+        explanation += " Overtime suppressed during WFH per policy BR-OTC-01."
 
     return DailyRollupDecision(
         status=tentative_status,

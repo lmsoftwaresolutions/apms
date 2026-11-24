@@ -46,6 +46,13 @@ class PolicyMaster(Base):
     # Punch Rules
     in_out_rule: Mapped[str] = mapped_column(String(30), default="FIRST_IN_LAST_OUT")
 
+    # Work Modes & Mode-Gated Controls
+    wfh_monthly_auto_quota: Mapped[int] = mapped_column(Integer, default=4)
+    allow_wfh_overtime: Mapped[bool] = mapped_column(Boolean, default=False)
+    ot_approval_mode: Mapped[str] = mapped_column(String(30), default="ALWAYS_REQUIRE_APPROVAL")
+    max_free_lates_per_month: Mapped[int] = mapped_column(Integer, default=3)
+    late_penalty_action: Mapped[str] = mapped_column(String(30), default="WARNING")
+
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]
 
