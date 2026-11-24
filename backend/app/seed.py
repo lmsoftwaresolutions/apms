@@ -67,6 +67,10 @@ async def seed() -> None:
                 "attendance.regularization.read",
                 "attendance.regularization.review",
                 "attendance.rollup.read",
+                "leave.holiday.manage",
+                "leave.request.read",
+                "leave.request.review",
+                "muster.export.read",
             ],
             "EMPLOYEE": [
                 "org.branch.read",
@@ -75,6 +79,8 @@ async def seed() -> None:
                 "ess.calendar.read",
                 "attendance.regularization.create",
                 "attendance.regularization.read",
+                "leave.request.create",
+                "leave.request.read",
             ],
         }
 
