@@ -19,9 +19,14 @@ async def run_cutoff_all_tenants(now: datetime | None = None) -> dict[str, int]:
     async with MigrateSession() as migrate:
         tenant_ids = list((await migrate.scalars(select(Tenant.id))).all())
     evaluated = 0
+    failed = 0
     async with SessionLocal() as session:
         for tenant_id in tenant_ids:
-            await set_tenant(session, tenant_id)
-            evaluated += await run_cutoff_rollup(session, tenant_id, moment)
-            await session.commit()
-    return {"tenants": len(tenant_ids), "evaluated": evaluated}
+            try:
+                await set_tenant(session, tenant_id)
+                evaluated += await run_cutoff_rollup(session, tenant_id, moment)
+                await session.commit()
+            except Exception:
+                failed += 1
+                await session.rollback()
+    return {"tenants": len(tenant_ids), "evaluated": evaluated, "failed": failed}

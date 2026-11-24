@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
 from app.models.rollup_failure import AttendanceRollupFailure
-from app.modules.attendance.repository import find_attendance_record
+from app.modules.attendance.repository import find_attendance_record, find_rollup_failure
 from app.modules.attendance.service import calculate_and_save_daily_attendance
 from app.modules.punches.repository import newest_active_punch_created_at
 from app.modules.roster.repository import list_dated_shift_instances
 
 IST = ZoneInfo("Asia/Kolkata")
+LOOKBACK_DAYS = 7
 
 
 def cutoff_utc(calendar_date: date, sessions: list[dict]) -> datetime | None:
@@ -64,6 +65,9 @@ async def record_rollup_failure(
 ) -> None:
     title = exc.title if isinstance(exc, ProblemError) else type(exc).__name__
     detail = exc.detail if isinstance(exc, ProblemError) else str(exc)
+    existing = await find_rollup_failure(session, tenant_id, employee_id, calendar_date, title[:200])
+    if existing is not None:
+        return
     session.add(
         AttendanceRollupFailure(
             id=uuid4(),
@@ -80,7 +84,7 @@ async def record_rollup_failure(
 
 async def run_cutoff_rollup(session: AsyncSession, tenant_id, now: datetime) -> int:
     """Evaluate dated shifts whose post-window has closed. Returns the number evaluated."""
-    start = (now.astimezone(IST).date() - timedelta(days=2))
+    start = now.astimezone(IST).date() - timedelta(days=LOOKBACK_DAYS)
     end = now.astimezone(IST).date()
     instances = await list_dated_shift_instances(session, tenant_id, start_date=start, end_date=end)
     evaluated = 0

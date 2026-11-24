@@ -96,7 +96,7 @@ async def update(
     )
 
 
-@router.delete("/{employee_id}", response_model=DeletedOut, summary="Delete an employee")
+@router.delete("/{employee_id}", response_model=DeletedOut, summary="Deactivate an employee and keep attendance history")
 async def remove(
     employee_id: UUID,
     session: SessionDep,

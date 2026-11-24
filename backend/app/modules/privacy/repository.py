@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.privacy import ConsentEvent, PiiAccessAudit
@@ -29,6 +30,17 @@ async def insert_consent_event(
         )
     )
     await session.flush()
+
+
+async def list_consent_events(
+    session: AsyncSession, tenant_id: UUID, employee_id: UUID
+) -> list[ConsentEvent]:
+    stmt = (
+        select(ConsentEvent)
+        .where(ConsentEvent.tenant_id == tenant_id, ConsentEvent.employee_id == employee_id)
+        .order_by(ConsentEvent.recorded_at.desc())
+    )
+    return list((await session.scalars(stmt)).all())
 
 
 async def insert_pii_audit(

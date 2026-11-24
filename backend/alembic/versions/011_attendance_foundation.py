@@ -136,7 +136,8 @@ STATEMENTS = [
           created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
           CONSTRAINT uq_attendance_rollup_failures_tenant_id UNIQUE (tenant_id, id),
           CONSTRAINT fk_rollup_failure_employee FOREIGN KEY (tenant_id, employee_id)
-            REFERENCES employees (tenant_id, id) ON DELETE RESTRICT
+            REFERENCES employees (tenant_id, id) ON DELETE RESTRICT,
+          CONSTRAINT uq_rollup_failure_day_title UNIQUE (tenant_id, employee_id, calendar_date, error_title)
         )
         """,
         "SELECT, INSERT",

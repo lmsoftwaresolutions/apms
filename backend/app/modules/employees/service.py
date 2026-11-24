@@ -335,7 +335,10 @@ async def update_employee(
 
 
 async def delete_employee(session: AsyncSession, tenant_id: UUID, employee_id: UUID) -> None:
+    """Offboarding keeps the row. Attendance traces and consent history cannot be deleted."""
     emp = await emp_repo.get_employee_by_id(session, tenant_id, employee_id)
     if emp is None:
         raise ProblemError(404, "Employee not found", "No employee with that id exists in this tenant.")
-    await emp_repo.delete_employee_record(session, emp)
+    emp.is_active = False
+    emp.updated_at = datetime.now(UTC)
+    await emp_repo.flush_employee(session)

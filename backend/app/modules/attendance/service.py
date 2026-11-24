@@ -22,6 +22,13 @@ from app.modules.attendance.repository import (
 from app.modules.punches.repository import list_punches_for_employee
 
 
+def punch_search_window(calendar_date: date) -> tuple[datetime, datetime]:
+    """UTC window the daily rollup searches: 6 hours before the date through 14 hours after it."""
+    start = datetime.combine(calendar_date, time(0, 0), tzinfo=UTC) - timedelta(hours=6)
+    end = datetime.combine(calendar_date, time(23, 59, 59), tzinfo=UTC) + timedelta(hours=14)
+    return start, end
+
+
 async def calculate_and_save_daily_attendance(
     session: AsyncSession,
     tenant_id: UUID,
@@ -92,8 +99,7 @@ async def calculate_and_save_daily_attendance(
             )
 
     # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin
-    start_search = datetime.combine(calendar_date, time(0, 0), tzinfo=UTC) - timedelta(hours=6)
-    end_search = datetime.combine(calendar_date, time(23, 59, 59), tzinfo=UTC) + timedelta(hours=14)
+    start_search, end_search = punch_search_window(calendar_date)
 
     punches = list(
         await list_punches_for_employee(

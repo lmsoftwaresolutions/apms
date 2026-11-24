@@ -1,12 +1,13 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 import pytest
 
 from app.core.errors import ProblemError
-from app.modules.attendance.cutoff import cutoff_utc, evaluation_is_current, is_due, ist_today
+from app.modules.attendance.cutoff import LOOKBACK_DAYS, cutoff_utc, evaluation_is_current, is_due, ist_today
 from app.modules.privacy.service import consent_action
-from app.modules.regularizations.service import required_punches
+from app.modules.punches.service import punch_status_for_consent
+from app.modules.regularizations.service import assert_inside_day, required_punches
 from edge_agent.buffer import PunchBuffer
 
 
@@ -52,6 +53,21 @@ def test_ist_today_and_cutoff_skip_a_current_day() -> None:
     assert evaluation_is_current(evaluated, evaluated) is True
     assert evaluation_is_current(evaluated, evaluated + timedelta(minutes=1)) is False
     assert evaluation_is_current(None, None) is False
+
+
+def test_correction_punch_must_fall_inside_the_day_window() -> None:
+    day = date(2026, 11, 24)
+    assert_inside_day(day, datetime(2026, 11, 24, 10, 0, tzinfo=UTC))
+    with pytest.raises(ProblemError) as outside:
+        assert_inside_day(day, datetime(2026, 11, 23, 17, 0, tzinfo=UTC))
+    assert outside.value.status == 422
+    assert LOOKBACK_DAYS >= 7
+
+
+def test_withdrawn_consent_rejects_biometric_and_keeps_the_alternate_path() -> None:
+    assert punch_status_for_consent("ZKTECO", False, False) == "CONSENT_WITHDRAWN"
+    assert punch_status_for_consent("CSV_BULK", False, False) == "ACTIVE"
+    assert punch_status_for_consent("ZKTECO", True, True) == "DUPLICATE_IGNORED"
 
 
 def test_edge_buffer_keeps_seven_days_and_uploads_once(tmp_path: Path) -> None:

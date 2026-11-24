@@ -7,10 +7,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ProblemError
 from app.models.punch import PunchEvent, RawEnvelope
 from app.models.regularization import AttendanceRegularization
-from app.modules.attendance.service import calculate_and_save_daily_attendance
+from app.modules.attendance.service import calculate_and_save_daily_attendance, punch_search_window
 from app.modules.employees import repository as emp_repo
+from app.modules.punches.repository import insert_punch_events, insert_raw_envelope
+from app.modules.punches.service import compute_payload_hash
 
 REQUEST_TYPES = {"MISSED_IN", "MISSED_OUT", "BOTH", "ON_DUTY"}
+
+
+def assert_inside_day(calendar_date, punch_time: datetime | None) -> None:
+    if punch_time is None:
+        return
+    if punch_time.tzinfo is None:
+        raise ProblemError(422, "Timezone required", "A requested punch time needs a timezone.")
+    start, end = punch_search_window(calendar_date)
+    if punch_time < start or punch_time > end:
+        raise ProblemError(
+            422,
+            "Punch outside the day",
+            "The requested time is outside the attendance search window for that calendar date.",
+        )
 
 
 def required_punches(request_type: str, requested_in: datetime | None, requested_out: datetime | None) -> None:
@@ -33,6 +49,8 @@ async def create_request(
     reason: str,
 ) -> AttendanceRegularization:
     required_punches(request_type, requested_in, requested_out)
+    assert_inside_day(calendar_date, requested_in)
+    assert_inside_day(calendar_date, requested_out)
     if await emp_repo.get_employee_by_id(session, tenant_id, employee_id) is None:
         raise ProblemError(404, "Employee not found", "No employee with that id exists in this tenant.")
     now = datetime.now(UTC)
@@ -88,33 +106,34 @@ async def review_request(
         await session.flush()
         return row
 
+    assert_inside_day(row.calendar_date, row.requested_in)
+    assert_inside_day(row.calendar_date, row.requested_out)
+    payload = {"regularization_id": str(row.id), "in": None if row.requested_in is None else row.requested_in.isoformat(), "out": None if row.requested_out is None else row.requested_out.isoformat()}
     envelope = RawEnvelope(
         id=uuid4(),
         tenant_id=tenant_id,
         source="REGULARIZATION",
-        raw_payload={"regularization_id": str(row.id)},
-        payload_hash=uuid4().hex,
+        raw_payload=payload,
+        payload_hash=compute_payload_hash(payload),
         received_at=now,
     )
-    session.add(envelope)
-    await session.flush()
-    for punch_time in (row.requested_in, row.requested_out):
-        if punch_time is None:
-            continue
-        session.add(
-            PunchEvent(
-                id=uuid4(),
-                tenant_id=tenant_id,
-                raw_envelope_id=envelope.id,
-                employee_id=row.employee_id,
-                punch_time=punch_time,
-                punch_direction="UNKNOWN",
-                source="REGULARIZATION",
-                status="ACTIVE",
-                created_at=now,
-            )
+    await insert_raw_envelope(session, envelope)
+    events = [
+        PunchEvent(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            raw_envelope_id=envelope.id,
+            employee_id=row.employee_id,
+            punch_time=punch_time,
+            punch_direction="UNKNOWN",
+            source="REGULARIZATION",
+            status="ACTIVE",
+            created_at=now,
         )
-    await session.flush()
+        for punch_time in (row.requested_in, row.requested_out)
+        if punch_time is not None
+    ]
+    await insert_punch_events(session, events)
     await calculate_and_save_daily_attendance(
         session=session,
         tenant_id=tenant_id,

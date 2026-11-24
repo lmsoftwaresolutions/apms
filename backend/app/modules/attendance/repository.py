@@ -93,6 +93,22 @@ async def list_attendance_records(
     return result.scalars().all()
 
 
+async def find_rollup_failure(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_id: UUID,
+    calendar_date: date,
+    error_title: str,
+) -> AttendanceRollupFailure | None:
+    stmt = select(AttendanceRollupFailure).where(
+        AttendanceRollupFailure.tenant_id == tenant_id,
+        AttendanceRollupFailure.employee_id == employee_id,
+        AttendanceRollupFailure.calendar_date == calendar_date,
+        AttendanceRollupFailure.error_title == error_title,
+    )
+    return await session.scalar(stmt)
+
+
 async def list_rollup_failures(
     session: AsyncSession,
     tenant_id: UUID,

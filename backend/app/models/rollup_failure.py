@@ -11,6 +11,13 @@ class AttendanceRollupFailure(Base):
     __tablename__ = "attendance_rollup_failures"
     __table_args__ = (
         UniqueConstraint("tenant_id", "id", name="uq_attendance_rollup_failures_tenant_id"),
+        UniqueConstraint(
+            "tenant_id",
+            "employee_id",
+            "calendar_date",
+            "error_title",
+            name="uq_rollup_failure_day_title",
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "employee_id"],
             ["employees.tenant_id", "employees.id"],
