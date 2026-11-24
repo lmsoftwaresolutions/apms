@@ -63,6 +63,7 @@ async def seed() -> None:
                 "org.department.update",
                 "org.designation.read",
                 "org.designation.update",
+                "attendance.regularization.create",
                 "attendance.regularization.read",
                 "attendance.regularization.review",
                 "attendance.rollup.read",

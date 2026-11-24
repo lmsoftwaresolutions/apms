@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from app.core.errors import ProblemError
-from app.modules.attendance.cutoff import cutoff_utc, is_due
+from app.modules.attendance.cutoff import cutoff_utc, evaluation_is_current, is_due, ist_today
 from app.modules.privacy.service import consent_action
 from app.modules.regularizations.service import required_punches
 from edge_agent.buffer import PunchBuffer
@@ -42,6 +42,16 @@ def test_cutoff_waits_for_the_overnight_post_window() -> None:
     assert is_due(day, sessions, before, False) is False
     assert is_due(day, sessions, after, False) is True
     assert is_due(day, sessions, after, True) is False
+
+
+def test_ist_today_and_cutoff_skip_a_current_day() -> None:
+    now = datetime(2026, 11, 23, 20, 0, tzinfo=UTC)
+    assert ist_today(now).isoformat() == "2026-11-24"
+    evaluated = datetime(2026, 11, 24, 2, 0, tzinfo=UTC)
+    assert evaluation_is_current(evaluated, None) is True
+    assert evaluation_is_current(evaluated, evaluated) is True
+    assert evaluation_is_current(evaluated, evaluated + timedelta(minutes=1)) is False
+    assert evaluation_is_current(None, None) is False
 
 
 def test_edge_buffer_keeps_seven_days_and_uploads_once(tmp_path: Path) -> None:

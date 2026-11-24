@@ -6,7 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
 from app.models.rollup_failure import AttendanceRollupFailure
+from app.modules.attendance.repository import find_attendance_record
 from app.modules.attendance.service import calculate_and_save_daily_attendance
+from app.modules.punches.repository import newest_active_punch_created_at
 from app.modules.roster.repository import list_dated_shift_instances
 
 IST = ZoneInfo("Asia/Kolkata")
@@ -29,6 +31,19 @@ def cutoff_utc(calendar_date: date, sessions: list[dict]) -> datetime | None:
     local_end = datetime.combine(end_date, end, tzinfo=IST)
     post = int(last.get("post_window_minutes", 120))
     return (local_end + timedelta(minutes=post)).astimezone(UTC)
+
+
+def ist_today(now: datetime) -> date:
+    return now.astimezone(IST).date()
+
+
+def evaluation_is_current(record_updated_at: datetime | None, newest_punch_at: datetime | None) -> bool:
+    """A stored day is current until a newer active punch arrives."""
+    if record_updated_at is None:
+        return False
+    if newest_punch_at is None:
+        return True
+    return newest_punch_at <= record_updated_at
 
 
 def is_due(calendar_date: date, sessions: list[dict], now: datetime, is_rest_day: bool) -> bool:
@@ -71,6 +86,14 @@ async def run_cutoff_rollup(session: AsyncSession, tenant_id, now: datetime) -> 
     evaluated = 0
     for instance in instances:
         if not is_due(instance.calendar_date, list(instance.sessions or []), now, instance.is_rest_day):
+            continue
+        existing = await find_attendance_record(
+            session, tenant_id, instance.employee_id, instance.calendar_date
+        )
+        newest_punch = await newest_active_punch_created_at(
+            session, tenant_id, instance.employee_id, instance.calendar_date
+        )
+        if evaluation_is_current(None if existing is None else existing.updated_at, newest_punch):
             continue
         try:
             async with session.begin_nested():

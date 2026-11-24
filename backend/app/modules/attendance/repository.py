@@ -6,6 +6,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.attendance import AttendanceDailyRecord, AttendanceExplanationTrace
+from app.models.rollup_failure import AttendanceRollupFailure
 
 
 async def find_attendance_record(
@@ -88,5 +89,20 @@ async def list_attendance_records(
     if end_date is not None:
         stmt = stmt.where(AttendanceDailyRecord.calendar_date <= end_date)
     stmt = stmt.order_by(AttendanceDailyRecord.calendar_date.desc())
+    result = await session.execute(stmt)
+    return result.scalars().all()
+
+
+async def list_rollup_failures(
+    session: AsyncSession,
+    tenant_id: UUID,
+    limit: int = 100,
+) -> Sequence[AttendanceRollupFailure]:
+    stmt = (
+        select(AttendanceRollupFailure)
+        .where(AttendanceRollupFailure.tenant_id == tenant_id)
+        .order_by(AttendanceRollupFailure.created_at.desc())
+        .limit(limit)
+    )
     result = await session.execute(stmt)
     return result.scalars().all()

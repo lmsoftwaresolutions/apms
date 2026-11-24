@@ -2,7 +2,25 @@
 
 Engineering sequence only. Product truth stays in [`CONTEXT.md`](../../CONTEXT.md). Payroll, payslips, and statutory wage math stay in V2. This plan does not confirm any `OPEN` decision.
 
-`main` already contains IAM, org, employees, shifts, roster, punch ingest, and the attendance engine, including the merged hardcore suite (`#30`). The open product issues and the four gaps from the `main` audit land in the waves below. A later wave does not start until the previous wave's gate is green.
+`main` at `8775696` contains IAM, org, employees, shifts, roster, punch ingest, and the attendance engine (`#30`). It does not contain leave, muster, ESS, regularization, the cutoff worker, or the operator UI. Those remain open issues. Wave A on `feat/attendance-mvp-foundation` implements #26, #40, and #41 behind migration `011`, and is not merged.
+
+| MVP1 item | Tracking | Code |
+| :--- | :--- | :--- |
+| Paid day, N65/N66, Q4 flag, traces | On `main` | Implemented |
+| Missed-punch correction | [#26](https://github.com/lmsoftwaresolutions/apms/issues/26) | Branch only |
+| Cutoff rollup for a silent absence | [#40](https://github.com/lmsoftwaresolutions/apms/issues/40) | Branch only. Beat process is not deployed |
+| Employee calendar, today, own shifts | [#41](https://github.com/lmsoftwaresolutions/apms/issues/41) | Branch only |
+| Work modes and OT gating | [#39](https://github.com/lmsoftwaresolutions/apms/issues/39) | Not started |
+| Leave, holidays, sandwich | [#27](https://github.com/lmsoftwaresolutions/apms/issues/27) | Not started |
+| Muster export | [#28](https://github.com/lmsoftwaresolutions/apms/issues/28) | Not started |
+| Operator UI | [#33](https://github.com/lmsoftwaresolutions/apms/issues/33)–[#38](https://github.com/lmsoftwaresolutions/apms/issues/38) | Not started |
+| Device heartbeat | [#29](https://github.com/lmsoftwaresolutions/apms/issues/29) | Not started. SQLite buffer is on the branch |
+| Policy, OT hours, geofence | [#25](https://github.com/lmsoftwaresolutions/apms/issues/25), [#31](https://github.com/lmsoftwaresolutions/apms/issues/31), [#32](https://github.com/lmsoftwaresolutions/apms/issues/32) | Not started |
+| Tenant plans and flags | [#23](https://github.com/lmsoftwaresolutions/apms/issues/23), [#24](https://github.com/lmsoftwaresolutions/apms/issues/24) | Not started |
+| CCTV, RFID, kiosk, face-on-phone, student attendance, hospital 24/36, field tracking | Not issued | Not started |
+| Edge TCP 4370 daemon | Not issued. Buffer only | Not started |
+
+Payroll stays V2 and is intentionally untracked as MVP1 work. [#1](https://github.com/lmsoftwaresolutions/apms/issues/1) is stale.
 
 ## Dependency order
 

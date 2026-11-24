@@ -8,7 +8,9 @@ from app.api.deps import CurrentUser, SessionDep, require_permission
 from app.core.errors import ProblemError
 from app.modules.attendance.repository import list_attendance_records
 from app.modules.employees import repository as emp_repo
+from app.modules.attendance.cutoff import ist_today
 from app.modules.punches.repository import list_punch_events
+from app.modules.roster.repository import list_dated_shift_instances
 
 router = APIRouter(prefix="/ess", tags=["ess"])
 
@@ -26,7 +28,7 @@ async def today(
     current: Annotated[CurrentUser, Depends(require_permission("ess.calendar.read"))],
 ) -> dict[str, object]:
     emp = await _own_employee(session, current)
-    day = date.today()
+    day = ist_today(datetime.now(UTC))
     ist = ZoneInfo("Asia/Kolkata")
     start = datetime.combine(day, time.min, tzinfo=ist).astimezone(UTC)
     end = datetime.combine(day, time.max, tzinfo=ist).astimezone(UTC)
@@ -71,4 +73,30 @@ async def calendar(
             "anomaly_code": row.anomaly_code,
         }
         for row in records
+    ]
+
+
+@router.get("/shifts")
+async def shifts(
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("ess.calendar.read"))],
+    start_date: Annotated[date, Query()],
+    end_date: Annotated[date, Query()],
+) -> list[dict[str, object]]:
+    emp = await _own_employee(session, current)
+    rows = await list_dated_shift_instances(
+        session,
+        current.tenant_id,
+        employee_id=emp.id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return [
+        {
+            "calendar_date": row.calendar_date.isoformat(),
+            "status": row.status,
+            "is_rest_day": row.is_rest_day,
+            "sessions": row.sessions,
+        }
+        for row in rows
     ]

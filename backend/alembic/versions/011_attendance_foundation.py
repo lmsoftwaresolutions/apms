@@ -31,6 +31,7 @@ ROLE_GRANTS = (
     (
         "SUPERVISOR",
         (
+            "attendance.regularization.create",
             "attendance.regularization.read",
             "attendance.regularization.review",
             "attendance.rollup.read",
