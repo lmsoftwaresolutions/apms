@@ -148,4 +148,18 @@ export const api = {
   updateRole: (id: string, permissions: string[]) =>
     request<Role>(`/api/v1/roles/${id}`, { method: "PATCH", body: JSON.stringify({ permissions }) }),
   users: () => request<DirectoryUser[]>("/api/v1/users"),
+  createUser: (payload: { email: string; full_name: string; password?: string; role_id?: string }) =>
+    request<DirectoryUser>("/api/v1/users", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  assignRole: (userId: string, roleId: string) =>
+    request<DirectoryUser>(`/api/v1/users/${userId}/roles`, {
+      method: "POST",
+      body: JSON.stringify({ role_id: roleId }),
+    }),
+  unassignRole: (userId: string, roleId: string) =>
+    request<void>(`/api/v1/users/${userId}/roles/${roleId}`, {
+      method: "DELETE",
+    }),
 };

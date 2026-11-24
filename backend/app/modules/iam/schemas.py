@@ -6,6 +6,7 @@ from app.schemas.common import DeletedOut
 
 __all__ = [
     "UserOut",
+    "UserCreate",
     "AssignmentIn",
     "PermissionOut",
     "RoleOut",
@@ -21,6 +22,13 @@ class UserOut(BaseModel):
     full_name: str
     is_active: bool
     roles: list[str]
+
+
+class UserCreate(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+    full_name: str = Field(min_length=1, max_length=200)
+    password: str | None = Field(default=None, min_length=8)
+    role_id: UUID | None = None
 
 
 class AssignmentIn(BaseModel):

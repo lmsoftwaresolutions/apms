@@ -1,16 +1,52 @@
-from uuid import UUID
+from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
+from app.core.security import hash_password
 from app.models.iam import Role, User
 from app.modules.iam import repository as iam_repo
-from app.modules.iam.schemas import PermissionOut, RoleCreate, RoleOut, RoleUpdate, UserOut
+from app.modules.iam.schemas import PermissionOut, RoleCreate, RoleOut, RoleUpdate, UserCreate, UserOut
 
 
 def has_permission(granted: set[str], required: str) -> bool:
     return required in granted
+
+
+async def create_user(session: AsyncSession, tenant_id: UUID, payload: UserCreate) -> UserOut:
+    raw_password = payload.password or "ChangeMe-123"
+    hashed = hash_password(raw_password)
+    now = datetime.now(UTC)
+    user = User(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        email=payload.email.strip().lower(),
+        full_name=payload.full_name.strip(),
+        hashed_password=hashed,
+        is_active=True,
+        created_at=now,
+    )
+    session.add(user)
+    try:
+        await session.flush()
+    except IntegrityError as exc:
+        raise ProblemError(409, "Email already exists", "A user with this email address already exists.") from exc
+
+    if payload.role_id:
+        role = await iam_repo.get_role_by_id(session, payload.role_id)
+        if role and role.tenant_id == tenant_id:
+            await iam_repo.add_user_role(session, tenant_id, user.id, role.id)
+
+    roles = await iam_repo.get_role_codes_for_user(session, tenant_id, user.id)
+    return UserOut(
+        id=user.id,
+        email=user.email,
+        full_name=user.full_name,
+        is_active=user.is_active,
+        roles=roles,
+    )
 
 
 async def list_users(session: AsyncSession, tenant_id: UUID) -> list[UserOut]:
