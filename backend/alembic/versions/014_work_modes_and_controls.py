@@ -73,7 +73,7 @@ STATEMENTS = [
       ADD COLUMN ot_approval_mode varchar(30) NOT NULL DEFAULT 'ALWAYS_REQUIRE_APPROVAL',
       ADD COLUMN max_free_lates_per_month integer NOT NULL DEFAULT 3,
       ADD COLUMN late_penalty_action varchar(30) NOT NULL DEFAULT 'WARNING',
-      ADD CONSTRAINT ck_policy_ot_approval_mode CHECK (ot_approval_mode IN ('ALWAYS_REQUIRE_APPROVAL', 'AUTO_APPROVE_ALL', 'WFH_ONLY', 'THRESHOLD_BASED')),
+      ADD CONSTRAINT ck_policy_ot_approval_mode CHECK (ot_approval_mode IN ('ALWAYS_REQUIRE_APPROVAL')),
       ADD CONSTRAINT ck_policy_late_penalty_action CHECK (late_penalty_action IN ('WARNING', 'DEDUCT_LEAVE_HALF_DAY', 'LOSS_OF_PAY'))
     """,
     *_tenant_table(
@@ -94,7 +94,6 @@ STATEMENTS = [
           created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
           updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
           CONSTRAINT uq_work_mode_requests_tenant_id UNIQUE (tenant_id, id),
-          CONSTRAINT uq_work_mode_emp_date_session UNIQUE (tenant_id, employee_id, calendar_date, session_target),
           CONSTRAINT fk_work_mode_employee FOREIGN KEY (tenant_id, employee_id)
             REFERENCES employees (tenant_id, id) ON DELETE RESTRICT,
           CONSTRAINT ck_work_mode_type CHECK (work_mode IN ('WFH', 'ON_DUTY')),
@@ -104,6 +103,11 @@ STATEMENTS = [
         """,
         "SELECT, INSERT, UPDATE, DELETE",
     ),
+    """
+    CREATE UNIQUE INDEX uq_work_mode_open_emp_date_session
+      ON work_mode_requests (tenant_id, employee_id, calendar_date, session_target)
+      WHERE status <> 'REJECTED'
+    """,
     "CREATE INDEX ix_work_mode_requests_emp_date ON work_mode_requests (tenant_id, employee_id, calendar_date)",
     "CREATE INDEX ix_work_mode_requests_status ON work_mode_requests (tenant_id, status)",
 ]

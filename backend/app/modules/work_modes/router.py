@@ -6,10 +6,27 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, SessionDep, require_permission
 from app.core.errors import ProblemError
+from app.modules.employees.repository import get_employee_by_user_id
 from app.modules.work_modes.schemas import WorkModeApply, WorkModeOut, WorkModeReview
 from app.modules.work_modes.service import apply_work_mode, list_requests, review_work_mode
 
 router = APIRouter(prefix="/work-modes", tags=["work-modes"])
+
+
+async def _employee_for_apply(session: SessionDep, current: CurrentUser, requested_id: UUID | None) -> UUID:
+    reviewer = "work_mode.request.review" in current.permissions
+    own = await get_employee_by_user_id(session, current.tenant_id, current.user.id)
+    if reviewer:
+        if requested_id is not None:
+            return requested_id
+        if own is None:
+            raise ProblemError(422, "Employee ID required", "A reviewer must name the employee.")
+        return own.id
+    if own is None:
+        raise ProblemError(404, "Employee profile missing", "This sign-in is not linked to an employee.")
+    if requested_id is not None and requested_id != own.id:
+        raise ProblemError(403, "Forbidden", "You can apply only for your own attendance.")
+    return own.id
 
 
 @router.post("/apply", response_model=WorkModeOut, status_code=status.HTTP_201_CREATED)
@@ -18,14 +35,7 @@ async def apply(
     session: SessionDep,
     current: Annotated[CurrentUser, Depends(require_permission("work_mode.request.create"))],
 ) -> WorkModeOut:
-    target_emp_id = payload.employee_id
-    if target_emp_id is None:
-        from app.modules.employees.repository import get_employee_by_user_id
-        emp = await get_employee_by_user_id(session, current.tenant_id, current.user.id)
-        if emp is None:
-            raise ProblemError(422, "Employee ID required", "employee_id must be provided when user is not an employee.")
-        target_emp_id = emp.id
-
+    target_emp_id = await _employee_for_apply(session, current, payload.employee_id)
     row = await apply_work_mode(session, current.tenant_id, target_emp_id, payload)
     return WorkModeOut.model_validate(row)
 
@@ -40,6 +50,13 @@ async def get_requests(
     start_date: date | None = None,
     end_date: date | None = None,
 ) -> list[WorkModeOut]:
+    if "work_mode.request.review" not in current.permissions:
+        own = await get_employee_by_user_id(session, current.tenant_id, current.user.id)
+        if own is None:
+            return []
+        if employee_id is not None and employee_id != own.id:
+            raise ProblemError(403, "Forbidden", "You can read only your own work mode requests.")
+        employee_id = own.id
     rows = await list_requests(
         session,
         current.tenant_id,

@@ -14,8 +14,9 @@ from app.main import app
 from app.models.branch import Branch
 from app.models.employee import Employee
 from app.models.iam import Role, Tenant, User, UserRole
-from app.models.policy import PolicyMaster
 from app.models.punch import PunchEvent, RawEnvelope
+from app.models.roster import DatedShiftInstance
+from app.models.shift import ShiftTemplate
 from app.models.work_mode import WorkModeRequest
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
 from app.modules.attendance.service import calculate_and_save_daily_attendance
@@ -66,24 +67,75 @@ async def test_wfh_auto_approval_quota(seeded_tenants: tuple[Tenant, Tenant]):
         await set_tenant(session, tenant.id)
         emp = await _create_test_employee(session, tenant.id)
 
-        # Set tenant's GENERAL_POLICY quota = 2
-        gen_pol = await session.scalar(
-            select(PolicyMaster).where(PolicyMaster.tenant_id == tenant.id, PolicyMaster.code == "GENERAL_POLICY")
+        policy = await create_policy(
+            session,
+            tenant.id,
+            PolicyCreate(
+                code=f"WFH_Q_{uuid4().hex[:6].upper()}",
+                name="Quota Two",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                wfh_monthly_auto_quota=2,
+            ),
         )
-        if gen_pol:
-            gen_pol.wfh_monthly_auto_quota = 2
-        else:
-            await create_policy(
-                session,
-                tenant.id,
-                PolicyCreate(
-                    code="GENERAL_POLICY",
-                    name="General Policy",
-                    wfh_monthly_auto_quota=2,
-                ),
+        tight = await create_policy(
+            session,
+            tenant.id,
+            PolicyCreate(
+                code=f"WFH_ZERO_{uuid4().hex[:6].upper()}",
+                name="Quota Zero Unlinked",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                wfh_monthly_auto_quota=0,
+            ),
+        )
+        now = datetime.now(UTC)
+        template = ShiftTemplate(
+            id=uuid4(),
+            tenant_id=tenant.id,
+            policy_id=policy.id,
+            code=f"WM_{uuid4().hex[:6].upper()}",
+            name="Linked day",
+            shift_type="FIXED",
+            created_at=now,
+            updated_at=now,
+        )
+        session.add(template)
+        for day in (date(2026, 11, 2), date(2026, 11, 3), date(2026, 11, 4), date(2026, 11, 5)):
+            session.add(
+                DatedShiftInstance(
+                    id=uuid4(),
+                    tenant_id=tenant.id,
+                    employee_id=emp.id,
+                    calendar_date=day,
+                    shift_template_id=template.id,
+                    status="SCHEDULED",
+                    resolution_mode="DIRECT_ASSIGNMENT",
+                    sessions=[],
+                    created_at=now,
+                    updated_at=now,
+                )
             )
+        await session.flush()
+        assert tight.wfh_monthly_auto_quota == 0
+        unlinked = await _create_test_employee(session, tenant.id)
         await session.commit()
         await set_tenant(session, tenant.id)
+
+        outside = await apply_work_mode(
+            session,
+            tenant.id,
+            unlinked.id,
+            WorkModeApply(
+                work_mode="WFH",
+                calendar_date=date(2026, 11, 2),
+                session_target="FULL",
+                reason="No shift policy is attached",
+            ),
+        )
+        await session.commit()
+        await set_tenant(session, tenant.id)
+        assert outside.status == "APPROVED"
 
         # 1st WFH request -> auto-approved (0 used < 2)
         req1 = await apply_work_mode(
@@ -270,8 +322,8 @@ async def test_on_duty_evaluation_and_waiver(seeded_tenants: tuple[Tenant, Tenan
 async def test_wfh_mode_gated_overtime(seeded_tenants: tuple[Tenant, Tenant]):
     """BR-OTC-01 / Confirmed N20: Mode-Gated Overtime Controls.
 
-    During WFH, overtime is suppressed (0 OT) when allow_wfh_overtime=False.
-    When allow_wfh_overtime=True, overtime is credited normally.
+    Extra minutes on a work-from-home day stay unpayable until a supervisor authorizes them.
+    allow_wfh_overtime does not by itself write payable overtime.
     """
     tenant, _ = seeded_tenants
 
@@ -286,6 +338,8 @@ async def test_wfh_mode_gated_overtime(seeded_tenants: tuple[Tenant, Tenant]):
             PolicyCreate(
                 code=f"WFH_NO_OT_{uuid4().hex[:6].upper()}",
                 name="WFH No OT Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 allow_wfh_overtime=False,
                 ot_minimum_minutes=30,
             ),
@@ -297,6 +351,8 @@ async def test_wfh_mode_gated_overtime(seeded_tenants: tuple[Tenant, Tenant]):
             PolicyCreate(
                 code=f"WFH_ALLOW_OT_{uuid4().hex[:6].upper()}",
                 name="WFH Allow OT Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 allow_wfh_overtime=True,
                 ot_minimum_minutes=30,
             ),
@@ -384,8 +440,9 @@ async def test_wfh_mode_gated_overtime(seeded_tenants: tuple[Tenant, Tenant]):
             session=session, tenant_id=tenant.id, employee_id=emp.id, calendar_date=date_b, shift_contract=shift_b
         )
         assert rec_b.worked_duration_minutes == 600
-        assert rec_b.overtime_minutes == 60  # ALLOWED!
-        assert trace_b.trace_payload["wfh_ot_suppressed"] is False
+        assert rec_b.overtime_minutes == 0
+        assert trace_b.trace_payload["wfh_ot_suppressed"] is True
+        assert trace_b.trace_payload["applied_policy"]["allow_wfh_overtime"] is True
 
 
 @pytest.mark.asyncio
@@ -407,6 +464,8 @@ async def test_monthly_late_count_and_penalty(seeded_tenants: tuple[Tenant, Tena
             PolicyCreate(
                 code=f"LATE_POL_{uuid4().hex[:6].upper()}",
                 name="2-Late Allowance Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 max_free_lates_per_month=2,
                 late_penalty_action="WARNING",
             ),

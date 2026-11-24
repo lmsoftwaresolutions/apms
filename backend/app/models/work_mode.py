@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import Boolean, ForeignKey, ForeignKeyConstraint, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, ForeignKey, ForeignKeyConstraint, Index, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base
@@ -11,7 +11,15 @@ class WorkModeRequest(Base):
     __tablename__ = "work_mode_requests"
     __table_args__ = (
         UniqueConstraint("tenant_id", "id", name="uq_work_mode_requests_tenant_id"),
-        UniqueConstraint("tenant_id", "employee_id", "calendar_date", "session_target", name="uq_work_mode_emp_date_session"),
+        Index(
+            "uq_work_mode_open_emp_date_session",
+            "tenant_id",
+            "employee_id",
+            "calendar_date",
+            "session_target",
+            unique=True,
+            postgresql_where=text("status <> 'REJECTED'"),
+        ),
         ForeignKeyConstraint(
             ["tenant_id", "employee_id"],
             ["employees.tenant_id", "employees.id"],

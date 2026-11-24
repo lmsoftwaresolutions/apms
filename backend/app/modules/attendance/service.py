@@ -139,18 +139,14 @@ async def calculate_and_save_daily_attendance(
 
     # 3.1 Monthly Late Count & Penalty Action (BR-ATT-18 / Issue #39)
     late_penalty_info = None
-    if decision.late_minutes > 0 and work_mode_code != "ON_DUTY":
+    if decision.late_minutes > 0 and work_mode_code != "ON_DUTY" and policy is not None:
         from app.modules.attendance.repository import count_prior_late_days_in_month
 
         prior_late_count = await count_prior_late_days_in_month(
             session, tenant_id, employee_id, calendar_date
         )
-        max_free = getattr(policy, "max_free_lates_per_month", 3) if policy else 3
-        if max_free is None:
-            max_free = 3
-        penalty_action = getattr(policy, "late_penalty_action", "WARNING") if policy else "WARNING"
-        if penalty_action is None:
-            penalty_action = "WARNING"
+        max_free = policy.max_free_lates_per_month
+        penalty_action = policy.late_penalty_action
 
         exceeded = prior_late_count >= max_free
         late_penalty_info = {

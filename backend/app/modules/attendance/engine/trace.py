@@ -64,8 +64,8 @@ def build_explanation_trace(
         "evaluated_at": datetime.now(UTC).isoformat(),
         "calendar_date": pairing.calendar_date,
         "work_mode": work_mode,
-        "is_on_duty_waived": (work_mode == "ON_DUTY"),
-        "wfh_ot_suppressed": bool(work_mode == "WFH" and not getattr(policy, "allow_wfh_overtime", False) if policy else False),
+        "is_on_duty_waived": work_mode == "ON_DUTY",
+        "wfh_ot_suppressed": work_mode == "WFH",
         "late_penalty": late_penalty,
         "policy_bands": {
             "theta_present": theta_present,

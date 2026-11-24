@@ -17,13 +17,28 @@ from app.modules.work_modes.repository import (
 from app.modules.work_modes.schemas import WorkModeApply
 
 
+async def _recalculate_day(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_id: UUID,
+    calendar_date: date,
+) -> None:
+    """Refresh the day when a roster exists. A missing shift must not fail the request."""
+    from app.modules.attendance.service import calculate_and_save_daily_attendance
+
+    try:
+        await calculate_and_save_daily_attendance(session, tenant_id, employee_id, calendar_date)
+    except ProblemError:
+        return
+
+
 async def resolve_employee_policy(
     session: AsyncSession,
     tenant_id: UUID,
     employee_id: UUID,
     calendar_date: date,
 ) -> PolicyMaster | None:
-    from app.modules.policies.repository import get_policy, list_policies
+    from app.modules.policies.repository import get_policy
     from app.modules.roster.repository import list_dated_shift_instances
     from app.modules.shifts.repository import get_shift_template_by_id
 
@@ -33,16 +48,7 @@ async def resolve_employee_policy(
     if instances and instances[0].shift_template_id:
         tpl = await get_shift_template_by_id(session, tenant_id, instances[0].shift_template_id)
         if tpl and tpl.policy_id:
-            policy = await get_policy(session, tenant_id, tpl.policy_id)
-            if policy is not None:
-                return policy
-
-    active_policies = await list_policies(session, tenant_id, is_active=True)
-    if active_policies:
-        for p in active_policies:
-            if p.code == "GENERAL_POLICY":
-                return p
-        return active_policies[0]
+            return await get_policy(session, tenant_id, tpl.policy_id)
 
     return None
 
@@ -68,7 +74,7 @@ async def apply_work_mode(
         )
 
     policy = await resolve_employee_policy(session, tenant_id, employee_id, payload.calendar_date)
-    quota = policy.wfh_monthly_auto_quota if policy and policy.wfh_monthly_auto_quota is not None else 4
+    quota = policy.wfh_monthly_auto_quota if policy is not None else 4
 
     if payload.work_mode == "WFH":
         used_days = await count_approved_wfh_days_in_month(
@@ -106,11 +112,7 @@ async def apply_work_mode(
     created = await insert_work_mode_request(session, row)
 
     if created.status == "APPROVED":
-        try:
-            from app.modules.attendance.service import calculate_and_save_daily_attendance
-            await calculate_and_save_daily_attendance(session, tenant_id, employee_id, payload.calendar_date)
-        except Exception:
-            pass
+        await _recalculate_day(session, tenant_id, employee_id, payload.calendar_date)
 
     return created
 
@@ -141,11 +143,7 @@ async def review_work_mode(
     await session.flush()
 
     if req.status == "APPROVED":
-        try:
-            from app.modules.attendance.service import calculate_and_save_daily_attendance
-            await calculate_and_save_daily_attendance(session, tenant_id, req.employee_id, req.calendar_date)
-        except Exception:
-            pass
+        await _recalculate_day(session, tenant_id, req.employee_id, req.calendar_date)
 
     return req
 

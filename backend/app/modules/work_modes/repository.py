@@ -38,6 +38,7 @@ async def get_work_mode_by_date_session(
         WorkModeRequest.employee_id == employee_id,
         WorkModeRequest.calendar_date == calendar_date,
         WorkModeRequest.session_target == session_target,
+        WorkModeRequest.status != "REJECTED",
     )
     res = await session.execute(stmt)
     return res.scalar_one_or_none()
@@ -103,6 +104,7 @@ async def find_approved_work_mode(
             WorkModeRequest.employee_id == employee_id,
             WorkModeRequest.calendar_date == calendar_date,
             WorkModeRequest.status == "APPROVED",
+            WorkModeRequest.session_target == "FULL",
         )
         .order_by(WorkModeRequest.created_at.desc())
         .limit(1)

@@ -54,12 +54,12 @@ def evaluate_daily_rollup(
             explanation="Scheduled rest day",
         )
 
-    # 2.5 On-Duty Work Mode (BR-ATT-17 / Issue #39)
+    # Approved full-day on-duty credits the scheduled day. It does not invent an 8-hour day.
     if work_mode == "ON_DUTY":
-        sched = pairing.total_scheduled_minutes if pairing.total_scheduled_minutes > 0 else 480
+        sched = pairing.total_scheduled_minutes
         return DailyRollupDecision(
             status="PRESENT",
-            worked_ratio=1.0,
+            worked_ratio=1.0 if sched > 0 else 0.0,
             worked_minutes=sched,
             scheduled_minutes=sched,
             late_minutes=0,
@@ -67,7 +67,7 @@ def evaluate_daily_rollup(
             overtime_minutes=0,
             is_single_punch=False,
             anomaly_code=None,
-            explanation="On-Duty work mode credited as PRESENT without biometric punch requirement per BR-ATT-17",
+            explanation="Approved full-day on-duty request credits the scheduled day. Overtime stays at zero.",
         )
 
     # 3. Single-Punch Anomaly (Q4 / BR-ATT-04 / BR-ATT-16)
@@ -180,11 +180,10 @@ def evaluate_daily_rollup(
     if max_ot is not None:
         ot_minutes = min(ot_minutes, max_ot)
 
-    # WFH Overtime Suppression (BR-OTC-01 / Confirmed N20)
-    allow_wfh_ot = getattr(policy, "allow_wfh_overtime", False) if policy else False
-    if work_mode == "WFH" and not allow_wfh_ot and ot_minutes > 0:
+    # N20: extra minutes are not payable until a supervisor authorizes them.
+    if work_mode == "WFH" and ot_minutes > 0:
         ot_minutes = 0
-        explanation += " Overtime suppressed during WFH per policy BR-OTC-01."
+        explanation += " Extra minutes stay unpayable until a supervisor authorizes overtime (N20)."
 
     return DailyRollupDecision(
         status=tentative_status,
