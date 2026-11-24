@@ -71,6 +71,7 @@ async def seed() -> None:
                 "leave.request.read",
                 "leave.request.review",
                 "muster.export.read",
+                "policy.master.read",
             ],
             "EMPLOYEE": [
                 "org.branch.read",

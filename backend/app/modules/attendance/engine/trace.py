@@ -10,6 +10,7 @@ def build_explanation_trace(
     decision: DailyRollupDecision,
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
+    policy: object | None = None,
 ) -> dict[str, Any]:
     """Generates immutable JSON audit trace payload per Invariant 4 and ATT-09."""
 
@@ -35,6 +36,22 @@ def build_explanation_trace(
             }
         )
 
+    applied_policy_trace = None
+    if policy is not None:
+        applied_policy_trace = {
+            "policy_id": str(getattr(policy, "id", None)) if getattr(policy, "id", None) else None,
+            "code": getattr(policy, "code", None),
+            "name": getattr(policy, "name", None),
+            "late_arrival_allow_minutes": getattr(policy, "late_arrival_allow_minutes", 0),
+            "early_departure_allow_minutes": getattr(policy, "early_departure_allow_minutes", 0),
+            "half_day_work_duration_minutes": getattr(policy, "half_day_work_duration_minutes", 240),
+            "full_day_work_duration_minutes": getattr(policy, "full_day_work_duration_minutes", 480),
+            "half_day_late_cutoff_minutes": getattr(policy, "half_day_late_cutoff_minutes", None),
+            "absent_late_cutoff_minutes": getattr(policy, "absent_late_cutoff_minutes", None),
+            "ot_minimum_minutes": getattr(policy, "ot_minimum_minutes", 30),
+            "ot_multiplier": float(getattr(policy, "ot_multiplier", 1.50)),
+        }
+
     return {
         "engine_version": "v1.0",
         "evaluated_at": datetime.now(UTC).isoformat(),
@@ -44,6 +61,7 @@ def build_explanation_trace(
             "theta_half_day": theta_half_day,
             "mode": "DURATION_RATIO",
         },
+        "applied_policy": applied_policy_trace,
         "sessions": session_traces,
         "summary": {
             "total_scheduled_minutes": pairing.total_scheduled_minutes,

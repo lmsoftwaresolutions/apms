@@ -52,6 +52,7 @@ def _combine_date_time_utc(d, t: time, is_next_day: bool = False) -> datetime:
 def pair_punches_for_shift(
     shift: ShiftInstanceContract,
     punches: list[PunchEvent],
+    policy: object | None = None,
 ) -> DailyPairingResult:
     cal_date = shift.calendar_date
     result = DailyPairingResult(
@@ -62,6 +63,14 @@ def pair_punches_for_shift(
 
     if shift.is_rest_day or shift.is_cancelled_paid:
         return result
+
+    pol = policy or getattr(shift, "policy", None)
+    late_grace = getattr(pol, "late_arrival_allow_minutes", 0) if pol else 0
+    if late_grace is None:
+        late_grace = 0
+    early_grace = getattr(pol, "early_departure_allow_minutes", 0) if pol else 0
+    if early_grace is None:
+        early_grace = 0
 
     # Sort punches chronologically
     active_punches = [p for p in punches if p.status == "ACTIVE"]
@@ -143,11 +152,13 @@ def pair_punches_for_shift(
 
             # Late calculation
             if first_p > sched_start_utc:
-                session_res.late_minutes = int((first_p - sched_start_utc).total_seconds() / 60)
+                diff_late = int((first_p - sched_start_utc).total_seconds() / 60)
+                session_res.late_minutes = diff_late if diff_late > late_grace else 0
 
             # Early exit calculation
             if last_p < sched_end_utc:
-                session_res.early_exit_minutes = int((sched_end_utc - last_p).total_seconds() / 60)
+                diff_early = int((sched_end_utc - last_p).total_seconds() / 60)
+                session_res.early_exit_minutes = diff_early if diff_early > early_grace else 0
 
             # Minimum presence evaluation (N66b)
             min_required = int(s.min_presence_ratio * sched_mins)

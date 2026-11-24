@@ -21,6 +21,7 @@ def evaluate_daily_rollup(
     pairing: DailyPairingResult,
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
+    policy: object | None = None,
 ) -> DailyRollupDecision:
     # 1. Employer-cancelled session (N66d / ROS-10)
     if pairing.is_cancelled_paid:
@@ -82,19 +83,58 @@ def evaluate_daily_rollup(
             explanation="No valid punches recorded for scheduled shift.",
         )
 
-    # 5. DURATION_RATIO calculation: R = Worked / Scheduled (N66a)
+    # 5. Severe Late Arrival Cutoff: if late_minutes >= absent_late_cutoff_minutes -> ABSENT
+    absent_late_cutoff = getattr(policy, "absent_late_cutoff_minutes", None) if policy else None
+    if absent_late_cutoff is not None and pairing.total_late_minutes >= absent_late_cutoff:
+        return DailyRollupDecision(
+            status="ABSENT",
+            worked_ratio=round(pairing.total_worked_minutes / max(1, pairing.total_scheduled_minutes), 4),
+            worked_minutes=pairing.total_worked_minutes,
+            scheduled_minutes=pairing.total_scheduled_minutes,
+            late_minutes=pairing.total_late_minutes,
+            early_exit_minutes=pairing.total_early_exit_minutes,
+            overtime_minutes=0,
+            is_single_punch=False,
+            anomaly_code="SEVERE_LATE_ABSENT",
+            explanation=f"Marked ABSENT: late arrival ({pairing.total_late_minutes}m) exceeded cutoff ({absent_late_cutoff}m).",
+        )
+
+    # 6. DURATION_RATIO & Work Duration Thresholds (N66a)
     sched = max(1, pairing.total_scheduled_minutes)
     ratio = round(pairing.total_worked_minutes / sched, 4)
 
-    # Base status from policy bands
-    if ratio >= theta_present:
-        tentative_status = "PRESENT"
-    elif ratio >= theta_half_day:
-        tentative_status = "HALF_DAY"
-    else:
-        tentative_status = "ABSENT"
+    full_day_mins = getattr(policy, "full_day_work_duration_minutes", None) if policy else None
+    half_day_mins = getattr(policy, "half_day_work_duration_minutes", None) if policy else None
 
-    # 6. Session Minimum-Presence Eligibility Cap (Confirmed N66b)
+    if full_day_mins is not None and half_day_mins is not None:
+        # A linked policy uses only the hours the tenant configured.
+        if pairing.total_worked_minutes >= full_day_mins:
+            tentative_status = "PRESENT"
+        elif pairing.total_worked_minutes >= half_day_mins:
+            tentative_status = "HALF_DAY"
+        else:
+            tentative_status = "ABSENT"
+        explanation = (
+            f"Worked {pairing.total_worked_minutes} minutes against policy hours "
+            f"{half_day_mins} half day and {full_day_mins} present."
+        )
+    else:
+        if ratio >= theta_present:
+            tentative_status = "PRESENT"
+        elif ratio >= theta_half_day:
+            tentative_status = "HALF_DAY"
+        else:
+            tentative_status = "ABSENT"
+        explanation = f"Rollup ratio {ratio:.2%} evaluated against bands."
+
+    # 7. Late Arrival Half Day Cutoff: if late_minutes >= half_day_late_cutoff_minutes -> cap at HALF_DAY
+    half_day_late_cutoff = getattr(policy, "half_day_late_cutoff_minutes", None) if policy else None
+    if half_day_late_cutoff is not None and pairing.total_late_minutes >= half_day_late_cutoff:
+        if tentative_status == "PRESENT":
+            tentative_status = "HALF_DAY"
+            explanation += f" Capped at HALF_DAY: late arrival ({pairing.total_late_minutes}m) exceeded cutoff ({half_day_late_cutoff}m)."
+
+    # 8. Session Minimum-Presence Eligibility Cap (Confirmed N66b)
     # In a multi-session split shift, if an employee is BELOW_MIN or absent for one full session,
     # daily status is strictly capped at HALF_DAY!
     status_cap_applied = False
@@ -105,12 +145,23 @@ def evaluate_daily_rollup(
                 status_cap_applied = True
                 break
 
-    # Overtime calculation: extra time beyond scheduled shift
-    ot_minutes = max(0, pairing.total_worked_minutes - pairing.total_scheduled_minutes)
-
-    explanation = f"Rollup ratio {ratio:.2%} evaluated against bands."
     if status_cap_applied:
         explanation += " Capped at HALF_DAY because one or more split sessions were BELOW_MIN per N66b."
+
+    # 9. Overtime calculation with policy minimum qualifier & daily cap
+    extra_minutes = max(0, pairing.total_worked_minutes - pairing.total_scheduled_minutes)
+    ot_minimum = getattr(policy, "ot_minimum_minutes", 0) if policy else 0
+    if ot_minimum is None:
+        ot_minimum = 0
+
+    if extra_minutes >= ot_minimum:
+        ot_minutes = extra_minutes
+    else:
+        ot_minutes = 0
+
+    max_ot = getattr(policy, "max_ot_minutes_per_day", None) if policy else None
+    if max_ot is not None:
+        ot_minutes = min(ot_minutes, max_ot)
 
     return DailyRollupDecision(
         status=tentative_status,

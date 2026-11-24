@@ -98,6 +98,19 @@ async def calculate_and_save_daily_attendance(
                 detail=f"No scheduled shift found for employee {employee_id} on {calendar_date}. Roster materialization must be run before attendance evaluation.",
             )
 
+    # 0. Resolve policy if linked to shift template
+    policy = getattr(shift_contract, "policy", None)
+    if policy is None and shift_contract.shift_template_id is not None:
+        from app.modules.shifts.repository import get_shift_template_by_id
+        tpl = await get_shift_template_by_id(session, tenant_id, shift_contract.shift_template_id)
+        if tpl is not None and tpl.policy_id is not None:
+            if tpl.policy is not None:
+                policy = tpl.policy
+            else:
+                from app.modules.policies.repository import get_policy
+                policy = await get_policy(session, tenant_id, tpl.policy_id)
+            shift_contract.policy = policy
+
     # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin
     start_search, end_search = punch_search_window(calendar_date)
 
@@ -112,13 +125,13 @@ async def calculate_and_save_daily_attendance(
     )
 
     # 2. Pair punches chronologically (BR-ATT-01, N65)
-    pairing = pair_punches_for_shift(shift_contract, punches)
+    pairing = pair_punches_for_shift(shift_contract, punches, policy=policy)
 
     # 3. Rollup decisions (N66a, N66b, Q4)
-    decision = evaluate_daily_rollup(pairing, theta_present, theta_half_day)
+    decision = evaluate_daily_rollup(pairing, theta_present, theta_half_day, policy=policy)
 
     # 4. Build explanation trace (Invariant 4, ATT-09)
-    trace_payload = build_explanation_trace(pairing, decision, theta_present, theta_half_day)
+    trace_payload = build_explanation_trace(pairing, decision, theta_present, theta_half_day, policy=policy)
 
     # 5. Persist AttendanceDailyRecord
     existing = await find_attendance_record(session, tenant_id, employee_id, calendar_date)

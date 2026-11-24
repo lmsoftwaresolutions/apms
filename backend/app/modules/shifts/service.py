@@ -117,9 +117,20 @@ async def create_template(
     if is_overnight and shift_type != "OVERNIGHT":
         shift_type = "OVERNIGHT"
 
+    if payload.policy_id is not None:
+        from app.modules.policies.repository import get_policy
+        pol = await get_policy(session, tenant_id, payload.policy_id)
+        if pol is None:
+            raise ProblemError(
+                404,
+                "Policy not found",
+                f"Policy with ID '{payload.policy_id}' does not exist in this tenant.",
+            )
+
     template = ShiftTemplate(
         id=template_id,
         tenant_id=tenant_id,
+        policy_id=payload.policy_id,
         code=payload.code,
         name=payload.name,
         shift_type=shift_type,
@@ -187,6 +198,17 @@ async def update_template(
         updates["is_active"] = payload.is_active
     if "color_code" in payload.model_fields_set:
         updates["color_code"] = payload.color_code
+    if "policy_id" in payload.model_fields_set:
+        if payload.policy_id is not None:
+            from app.modules.policies.repository import get_policy
+            pol = await get_policy(session, tenant_id, payload.policy_id)
+            if pol is None:
+                raise ProblemError(
+                    404,
+                    "Policy not found",
+                    f"Policy with ID '{payload.policy_id}' does not exist in this tenant.",
+                )
+        updates["policy_id"] = payload.policy_id
 
     new_session_models = None
     if payload.sessions is not None:

@@ -28,7 +28,7 @@ async def get_shift_template_by_id(
 ) -> ShiftTemplate | None:
     stmt = (
         select(ShiftTemplate)
-        .options(selectinload(ShiftTemplate.sessions))
+        .options(selectinload(ShiftTemplate.sessions), selectinload(ShiftTemplate.policy))
         .where(ShiftTemplate.tenant_id == tenant_id, ShiftTemplate.id == template_id)
     )
     return await session.scalar(stmt)
@@ -41,7 +41,7 @@ async def get_shift_template_by_code(
 ) -> ShiftTemplate | None:
     stmt = (
         select(ShiftTemplate)
-        .options(selectinload(ShiftTemplate.sessions))
+        .options(selectinload(ShiftTemplate.sessions), selectinload(ShiftTemplate.policy))
         .where(ShiftTemplate.tenant_id == tenant_id, ShiftTemplate.code == code)
     )
     return await session.scalar(stmt)
@@ -54,7 +54,7 @@ async def list_shift_templates(
 ) -> Sequence[ShiftTemplate]:
     stmt = (
         select(ShiftTemplate)
-        .options(selectinload(ShiftTemplate.sessions))
+        .options(selectinload(ShiftTemplate.sessions), selectinload(ShiftTemplate.policy))
         .where(ShiftTemplate.tenant_id == tenant_id)
         .order_by(ShiftTemplate.code)
     )
