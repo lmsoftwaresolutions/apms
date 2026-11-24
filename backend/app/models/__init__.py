@@ -7,6 +7,7 @@ from app.models.department import Department
 from app.models.designation import Designation
 from app.models.employee import Employee
 from app.models.leave import Holiday, LeaveRequest, LeaveTransaction, LeaveType
+from app.models.policy import PolicyMaster
 from app.models.punch import PunchEvent, RawEnvelope
 from app.models.roster import DatedShiftInstance, RosterPattern
 from app.models.shift import ShiftSession, ShiftTemplate
@@ -36,6 +37,7 @@ __all__ = [
     "LeaveRequest",
     "LeaveTransaction",
     "LeaveType",
+    "PolicyMaster",
     "PunchEvent",
     "RawEnvelope",
     "RosterPattern",

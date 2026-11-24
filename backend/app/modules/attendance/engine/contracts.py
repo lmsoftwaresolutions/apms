@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from datetime import date, time
+from typing import Any
 from uuid import UUID
 
 
@@ -25,3 +26,4 @@ class ShiftInstanceContract:
     is_rest_day: bool = False
     is_cancelled_paid: bool = False  # N66d
     sessions: list[SessionWindow] = field(default_factory=list)
+    policy: Any | None = None

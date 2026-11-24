@@ -34,6 +34,7 @@ class ShiftTemplateBase(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     shift_type: str = Field(default="FIXED")  # FIXED, FLEXI, OVERNIGHT, SPLIT, CONTINUOUS
     color_code: str | None = Field(default=None, max_length=20)
+    policy_id: UUID | None = None
 
 
 class ShiftTemplateCreate(ShiftTemplateBase):
@@ -44,6 +45,7 @@ class ShiftTemplateUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     is_active: bool | None = None
     color_code: str | None = None
+    policy_id: UUID | None = None
     sessions: list[ShiftSessionCreate] | None = None
 
 

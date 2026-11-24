@@ -1,5 +1,6 @@
 from datetime import datetime, time
 from decimal import Decimal
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, ForeignKeyConstraint, Numeric, UniqueConstraint
@@ -7,16 +8,26 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base
 
+if TYPE_CHECKING:
+    from app.models.policy import PolicyMaster
+
 
 class ShiftTemplate(Base):
     __tablename__ = "shift_templates"
     __table_args__ = (
         UniqueConstraint("tenant_id", "id", name="uq_shift_templates_tenant_id"),
         UniqueConstraint("tenant_id", "code", name="uq_shift_templates_tenant_code"),
+        ForeignKeyConstraint(
+            ["tenant_id", "policy_id"],
+            ["policy_master.tenant_id", "policy_master.id"],
+            name="fk_shift_template_policy",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
+    policy_id: Mapped[UUID | None] = mapped_column(default=None)
     code: Mapped[str]
     name: Mapped[str]
     shift_type: Mapped[str] = mapped_column(default="FIXED")  # FIXED, FLEXI, OVERNIGHT, SPLIT, CONTINUOUS
@@ -25,6 +36,11 @@ class ShiftTemplate(Base):
     color_code: Mapped[str | None] = mapped_column(default=None)
     created_at: Mapped[datetime]
     updated_at: Mapped[datetime]
+
+    policy: Mapped["PolicyMaster | None"] = relationship(
+        back_populates="shift_templates",
+        lazy="selectin",
+    )
 
     sessions: Mapped[list["ShiftSession"]] = relationship(
         back_populates="shift_template",

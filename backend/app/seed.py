@@ -1,5 +1,6 @@
 import asyncio
 from datetime import UTC, datetime
+from decimal import Decimal
 from uuid import uuid4
 
 from sqlalchemy import select, text
@@ -8,6 +9,8 @@ from app.core.database import MigrateSession
 from app.core.security import hash_password
 from app.models.branch import Branch
 from app.models.iam import Permission, Role, RolePermission, Tenant, User, UserRole
+from app.models.policy import PolicyMaster
+from app.models.shift import ShiftTemplate
 from app.modules.departments.repository import get_department_by_code
 from app.modules.departments.schemas import DepartmentCreate
 from app.modules.departments.service import create_department
@@ -71,6 +74,7 @@ async def seed() -> None:
                 "leave.request.read",
                 "leave.request.review",
                 "muster.export.read",
+                "policy.master.read",
             ],
             "EMPLOYEE": [
                 "org.branch.read",
@@ -176,6 +180,47 @@ async def seed() -> None:
                         tenant.id,
                         DepartmentCreate(branch_id=existing_branch.id, name=dept_name, code=dept_code),
                     )
+
+            # Seed GENERAL_POLICY and link unlinked shifts
+            existing_policy = await session.scalar(
+                select(PolicyMaster).where(PolicyMaster.tenant_id == tenant.id, PolicyMaster.code == "GENERAL_POLICY")
+            )
+            if existing_policy is None:
+                existing_policy = PolicyMaster(
+                    id=uuid4(),
+                    tenant_id=tenant.id,
+                    code="GENERAL_POLICY",
+                    name="General Attendance Policy",
+                    description="Standard factory attendance policy with 15-min late grace and 10-min early departure grace",
+                    is_active=True,
+                    late_arrival_allow_minutes=15,
+                    early_departure_allow_minutes=10,
+                    early_arrival_ignore_minutes=0,
+                    late_departure_ignore_minutes=0,
+                    half_day_work_duration_minutes=240,
+                    full_day_work_duration_minutes=480,
+                    half_day_late_cutoff_minutes=120,
+                    absent_late_cutoff_minutes=240,
+                    ot_minimum_minutes=30,
+                    ot_multiplier=Decimal("1.50"),
+                    max_ot_minutes_per_day=None,
+                    in_out_rule="FIRST_IN_LAST_OUT",
+                    created_at=tenant.created_at,
+                    updated_at=tenant.created_at,
+                )
+                session.add(existing_policy)
+                await session.flush()
+
+            unlinked_shifts = (
+                await session.scalars(
+                    select(ShiftTemplate).where(
+                        ShiftTemplate.tenant_id == tenant.id,
+                        ShiftTemplate.policy_id.is_(None),
+                    )
+                )
+            ).all()
+            for s in unlinked_shifts:
+                s.policy_id = existing_policy.id
 
         await session.commit()
 
