@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, FormEvent } from "react";
 import { UserCheck, Search, Shield, Plus, X, Check, Users, Building, AlertCircle } from "lucide-react";
-import { api, DirectoryUser, Role, Branch, Permission } from "../../api";
+import { api, DirectoryUser, Role, Permission } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
 import { Badge } from "../../components/common/Badge";
@@ -49,7 +49,6 @@ export function UsersPage() {
   const { can } = useAuth();
   const [users, setUsers] = useState<DirectoryUser[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
-  const [branches, setBranches] = useState<Branch[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -86,15 +85,13 @@ export function UsersPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [userList, roleList, branchList, permList] = await Promise.all([
+      const [userList, roleList, permList] = await Promise.all([
         api.users(),
         api.roles(),
-        api.branches(),
         api.permissions(),
       ]);
       setUsers(userList);
       setRoles(roleList);
-      setBranches(branchList);
       setPermissions(permList);
       if (userList.length > 0 && !activeUserId) {
         setActiveUserId(userList[0].id);
@@ -872,26 +869,7 @@ export function UsersPage() {
               </div>
             </div>
 
-            {/* Section 3: APPLIES TO (Branch Scope) */}
-            <div>
-              <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>
-                APPLIES TO
-              </div>
-              <select
-                className="select"
-                style={{ width: "100%", fontSize: "0.8125rem", padding: "0.5rem 0.75rem", borderRadius: "0.375rem" }}
-                disabled={branches.length <= 1}
-              >
-                <option value="ALL">All branches</option>
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.code})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Section 4: WHAT THEY CAN DO NOW */}
+            {/* Section 3: WHAT THEY CAN DO NOW */}
             <div style={{ paddingTop: "0.25rem" }}>
               <div style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.05em", marginBottom: "0.4rem" }}>
                 WHAT THEY CAN DO NOW
