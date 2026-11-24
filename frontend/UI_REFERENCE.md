@@ -1,19 +1,17 @@
-# APMS Frontend UI Reference Guide
+# APMS Frontend UI Reference & Design Benchmarks
 
-The master UI benchmark and reference guide based on eTimeOffice / eTimeTrackLite domain workflows is located at:
+Master reference documentation for UI development across the APMS frontend:
+
+### 1. Legacy Standard Reference — eTimeOffice / eTimeTrackLite
 👉 [docs/engineering/UI_REFERENCE_ETIMEOFFICE.md](../docs/engineering/UI_REFERENCE_ETIMEOFFICE.md)
+* Comprehensive breakdown of screens, fields, tables, modals, and statutory Form XX patterns from legacy Indian biometric attendance software.
 
-### Key Sections:
-1. **Information Architecture & Global Navigation** (Sidebar groupings, routes, permissions)
-2. **Screen Specifications**:
-   - Employee Master Directory (`/employees`)
-   - Shift Master & Timings (`/shifts`)
-   - Monthly 31-Day Roster Matrix (`/roster`)
-   - Live Biometric Punch Ingest Stream (`/punches`)
-   - Daily Attendance Rollup (`/attendance`)
-   - Punch Regularization & Exception Resolution (`/requests`)
-   - Double-Entry Leave Ledger (`/leave`)
-   - Indian Statutory Form XX Muster Roll (`/muster`)
-   - Biometric Device Fleet Manager (`/devices`)
-3. **Data Dictionary & Enums**
-4. **UI Implementation Checklist for APMS Engineers**
+### 2. Modern Enterprise Benchmarks — Keka, greytHR, Matrix COSEC, Darwinbox, Rippling
+👉 [docs/engineering/UI_COMPETITOR_BENCHMARKS.md](../docs/engineering/UI_COMPETITOR_BENCHMARKS.md)
+* Analysis of modern SaaS leaders:
+  * **Keka HR**: Color-coded shift matrix chips and inline roster edits.
+  * **greytHR**: Indian statutory attendance muster, swipe logs, and payable day tallies.
+  * **Matrix COSEC**: Biometric device fleet monitoring, heartbeat telemetry, and template sync queues.
+  * **Darwinbox**: Smart shift conflict alerts (rest intervals, consecutive days) and team coverage dashboards.
+  * **Rippling / Deputy**: Proportional horizontal daily timeline bars (In, Break, Out, Overtime).
+  * High-value UI patterns adopted directly for APMS.
