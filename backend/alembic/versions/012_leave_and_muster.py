@@ -14,8 +14,8 @@ branch_labels = None
 depends_on = None
 
 PERMISSIONS = (
-    ("leave.type.manage", "leave", "type", "manage", "Create leave types"),
-    ("leave.holiday.manage", "leave", "holiday", "manage", "Maintain a branch holiday calendar"),
+    ("leave.type.manage", "leave", "type", "create", "Create leave types"),
+    ("leave.holiday.manage", "leave", "holiday", "create", "Maintain a branch holiday calendar"),
     ("leave.request.create", "leave", "request", "create", "Request leave"),
     ("leave.request.read", "leave", "request", "read", "Read leave requests and balances"),
     ("leave.request.review", "leave", "request", "update", "Approve or reject leave"),
