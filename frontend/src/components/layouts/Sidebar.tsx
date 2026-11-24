@@ -61,7 +61,6 @@ const NAV_GROUPS: NavGroup[] = [
     group: "People",
     items: [
       { label: "Employees", to: "/employees", icon: Users },
-      { label: "Branches", to: "/org/branches", icon: Building2 },
       { label: "Departments", to: "/org/departments", icon: Network, permission: "org.department.read" },
       { label: "Designations", to: "/org/designations", icon: Briefcase, permission: "org.designation.read" },
     ],
@@ -69,6 +68,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     group: "Administration",
     items: [
+      { label: "Locations", to: "/admin/branches", icon: Building2 },
       { label: "Roles", to: "/admin/roles", icon: Shield, permission: "iam.role.read" },
       { label: "Users", to: "/admin/users", icon: UserCheck, permission: "iam.role.read" },
     ],

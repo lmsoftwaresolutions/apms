@@ -18,7 +18,7 @@ export function App() {
       {/* Protected Layout Routes */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppShell />}>
-          <Route path="/" element={<Navigate to="/org/branches" replace />} />
+          <Route path="/" element={<Navigate to="/org/departments" replace />} />
 
           {/* Operations */}
           <Route
@@ -117,16 +117,17 @@ export function App() {
               />
             }
           />
-          <Route path="/org/branches" element={<BranchesPage />} />
+          <Route path="/org/branches" element={<Navigate to="/admin/branches" replace />} />
           <Route path="/org/departments" element={<DepartmentsPage />} />
           <Route path="/org/designations" element={<DesignationsPage />} />
 
           {/* Administration & IAM */}
+          <Route path="/admin/branches" element={<BranchesPage />} />
           <Route path="/admin/roles" element={<RolesPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
 
           {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/org/branches" replace />} />
+          <Route path="*" element={<Navigate to="/org/departments" replace />} />
         </Route>
       </Route>
     </Routes>

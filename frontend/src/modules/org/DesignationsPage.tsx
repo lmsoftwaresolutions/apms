@@ -157,7 +157,7 @@ export function DesignationsPage() {
 
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           {/* Branch & Dept Filters */}
-          {branches.length > 0 ? (
+          {branches.length > 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Filter size={16} color="var(--text-muted)" />
               <select

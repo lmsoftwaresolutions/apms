@@ -122,7 +122,7 @@ export function DepartmentsPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          {branches.length > 0 ? (
+          {branches.length > 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Filter size={16} color="var(--text-muted)" />
               <select
@@ -203,7 +203,7 @@ export function DepartmentsPage() {
               <tr>
                 <th style={{ width: "120px" }}>Code</th>
                 <th>Department Name</th>
-                <th>Branch</th>
+                {branches.length > 1 ? <th>Branch</th> : null}
                 <th>Parent Unit</th>
                 <th style={{ width: "120px" }}>Status</th>
                 <th style={{ width: "200px", textAlign: "right" }}>Actions</th>
@@ -211,7 +211,7 @@ export function DepartmentsPage() {
             </thead>
             <tbody>
               {loading ? (
-                <LoadingRow cols={6} rows={4} />
+                <LoadingRow cols={branches.length > 1 ? 6 : 5} rows={4} />
               ) : (
                 departments.map((dept) => (
                   <tr key={dept.id}>
@@ -219,9 +219,11 @@ export function DepartmentsPage() {
                       <code style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{dept.code}</code>
                     </td>
                     <td style={{ fontWeight: 550 }}>{dept.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>
-                      {branchNameById.get(dept.branch_id) || dept.branch_id.slice(0, 8)}
-                    </td>
+                    {branches.length > 1 ? (
+                      <td style={{ color: "var(--text-secondary)" }}>
+                        {branchNameById.get(dept.branch_id) || dept.branch_id.slice(0, 8)}
+                      </td>
+                    ) : null}
                     <td style={{ color: "var(--text-secondary)" }}>{parentLabel(dept.parent_dept_id)}</td>
                     <td>
                       <Badge variant={dept.is_active ? "success" : "neutral"}>
@@ -306,20 +308,22 @@ export function DepartmentsPage() {
             </div>
           ) : null}
 
-          <Field label="Branch" required>
-            <select
-              className="select"
-              value={modalBranchId}
-              onChange={(e) => setModalBranchId(e.target.value)}
-              required
-            >
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
-          </Field>
+          {branches.length > 1 ? (
+            <Field label="Branch" required>
+              <select
+                className="select"
+                value={modalBranchId}
+                onChange={(e) => setModalBranchId(e.target.value)}
+                required
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : null}
 
           <Field label="Department Name" required help="e.g. Operations, Human Resources, Spinning">
             <input

@@ -15,9 +15,10 @@ const ROUTE_TITLES: Record<string, { title: string; category: string }> = {
   "/overtime": { title: "Overtime Requests", category: "Approvals" },
   "/requests": { title: "Leaves & Regularization", category: "Approvals" },
   "/employees": { title: "Employee Directory", category: "People" },
-  "/org/branches": { title: "Branches", category: "Organization" },
-  "/org/departments": { title: "Departments", category: "Organization" },
-  "/org/designations": { title: "Designations", category: "Organization" },
+  "/admin/branches": { title: "Company Locations", category: "Administration" },
+  "/org/branches": { title: "Company Locations", category: "Administration" },
+  "/org/departments": { title: "Departments", category: "People" },
+  "/org/designations": { title: "Designations", category: "People" },
   "/admin/roles": { title: "Roles & Permissions", category: "Administration" },
   "/admin/users": { title: "System Users", category: "Administration" },
 };
