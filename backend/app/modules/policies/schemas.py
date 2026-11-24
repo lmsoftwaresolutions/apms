@@ -19,8 +19,8 @@ class PolicyBase(BaseModel):
     late_departure_ignore_minutes: int = Field(default=0, ge=0)
 
     # Attendance Status Thresholds
-    half_day_work_duration_minutes: int = Field(default=240, ge=0)
-    full_day_work_duration_minutes: int = Field(default=480, ge=0)
+    half_day_work_duration_minutes: int = Field(ge=0)
+    full_day_work_duration_minutes: int = Field(ge=0)
     half_day_late_cutoff_minutes: int | None = Field(default=None, ge=0)
     absent_late_cutoff_minutes: int | None = Field(default=None, ge=0)
 

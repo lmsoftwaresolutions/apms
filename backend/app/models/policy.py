@@ -33,8 +33,8 @@ class PolicyMaster(Base):
     late_departure_ignore_minutes: Mapped[int] = mapped_column(Integer, default=0)
 
     # Attendance Status Thresholds
-    half_day_work_duration_minutes: Mapped[int] = mapped_column(Integer, default=240)
-    full_day_work_duration_minutes: Mapped[int] = mapped_column(Integer, default=480)
+    half_day_work_duration_minutes: Mapped[int] = mapped_column(Integer)
+    full_day_work_duration_minutes: Mapped[int] = mapped_column(Integer)
     half_day_late_cutoff_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
     absent_late_cutoff_minutes: Mapped[int | None] = mapped_column(Integer, default=None)
 

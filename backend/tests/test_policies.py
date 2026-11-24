@@ -64,6 +64,8 @@ async def test_policy_crud_and_validation(seeded_tenants: tuple[Tenant, Tenant])
             PolicyCreate(
                 code="INVALID_CUTOFF",
                 name="Invalid Cutoff",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=480,
                 half_day_late_cutoff_minutes=120,
                 absent_late_cutoff_minutes=120,
             )
@@ -144,6 +146,8 @@ async def test_shift_template_linkage_and_delete_protection(seeded_tenants: tupl
             PolicyCreate(
                 code=f"POL_LINK_{uuid4().hex[:6].upper()}",
                 name="Linkage Test Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
             ),
         )
         await session.commit()
@@ -194,6 +198,8 @@ async def test_negative_rls_isolation(seeded_tenants: tuple[Tenant, Tenant]):
             PolicyCreate(
                 code=f"POL_A_{uuid4().hex[:6].upper()}",
                 name="Secret Policy A",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
             ),
         )
         await session_a.commit()
@@ -392,6 +398,42 @@ def test_golden_vector_overtime_minimum_qualifier():
     pairing_45 = pair_punches_for_shift(shift, punches_45, policy=policy)
     decision_45 = evaluate_daily_rollup(pairing_45, policy=policy)
     assert decision_45.overtime_minutes == 45, "45m extra with 30m OT threshold must qualify and yield 45 OT minutes"
+
+
+def test_configured_hours_decide_present_without_the_ratio_band():
+    """A 9-hour present requirement does not treat 8 hours, or 90 percent, as present."""
+    cal_date = date(2026, 11, 20)
+    shift = ShiftInstanceContract(
+        calendar_date=cal_date,
+        shift_type="FIXED",
+        sessions=[
+            SessionWindow(
+                session_order=1,
+                start_time=time(9, 0),
+                end_time=time(18, 0),
+                pre_window_minutes=60,
+                post_window_minutes=120,
+            )
+        ],
+    )
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_NINE",
+        name="Nine hour present",
+        half_day_work_duration_minutes=270,
+        full_day_work_duration_minutes=540,
+    )
+    p_in = datetime(2026, 11, 20, 3, 30, 0, tzinfo=UTC)
+    p_out = datetime(2026, 11, 20, 11, 30, 0, tzinfo=UTC)  # 8 hours
+    punches = [
+        PunchEvent(id=uuid4(), tenant_id=policy.tenant_id, raw_envelope_id=uuid4(), employee_id=uuid4(), punch_time=p_in, status="ACTIVE"),
+        PunchEvent(id=uuid4(), tenant_id=policy.tenant_id, raw_envelope_id=uuid4(), employee_id=uuid4(), punch_time=p_out, status="ACTIVE"),
+    ]
+    pairing = pair_punches_for_shift(shift, punches, policy=policy)
+    decision = evaluate_daily_rollup(pairing, policy=policy)
+    assert pairing.total_worked_minutes == 480
+    assert decision.status == "HALF_DAY"
 
 
 def test_regression_guard_unlinked_policy_uses_defaults():

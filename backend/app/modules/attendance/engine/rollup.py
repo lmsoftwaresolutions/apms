@@ -107,22 +107,25 @@ def evaluate_daily_rollup(
     half_day_mins = getattr(policy, "half_day_work_duration_minutes", None) if policy else None
 
     if full_day_mins is not None and half_day_mins is not None:
-        if pairing.total_worked_minutes >= full_day_mins or ratio >= theta_present:
+        # A linked policy uses only the hours the tenant configured.
+        if pairing.total_worked_minutes >= full_day_mins:
             tentative_status = "PRESENT"
-        elif pairing.total_worked_minutes >= half_day_mins or ratio >= theta_half_day:
+        elif pairing.total_worked_minutes >= half_day_mins:
             tentative_status = "HALF_DAY"
         else:
             tentative_status = "ABSENT"
+        explanation = (
+            f"Worked {pairing.total_worked_minutes} minutes against policy hours "
+            f"{half_day_mins} half day and {full_day_mins} present."
+        )
     else:
-        # Standard default ratio bands
         if ratio >= theta_present:
             tentative_status = "PRESENT"
         elif ratio >= theta_half_day:
             tentative_status = "HALF_DAY"
         else:
             tentative_status = "ABSENT"
-
-    explanation = f"Rollup ratio {ratio:.2%} evaluated against bands."
+        explanation = f"Rollup ratio {ratio:.2%} evaluated against bands."
 
     # 7. Late Arrival Half Day Cutoff: if late_minutes >= half_day_late_cutoff_minutes -> cap at HALF_DAY
     half_day_late_cutoff = getattr(policy, "half_day_late_cutoff_minutes", None) if policy else None
