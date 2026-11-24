@@ -319,10 +319,10 @@ A leave credit for time worked on a weekly off or a holiday. No redemption windo
 ## 5. Statutory & Indian Payroll Terminology
 
 ### Payroll Wizard (PAY-01)
-SRS `PAY-01` requires a guided 10-step payroll wizard with a pre-run reconciliation. The names of those ten steps are not confirmed. Payroll is V2 and is not part of the attendance MVP.
+Confirmed `Q7` and SRS `PAY-01` require a guided 10-step payroll wizard with a pre-run reconciliation. The decision does not name the ten steps. Payroll is V2 and is not part of the attendance MVP.
 
 ### Pay Run (`pay_run`)
-A monthly payroll processing instance for a pay group. `BR-PAY-12` names the closed state `LOCKED`. The other lifecycle names are not confirmed.
+A monthly payroll processing instance for a pay group. `BR-PAY-12` is the confirmed lock rule: once the run is `LOCKED`, that period is immutable and a later correction is an arrears entry in the next open cycle.
 
 ### Period Lock & Next-Cycle Arrears Routing (BR-PAY-12)
 Once a pay run is marked `LOCKED`, all records become permanently immutable. Retroactive changes (e.g., backdated regularization or salary increment) cannot touch historical runs; they are routed as **Arrears Adjustments** in the next open pay cycle.
