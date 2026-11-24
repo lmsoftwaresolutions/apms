@@ -519,16 +519,9 @@ export function UsersPage() {
       ) : null}
 
       {/* Main Two-Column Container */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) 390px",
-          gap: "1.5rem",
-          alignItems: "start",
-        }}
-      >
+      <div className="users-page-grid">
         {/* Left Side: Directory Table with Filters */}
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem", minWidth: 0 }}>
           {/* Filter Bar */}
           <div
             style={{
@@ -540,7 +533,7 @@ export function UsersPage() {
             }}
           >
             {/* Search Input */}
-            <div style={{ position: "relative", width: "260px" }}>
+            <div style={{ position: "relative", minWidth: "220px", flex: "1 1 220px", maxWidth: "340px" }}>
               <Search
                 size={15}
                 style={{
@@ -562,6 +555,7 @@ export function UsersPage() {
                   fontSize: "0.8125rem",
                   height: "36px",
                   borderRadius: "0.5rem",
+                  width: "100%",
                 }}
               />
             </div>
@@ -620,14 +614,7 @@ export function UsersPage() {
           </div>
 
           {/* Users Table */}
-          <div
-            style={{
-              backgroundColor: "var(--bg-surface)",
-              borderRadius: "0.75rem",
-              border: "1px solid var(--border-default)",
-              overflow: "hidden",
-            }}
-          >
+          <div className="table-container-responsive">
             <table className="data-table" style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border-default)" }}>

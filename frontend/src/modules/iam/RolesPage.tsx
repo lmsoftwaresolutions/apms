@@ -417,13 +417,8 @@ export function RolesPage() {
 
           {/* Main Card Container */}
           <div
+            className="roles-page-grid"
             style={{
-              display: "grid",
-              gridTemplateColumns: "240px 1fr",
-              borderRadius: "0.75rem",
-              backgroundColor: "var(--bg-surface)",
-              border: "1px solid var(--border-default)",
-              overflow: "hidden",
               minHeight: "560px",
             }}
           >
@@ -565,13 +560,7 @@ export function RolesPage() {
                     No permissions match "{searchQuery}" in {currentArea.label}.
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      display: "grid",
-                      gridTemplateColumns: "repeat(2, 1fr)",
-                      gap: "0.875rem",
-                    }}
-                  >
+                  <div className="perms-matrix-grid">
                     {filteredPermissions.map((perm) => {
                       const isChecked =
                         stagedPermissions.has(perm.code) ||

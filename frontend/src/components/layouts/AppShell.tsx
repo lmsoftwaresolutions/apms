@@ -12,6 +12,8 @@ export function AppShell() {
     }
   });
 
+  const [mobileOpen, setMobileOpen] = useState(false);
+
   const toggleCollapsed = () => {
     setCollapsed((prev) => {
       const next = !prev;
@@ -24,11 +26,28 @@ export function AppShell() {
     });
   };
 
+  const toggleMobile = () => setMobileOpen((prev) => !prev);
+  const closeMobile = () => setMobileOpen(false);
+
   return (
     <div className="app-shell">
-      <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} />
+      {/* Mobile Backdrop Overlay */}
+      {mobileOpen && (
+        <div
+          className="app-sidebar-backdrop"
+          onClick={closeMobile}
+          aria-hidden="true"
+        />
+      )}
+
+      <Sidebar
+        collapsed={collapsed}
+        onToggleCollapse={toggleCollapsed}
+        mobileOpen={mobileOpen}
+        onCloseMobile={closeMobile}
+      />
       <div className="app-main">
-        <TopBar />
+        <TopBar onOpenMobileSidebar={toggleMobile} />
         <main className="app-content">
           <Outlet />
         </main>

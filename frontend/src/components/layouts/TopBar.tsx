@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { Sun, Moon, Monitor } from "lucide-react";
+import { Sun, Moon, Monitor, Menu } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { Badge } from "../common/Badge";
@@ -22,9 +22,13 @@ const ROUTE_TITLES: Record<string, { title: string; category: string }> = {
   "/admin/users": { title: "System Users", category: "Administration" },
 };
 
-export function TopBar() {
+export interface TopBarProps {
+  onOpenMobileSidebar?: () => void;
+}
+
+export function TopBar({ onOpenMobileSidebar }: TopBarProps) {
   const location = useLocation();
-  const { me, logout } = useAuth();
+  const { me } = useAuth();
   const { theme, setTheme, resolvedTheme } = useTheme();
 
   const currentRouteInfo = ROUTE_TITLES[location.pathname] || {
@@ -40,16 +44,29 @@ export function TopBar() {
 
   return (
     <header className="app-topbar">
-      {/* Breadcrumb / Title */}
-      <div style={{ display: "flex", flexDirection: "column" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>
-            {currentRouteInfo.category}
-          </span>
-          <span style={{ fontSize: "0.75rem", color: "var(--border-strong)" }}>/</span>
-          <span style={{ fontSize: "0.875rem", color: "var(--text-primary)", fontWeight: 650 }}>
-            {currentRouteInfo.title}
-          </span>
+      {/* Left: Mobile Menu Button + Breadcrumb */}
+      <div style={{ display: "flex", alignItems: "center" }}>
+        {onOpenMobileSidebar && (
+          <button
+            type="button"
+            className="mobile-menu-btn"
+            onClick={onOpenMobileSidebar}
+            title="Open navigation menu"
+            aria-label="Open navigation menu"
+          >
+            <Menu size={18} />
+          </button>
+        )}
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+            <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>
+              {currentRouteInfo.category}
+            </span>
+            <span style={{ fontSize: "0.75rem", color: "var(--border-strong)" }}>/</span>
+            <span style={{ fontSize: "0.875rem", color: "var(--text-primary)", fontWeight: 650 }}>
+              {currentRouteInfo.title}
+            </span>
+          </div>
         </div>
       </div>
 

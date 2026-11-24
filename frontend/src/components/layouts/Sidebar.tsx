@@ -81,9 +81,11 @@ const NAV_GROUPS: NavGroup[] = [
 export interface SidebarProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
+  mobileOpen?: boolean;
+  onCloseMobile?: () => void;
 }
 
-export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
+export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile }: SidebarProps) {
   const { me, can, logout } = useAuth();
   const initial = me?.tenant.display_name?.slice(0, 1).toUpperCase() || "A";
 
@@ -110,7 +112,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
 
   return (
     <aside
-      className={`app-sidebar ${collapsed ? "collapsed" : ""}`}
+      className={`app-sidebar ${collapsed ? "collapsed" : ""} ${mobileOpen ? "mobile-open" : ""}`}
       aria-label="Main Navigation"
     >
       {/* Brand Header */}
@@ -185,7 +187,13 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
         {/* 3-Line Hamburger Sidebar Toggle Button at Top Right */}
         <button
           type="button"
-          onClick={onToggleCollapse}
+          onClick={() => {
+            if (window.innerWidth <= 768) {
+              onCloseMobile?.();
+            } else {
+              onToggleCollapse();
+            }
+          }}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           style={{
@@ -284,6 +292,7 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
                       <NavLink
                         key={item.to}
                         to={item.to}
+                        onClick={() => onCloseMobile?.()}
                         title={collapsed ? item.label : undefined}
                         style={({ isActive }) => ({
                           display: "flex",
