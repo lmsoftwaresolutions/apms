@@ -8,6 +8,7 @@ import { DesignationsPage } from "./modules/org/DesignationsPage";
 import { RolesPage } from "./modules/iam/RolesPage";
 import { UsersPage } from "./modules/iam/UsersPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
+import { NotFoundPage } from "./modules/common/NotFoundPage";
 
 export function App() {
   return (
@@ -146,8 +147,8 @@ export function App() {
           <Route path="/admin/roles" element={<RolesPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
 
-          {/* Catch-all */}
-          <Route path="*" element={<Navigate to="/org/departments" replace />} />
+          {/* 404 Catch-all */}
+          <Route path="*" element={<NotFoundPage />} />
         </Route>
       </Route>
     </Routes>

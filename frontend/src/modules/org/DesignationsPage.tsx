@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Plus, Briefcase, Trash2, Power, Filter, UserCheck } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Plus, Briefcase, Trash2, Power, Filter, UserCheck, ArrowRight } from "lucide-react";
 import { api, Branch, Department, Designation, EmployeeRow } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -12,6 +13,7 @@ import { LoadingRow } from "../../components/common/Spinner";
 
 export function DesignationsPage() {
   const { can } = useAuth();
+  const navigate = useNavigate();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
@@ -196,6 +198,7 @@ export function DesignationsPage() {
               icon={<Plus size={16} />}
               onClick={() => setIsCreateOpen(true)}
               disabled={!selectedDeptId}
+              title={!selectedDeptId ? "Please create or select a department first" : undefined}
             >
               Add Designation
             </Button>
@@ -223,7 +226,13 @@ export function DesignationsPage() {
         <EmptyState
           icon={<Briefcase size={24} />}
           title="No departments found"
-          description="Designations belong to a department. Create a department first under the selected branch."
+          description="Designations belong to a department. Create a department first under this branch to begin adding job positions."
+          action={{
+            label: "Create Department",
+            onClick: () => navigate("/org/departments"),
+            icon: <ArrowRight size={16} />,
+            variant: "primary",
+          }}
         />
       ) : !loading && designations.length === 0 ? (
         <EmptyState

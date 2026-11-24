@@ -1150,40 +1150,56 @@ export function UsersPage() {
             <div
               style={{
                 display: "flex",
-                justifyContent: "flex-end",
-                gap: "0.5rem",
-                paddingTop: "0.65rem",
+                alignItems: "center",
+                justifyContent: "space-between",
+                paddingTop: "0.75rem",
                 borderTop: "1px solid var(--border-subtle)",
               }}
             >
-              <Button
-                variant="ghost"
-                onClick={handleCancelRoleChanges}
-                disabled={!hasRoleChanges || savingRoles}
-                style={{ borderRadius: "0.375rem", fontSize: "0.8125rem", padding: "0.35rem 0.85rem" }}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="primary"
-                onClick={handleSaveRoleChanges}
-                loading={savingRoles}
-                disabled={!hasRoleChanges || savingRoles}
-                style={{
-                  backgroundColor: hasRoleChanges ? "#10b981" : "var(--bg-card)",
-                  borderColor: hasRoleChanges ? "#10b981" : "var(--border-strong)",
-                  color: hasRoleChanges ? "#ffffff" : "var(--text-muted)",
-                  borderRadius: "0.375rem",
-                  fontWeight: 650,
-                  fontSize: "0.8125rem",
-                  padding: "0.35rem 1rem",
-                  boxShadow: hasRoleChanges ? "0 0 10px rgba(16, 185, 129, 0.3)" : "none",
-                  cursor: hasRoleChanges ? "pointer" : "not-allowed",
-                  transition: "all 0.2s ease",
-                }}
-              >
-                {hasRoleChanges ? "Save changes" : "Save"}
-              </Button>
+              {hasRoleChanges ? (
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.75rem", color: "#f59e0b", fontWeight: 600 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f59e0b", display: "inline-block" }} />
+                  Unsaved changes
+                </div>
+              ) : (
+                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                  ✓ All roles up to date
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                {hasRoleChanges ? (
+                  <Button
+                    variant="ghost"
+                    onClick={handleCancelRoleChanges}
+                    disabled={savingRoles}
+                    style={{ borderRadius: "0.375rem", fontSize: "0.8125rem", padding: "0.35rem 0.85rem" }}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+                <Button
+                  variant="primary"
+                  onClick={handleSaveRoleChanges}
+                  loading={savingRoles}
+                  disabled={!hasRoleChanges || savingRoles}
+                  title={!hasRoleChanges ? "Add or remove a role above to save changes" : undefined}
+                  style={{
+                    backgroundColor: hasRoleChanges ? "#10b981" : "var(--bg-card)",
+                    borderColor: hasRoleChanges ? "#10b981" : "var(--border-strong)",
+                    color: hasRoleChanges ? "#ffffff" : "var(--text-muted)",
+                    borderRadius: "0.375rem",
+                    fontWeight: 650,
+                    fontSize: "0.8125rem",
+                    padding: "0.35rem 1rem",
+                    boxShadow: hasRoleChanges ? "0 0 10px rgba(16, 185, 129, 0.3)" : "none",
+                    cursor: hasRoleChanges ? "pointer" : "not-allowed",
+                    transition: "all 0.2s ease",
+                  }}
+                >
+                  {hasRoleChanges ? "Save changes" : "Save"}
+                </Button>
+              </div>
             </div>
           </div>
         ) : null}

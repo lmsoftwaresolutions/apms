@@ -8,6 +8,8 @@ const ROUTE_TITLES: Record<string, { title: string; category: string }> = {
   "/attendance": { title: "Attendance Rollup", category: "Operations" },
   "/punches": { title: "Live Punch Ingest", category: "Operations" },
   "/muster": { title: "Muster Roll", category: "Operations" },
+  "/anomalies": { title: "Punch Anomalies", category: "Operations" },
+  "/devices": { title: "Biometric Devices", category: "Operations" },
   "/shifts": { title: "Shift Management", category: "Scheduling" },
   "/roster": { title: "Roster Matrix", category: "Scheduling" },
   "/policies": { title: "Attendance Policies", category: "Scheduling" },
@@ -82,9 +84,10 @@ export function TopBar({ onOpenMobileSidebar }: TopBarProps) {
         <button
           type="button"
           onClick={cycleTheme}
-          title={`Current theme: ${theme} (${resolvedTheme}). Click to cycle.`}
-          aria-label="Toggle color theme"
+          title={`Theme: ${theme} (effective: ${resolvedTheme}). Click to cycle.`}
+          aria-label={`Toggle color theme. Current theme is ${theme}.`}
           style={{
+            position: "relative",
             display: "inline-flex",
             alignItems: "center",
             justifyContent: "center",
@@ -99,12 +102,27 @@ export function TopBar({ onOpenMobileSidebar }: TopBarProps) {
           }}
         >
           {theme === "system" ? (
-            <Monitor size={17} />
+            <Monitor size={17} aria-hidden="true" />
           ) : resolvedTheme === "dark" ? (
-            <Moon size={17} />
+            <Moon size={17} aria-hidden="true" />
           ) : (
-            <Sun size={17} />
+            <Sun size={17} aria-hidden="true" />
           )}
+          <span
+            style={{
+              position: "absolute",
+              width: 1,
+              height: 1,
+              padding: 0,
+              margin: -1,
+              overflow: "hidden",
+              clip: "rect(0, 0, 0, 0)",
+              whiteSpace: "nowrap",
+              border: 0,
+            }}
+          >
+            Toggle color theme (currently {theme})
+          </span>
         </button>
       </div>
     </header>

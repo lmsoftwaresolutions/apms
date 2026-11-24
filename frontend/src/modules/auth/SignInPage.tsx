@@ -148,12 +148,16 @@ export function SignInPage() {
             marginTop: "1.75rem",
             paddingTop: "1.25rem",
             borderTop: "1px solid var(--border-default)",
-            textAlign: "center",
-            fontSize: "0.75rem",
-            color: "var(--text-muted)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "0.5rem",
+            fontSize: "0.8125rem",
+            color: "var(--text-secondary)",
           }}
         >
-          Protected by Row-Level Security & Role-Based Access Controls.
+          <ShieldCheck size={14} style={{ color: "var(--color-primary-fg)", flexShrink: 0 }} />
+          <span>Protected by Row-Level Security & Role-Based Access Controls</span>
         </div>
       </div>
     </div>

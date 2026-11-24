@@ -1,11 +1,12 @@
 import { useEffect, useState, useMemo, FormEvent } from "react";
-import { Plus, Search, Shield, Lock, Check, X, Info, UserCheck, Users, HelpCircle } from "lucide-react";
+import { Plus, Search, Shield, Lock, Check, X, Info, UserCheck, Users, HelpCircle, AlertCircle, RotateCw } from "lucide-react";
 import { api, Permission, Role } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
 import { Modal } from "../../components/common/Modal";
 import { Field } from "../../components/common/Field";
 import { Spinner } from "../../components/common/Spinner";
+import { EmptyState } from "../../components/common/EmptyState";
 
 interface AreaDef {
   key: string;
@@ -162,8 +163,15 @@ export function RolesPage() {
 
   async function loadData() {
     setLoading(true);
+    setError("");
+    const timer = setTimeout(() => {
+      setError("Loading is taking longer than expected. Please check your network or retry.");
+      setLoading(false);
+    }, 12000);
+
     try {
       const [roleList, permList] = await Promise.all([api.roles(), api.permissions()]);
+      clearTimeout(timer);
       setRoles(roleList);
       setCatalog(permList);
       if (roleList.length > 0) {
@@ -173,6 +181,7 @@ export function RolesPage() {
       }
       setError("");
     } catch (err) {
+      clearTimeout(timer);
       setError(err instanceof Error ? err.message : "Failed to load roles and permissions");
     } finally {
       setLoading(false);
@@ -431,6 +440,40 @@ export function RolesPage() {
           <Spinner size="lg" />
           <p style={{ color: "var(--text-muted)", marginTop: "1rem" }}>Loading roles and permissions…</p>
         </div>
+      ) : error && roles.length === 0 ? (
+        <div style={{ textAlign: "center", padding: "4rem 1rem" }}>
+          <div style={{ width: 48, height: 48, borderRadius: "50%", backgroundColor: "rgba(239, 68, 68, 0.12)", color: "#ef4444", display: "grid", placeItems: "center", margin: "0 auto 1rem", border: "1px solid rgba(239, 68, 68, 0.3)" }}>
+            <AlertCircle size={24} />
+          </div>
+          <h3 style={{ fontSize: "1.125rem", fontWeight: 700, margin: "0 0 0.5rem", color: "var(--text-primary)" }}>
+            Unable to load roles
+          </h3>
+          <p style={{ fontSize: "0.875rem", color: "var(--text-muted)", maxWidth: 440, margin: "0 auto 1.25rem", lineHeight: 1.5 }}>
+            {error || "An error occurred while fetching role definitions."}
+          </p>
+          <Button
+            variant="primary"
+            onClick={() => void loadData()}
+            icon={<RotateCw size={15} />}
+            style={{ backgroundColor: "#10b981", borderColor: "#10b981", color: "#ffffff" }}
+          >
+            Retry Loading
+          </Button>
+        </div>
+      ) : roles.length === 0 ? (
+        <EmptyState
+          icon={<Shield size={28} />}
+          title="No roles configured"
+          description="Create your first role to start defining workforce access permissions."
+          action={
+            can("iam.role.create")
+              ? {
+                  label: "Create Role",
+                  onClick: () => setIsCreateOpen(true),
+                }
+              : undefined
+          }
+        />
       ) : (
         <>
           {/* Top Role Selector Bar */}
