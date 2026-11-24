@@ -5,27 +5,31 @@
 
 ---
 
-## 1. Strategy & Status Overview
+## 1. Branch Strategy & Current Status
 
-* **Main Branch:** Contains core IAM, Branches, Departments, Designations, Employees/PII Vault, Shifts, Roster, Punch Ingestion, and Attendance Engine.
-* **`feat/leave-and-muster` Branch:** Contains the complete implementation of **Wave A** (Attendance Foundation: #26 Regularization, #40 Cutoff Worker, #41 ESS APIs, SEC-01/03 Consent & PII Audit, CAP-02 Edge Buffer) and **Wave C** (Leave & Muster: #27 Double-Entry Leave Ledger & Holidays, #28 Statutory Muster Roll). Zero conflicts with `main`.
-* **Current Focus:** Review and land `feat/leave-and-muster`, then execute the Operator & ESS UI.
+* **`main` Branch (Base):** Contains core IAM, Branches, Departments, Designations, Employees/PII Vault, Shifts, Roster, Punch Ingestion, and Attendance Engine (all 70 tests passing).
+* **`origin/feat/attendance-mvp-foundation` (Wave A):**
+  - **Can it be merged?** **YES, 100% cleanly with 0 conflicts.**
+  - Implements **#26** (Regularization), **#40** (Cutoff Absent Worker), **#41** (ESS Personal APIs), **SEC-01/03** (Biometric Consent Ledger & PII Unmask Audit), and **CAP-02** (Edge Agent SQLite Buffer) behind migration `011_attendance_foundation.py`.
+* **`origin/feat/leave-and-muster` (Wave A + Wave C):**
+  - **Can it be merged?** **YES, 100% cleanly with 0 conflicts.**
+  - **Direct superset of `feat/attendance-mvp-foundation`:** Contains everything in `feat/attendance-mvp-foundation` **plus** Wave C: **#27** (Double-Entry Leave Ledger & Holidays) and **#28** (Statutory Muster Roll) behind migration `012_leave_and_muster.py`.
 
 ---
 
 ## 2. Complete Issue Status Matrix
 
-### ✅ Implemented (Ready on `feat/leave-and-muster`)
+### ✅ Implemented on Remote Branches
 
-| Issue | Module | Title | Status / Artifacts on Branch |
-|---|---|---|---|
-| **#26** | **M18** | `feat(M18): Attendance Regularization & Missing Punch Correction Workflow` | ✅ **DONE on branch** (`app/modules/regularizations/`, `regularization_requests` table with RLS, review/approve endpoint, synthetic punch generation, auto-recalc) |
-| **#40** | **M10** | `feat(M10): Scheduled End-of-Day Attendance Rollup Worker` | ✅ **DONE on branch** (`app/modules/attendance/cutoff.py`, overnight post-window wait, zero-punch `ABSENT` evaluation, `app/workers/attendance_cutoff.py` tenant runner) |
-| **#41** | **M15** | `feat(M15): Employee Self-Service (ESS) Personal Attendance & Shift APIs` | ✅ **DONE on branch** (`app/modules/ess/router.py`, `GET /api/v1/ess/calendar`, `GET /api/v1/ess/today`, `GET /api/v1/ess/shifts` with strict user scoping) |
-| **#27** | **M11** | `feat(M11): Double-Entry Leave Ledger & Holiday Master for Attendance Rollup` | ✅ **DONE on branch** (`app/modules/leave/`, append-only `leave_transactions` ledger, `sandwiched_dates` evaluation, branch holiday calendar, session half-day) |
-| **#28** | **M17** | `feat(M17): Statutory Muster Roll & Attendance Registers` | ✅ **DONE on branch** (`app/modules/muster/`, `GET /api/v1/muster/lines`, monthly aggregation of attendance + leave codes without wage pollution) |
-| **SEC-01/03** | **Sec** | `DPDP Biometric Consent Ledger & PII Unmask Audit` | ✅ **DONE on branch** (`app/modules/privacy/`, `consent_events` ledger, `pii_access_audits` tracking unmasking of PAN/Aadhaar/Bank) |
-| **CAP-02** | **Edge** | `Edge Sync Agent Local Buffer` | ✅ **DONE on branch** (`backend/edge_agent/buffer.py`, SQLite queue with 7-day retention sweep) |
+| Issue | Module | Title | Implemented Branch | Artifacts Delivered |
+|---|---|---|---|---|
+| **#26** | **M18** | `feat(M18): Attendance Regularization & Missing Punch Correction` | Both branches | `app/modules/regularizations/`, `regularization_requests` table with RLS, review/approve endpoint, synthetic punch generation, auto-recalc. |
+| **#40** | **M10** | `feat(M10): Scheduled End-of-Day Attendance Rollup Worker` | Both branches | `app/modules/attendance/cutoff.py`, overnight post-window wait, zero-punch `ABSENT` evaluation, `app/workers/attendance_cutoff.py` tenant runner. |
+| **#41** | **M15** | `feat(M15): Employee Self-Service (ESS) Personal Attendance APIs` | Both branches | `app/modules/ess/router.py`, `GET /api/v1/ess/calendar`, `GET /api/v1/ess/today`, `GET /api/v1/ess/shifts` with strict user scoping. |
+| **SEC-01/03**| **Sec** | `DPDP Biometric Consent Ledger & PII Unmask Audit` | Both branches | `app/modules/privacy/`, `consent_events` ledger, `pii_access_audits` tracking unmasking of PAN/Aadhaar/Bank. |
+| **CAP-02** | **Edge** | `Edge Sync Agent Local Buffer` | Both branches | `backend/edge_agent/buffer.py`, SQLite queue with 7-day retention sweep. |
+| **#27** | **M11** | `feat(M11): Double-Entry Leave Ledger & Holiday Master` | `feat/leave-and-muster` | `app/modules/leave/`, append-only `leave_transactions` ledger, `sandwiched_dates` evaluation, branch holiday calendar, session half-day. |
+| **#28** | **M17** | `feat(M17): Statutory Muster Roll & Attendance Registers` | `feat/leave-and-muster` | `app/modules/muster/`, `GET /api/v1/muster/lines` monthly aggregation of attendance + leave codes without wage pollution. |
 
 ---
 
@@ -58,58 +62,32 @@
 
 ---
 
-### 🔍 Gaps / Not Raised in GitHub (Candidates for Future Issues)
+### 🔍 Gaps / Not Raised in GitHub
 
-1. **`feat(M16-Agent): Edge Sync Agent On-Premise TCP 4370 Polling Daemon`**
-   * *Status:* The SQLite queue buffer (`backend/edge_agent/buffer.py`) is complete on `feat/leave-and-muster`, but the standalone on-premise service that polls ZKTeco/eSSL hardware over LAN port 4370 and uploads punches via HTTP is not issued.
-2. **`feat(M17-Export): Statutory Muster Roll File Download (Excel / CSV / Printable PDF)`**
-   * *Status:* Issue #28 delivers the raw matrix API (`/api/v1/muster/lines`). Generating downloadable Excel/PDF artifacts with statutory headers (Form 25 / Form II / Form T) can be a dedicated enhancement.
-3. **`feat(ui-leave-regularization): Leave & Regularization Operator UI`**
-   * *Status:* UI for supervisors to view and approve leave applications and regularization requests.
-4. **`feat(ui-ess): Employee Self-Service Mobile Web Portal UI`**
-   * *Status:* Frontend view for workers to view personal attendance calendar, today's punches, and submit requests using the `/api/v1/ess/` endpoints.
+1. **`feat(M16-Agent): Edge Sync Agent On-Premise TCP 4370 Polling Daemon`**: The SQLite buffer (`backend/edge_agent/buffer.py`) is complete on the branches, but the local daemon that connects to hardware over LAN port 4370 and uploads to `/api/v1/punches/ingest` is not issued.
+2. **`feat(M17-Export): Statutory Muster Roll File Download (Excel / CSV / Printable PDF)`**: #28 delivers raw JSON matrix lines (`/api/v1/muster/lines`). Generating formatted Excel/PDF statutory downloads (Form 25 / Form II / Form T) can be a separate export enhancement.
+3. **`feat(ui-leave-regularization): Leave & Regularization Operator UI`**: UI for supervisors to view and approve leave applications and regularization requests.
+4. **`feat(ui-ess): Employee Self-Service Mobile Web Portal UI`**: Front-end view for workers to view personal attendance calendar, today's punches, and submit requests using the `/api/v1/ess/` endpoints.
 
 ---
 
 ## 3. Recommended Sequential Next Steps
 
 ```
-Step 1: Land `feat/leave-and-muster` into `main`
-        ├── Merges cleanly with 0 conflicts (migrations 011 and 012 sequence after 010).
-        └── Immediately resolves #26, #27, #28, #40, and #41 on the backend.
+Option 1: Merge `origin/feat/leave-and-muster` directly
+          ├── It already contains all commits from `feat/attendance-mvp-foundation`!
+          ├── Merges cleanly into `main` with 0 conflicts.
+          └── Lands Wave A (#26, #40, #41, SEC-01/03, CAP-02) AND Wave C (#27, #28) together!
 
-Step 2: Build Operator UI Foundation (Wave B)
-        ├── #33: Enterprise AppShell & Theme Switcher
-        ├── #34: Employee Master UI (with PII unmask audit integration)
-        ├── #35: Shift Templates UI
-        ├── #36: Roster & Shift Assignment UI
-        ├── #37: Punch Stream & Ingestion UI
-        └── #38: Attendance Rollup & Human-Friendly Trace Inspector UI
+Option 2: Merge in two progressive steps
+          ├── Step A: Merge `origin/feat/attendance-mvp-foundation` (Lands Wave A, migration 011).
+          └── Step B: Merge `origin/feat/leave-and-muster` (Lands Wave C, migration 012).
 
-Step 3: Complete Policy & Overtime Gating (Wave E)
-        ├── #25: Policy Master
-        ├── #39: WFH & Work Modes
-        └── #31: Overtime Verification & Comp-Off Ledger
-
-Step 4: Hardware & Field Capture (Wave D)
-        ├── #29: Device Telemetry & Heartbeat Monitor
-        └── #32: Mobile Geofence Registry & Punch
-```
-
----
-
-## 4. Verification & Quality Gates
-
-```powershell
-# 1. Run all backend tests (including new attendance foundation and leave tests)
-$env:DATABASE_URL="postgresql+asyncpg://apms_app:apms_app@localhost:5432/apms"
-$env:DATABASE_URL_MIGRATE="postgresql+asyncpg://apms:apms@localhost:5432/apms"
-$env:JWT_SECRET="dev-only-secret-minimum-32-bytes-long!"
-python -m pytest backend/tests -v
-
-# 2. Run frontend type check and production build
-cd frontend; npm run build
-
-# 3. Verify git tree hygiene
-git status --short
+Next: Execute Operator UI (Wave B)
+          ├── #33: Enterprise AppShell & Theme Switcher
+          ├── #34: Employee Master UI
+          ├── #35: Shift Templates UI
+          ├── #36: Roster & Shift Assignment UI
+          ├── #37: Punch Stream & Ingestion UI
+          └── #38: Attendance Rollup & Human-Friendly Trace Inspector UI
 ```
