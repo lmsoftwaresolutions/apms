@@ -1,7 +1,7 @@
 # APMS — Domain & Codebase Glossary
 
 > **Document Type:** Master Domain Glossary & Concept Reference  
-> **Status:** Authoritative  
+> **Status:** Index. This file defines no product decisions and does not promote OPEN or RECOMMENDED items.  
 > **Source Documents:** [`CONTEXT.md`](../CONTEXT.md) · [`docs/requirements/BUSINESS_RULES.md`](requirements/BUSINESS_RULES.md) · [`docs/product/SRS.md`](product/SRS.md)
 
 ---
@@ -10,7 +10,7 @@
 
 1. [Scheduling, Shifts & Roster Terminology](#1-scheduling-shifts--roster-terminology)
    - [Shift Template (`ShiftTemplate`)](#shift-template-shifttemplate)
-   - [Shift Types: FIXED, SPLIT, OVERNIGHT, CONTINUOUS](#shift-types-fixed-split-overnight-continuous)
+   - [Shift Types: FIXED, FLEXI, SPLIT, OVERNIGHT, CONTINUOUS](#shift-types-fixed-flexi-split-overnight-continuous)
    - [Session (`SessionWindow` / `ShiftSession`)](#session-sessionwindow--shiftsession)
    - [Pre-Session Window (`pre_window_minutes` / $W_{pre}$)](#pre-session-window-pre_window_minutes--w_pre)
    - [Post-Session Window (`post_window_minutes` / $W_{post}$)](#post-session-window-post_window_minutes--w_post)
@@ -56,18 +56,18 @@
    - [Late Arrival (`late_minutes`)](#late-arrival-late_minutes)
    - [Early Departure / Early Exit (`early_departure_minutes` / `early_exit_minutes`)](#early-departure--early-exit-early_departure_minutes--early_exit_minutes)
    - [Attendance Regularization (`ATT-10`)](#attendance-regularization-att-10)
-   - [Muster Roll / Form II Register](#muster-roll--form-ii-register)
+   - [Muster Roll (Form 25)](#muster-roll-form-25)
    - [Immutable Explanation Trace (`AttendanceExplanationTrace`)](#immutable-explanation-trace-attendanceexplanationtrace)
 4. [Leave & Holiday Management Terminology](#4-leave--holiday-management-terminology)
    - [Double-Entry Leave Ledger (`leave_transactions`)](#double-entry-leave-ledger-leave_transactions)
-   - [Leave Types (CL, SL, PL/EL, ML, Comp-Off)](#leave-types-cl-sl-plel-ml-comp-off)
+   - [Leave Types](#leave-types)
    - [Session-Targeted Half-Day Leave (Confirmed N66c)](#session-targeted-half-day-leave-confirmed-n66c)
    - [Sandwich Rule (BR-LVE-02)](#sandwich-rule-br-lve-02)
    - [Loss of Pay (LOP)](#loss-of-pay-lop)
    - [Negative Balance Lock (`allow_negative_balance`)](#negative-balance-lock-allow_negative_balance)
    - [Compensatory Off (Comp-Off)](#compensatory-off-comp-off)
 5. [Statutory & Indian Payroll Terminology](#5-statutory--indian-payroll-terminology)
-   - [10-Step Payroll Wizard](#10-step-payroll-wizard)
+   - [Payroll Wizard (PAY-01)](#payroll-wizard-pay-01)
    - [Pay Run (`pay_run`)](#pay-run-pay_run)
    - [Period Lock & Next-Cycle Arrears Routing (BR-PAY-12)](#period-lock--next-cycle-arrears-routing-br-pay-12)
    - [EPF (Employees' Provident Fund)](#epf-employees-provident-fund)
@@ -90,7 +90,7 @@
    - [Department](#department)
    - [Designation](#designation)
    - [Dynamic Permission-Keyed RBAC (ADR-31)](#dynamic-permission-keyed-rbac-adr-31)
-   - [PII Envelope Encryption (AES-256-GCM / DEK & KEK)](#pii-envelope-encryption-aes-256-gcm--dek--kek)
+   - [PII Field Encryption (AES-256-GCM)](#pii-field-encryption-aes-256-gcm)
    - [Blind Index / SHA-256 HMAC Fingerprint](#blind-index--sha-256-hmac-fingerprint)
    - [DPDP Act 2023 & Consent Ledger](#dpdp-act-2023--consent-ledger)
 
@@ -99,13 +99,14 @@
 ## 1. Scheduling, Shifts & Roster Terminology
 
 ### Shift Template (`ShiftTemplate`)
-A reusable blueprint defining the working hours, session structure, break intervals, and rules for a shift. Shift templates are tenant-scoped and branch-scoped master records from which daily dated shift instances are materialized.
+A reusable blueprint defining the working hours, session structure, break intervals, and rules for a shift. A template is tenant-scoped. Uniqueness is `(tenant_id, code)`. It has no `branch_id`. Dated shift instances are materialized from the template onto a roster.
 
-### Shift Types: FIXED, SPLIT, OVERNIGHT, CONTINUOUS
+### Shift Types: FIXED, FLEXI, SPLIT, OVERNIGHT, CONTINUOUS
 - **`FIXED`**: A single continuous working block during standard daytime hours (e.g., 09:00 to 18:00).
+- **`FLEXI`**: A stored shift type (`SHF-01`). Pairing still uses the template's sessions. There is no separate flexi formula in the attendance engine.
 - **`SPLIT`**: A multi-session shift containing two or more distinct working sessions separated by a non-working mid-shift gap (e.g., Morning 08:00–12:00 and Evening 16:00–20:00).
 - **`OVERNIGHT`**: A shift where the end time crosses midnight into the next calendar day ($T_{end} < T_{start}$, e.g., 22:00 to 06:00 next day).
-- **`CONTINUOUS`**: Extended continuous duty shifts spanning across multiple calendar days (>24h, 36h, or 48h), common in healthcare emergency wards and plant shutdown maintenance.
+- **`CONTINUOUS`**: Extended continuous duty spanning more than one calendar day. Hospital 24/36 duty calendars are in the V1 product scope and are not a separate shift-type code.
 
 ### Session (`SessionWindow` / `ShiftSession`)
 The fundamental atomic scheduled working block within a shift. A standard `FIXED` shift contains exactly 1 session; a `SPLIT` shift contains 2 or more ordered sessions. Each session has an explicit scheduled start time ($T_{start}$), scheduled end time ($T_{end}$), ingestion window margins, and minimum presence threshold.
@@ -281,8 +282,8 @@ $$\text{Early Exit Minutes} = \max(0, \; T_{end} - P_{out})$$
 ### Attendance Regularization (`ATT-10`)
 An ESS workflow allowing an employee to request correction of an attendance anomaly (e.g., forgotten punch, on-duty client visit). Upon supervisor approval, creates an administrative punch record and recalculates attendance.
 
-### Muster Roll / Form II Register
-The statutory monthly attendance ledger required under Indian labor law (Factories Act Form 25, OSH Code Form II). Details daily attendance status, worked hours, and OT for every employee across the month.
+### Muster Roll (Form 25)
+SRS `ANA-01` requires a Factories Act Form 25-compatible monthly attendance register. The export carries daily status, worked hours, overtime hours, and the reason. It does not carry salary math. OSH Code Form II is the later statutory name for the same class of register. It is not a second product artifact.
 
 ### Immutable Explanation Trace (`AttendanceExplanationTrace`)
 A versioned JSON document permanently linked to each daily attendance record detailing rule inputs, policy bands, session windows, pairing timestamps, and mathematical justifications (Invariant 4).
@@ -295,18 +296,14 @@ A versioned JSON document permanently linked to each daily attendance record det
 The transactional accounting model for employee leave balances. Leave balances are never stored as mutable scalar numbers.
 $$\text{Current Balance} = \sum (\text{Accruals} + \text{Credits}) - \sum (\text{Debits} + \text{Lapses})$$
 
-### Leave Types (CL, SL, PL/EL, ML, Comp-Off)
-- **Casual Leave (CL)**: Short-notice leave for unforeseen personal matters.
-- **Sick Leave (SL)**: Medical leave for illness (may require medical certificate for $>2$ days).
-- **Privilege / Earned Leave (PL / EL)**: Statutory accrued leave based on days worked (Factories Act: 1 day per 20 worked days).
-- **Maternity Leave (ML)**: Statutory 26-week paid leave under the Maternity Benefit Act, 1961.
-- **Comp-Off**: Earned time-off granted in lieu of working on a rest day or national holiday.
+### Leave Types
+A leave type is a tenant row: a code, a name, whether a negative balance is allowed, and whether the sandwich rule is enabled for that type. APMS does not ship a fixed catalog of casual, sick, privilege, or maternity leave, and it does not encode certificate rules or statutory day counts in the type.
 
 ### Session-Targeted Half-Day Leave (Confirmed N66c)
 Half-day leave applied on a multi-session day that targets a specific session (`First Half` $\rightarrow \text{Session}_1$, `Second Half` $\rightarrow \text{Session}_2$). The targeted session is waived with 0.5 leave credit, while the other session is worked.
 
 ### Sandwich Rule (BR-LVE-02)
-A statutory/organizational leave policy where intervening Weekly Offs (WO) or Holidays (HOL) are converted to Leave or Loss of Pay if an employee is absent on both the preceding workday AND the following workday.
+A tenant policy. When it is enabled on the leave type, a weekly off or holiday that sits between two absent workdays is converted to leave, or to loss of pay when no balance remains. It does not run when the policy is off.
 
 ### Loss of Pay (LOP)
 Unpaid absence days deducted from monthly salary when an employee is `ABSENT` without approved leave or has exhausted their leave balances.
@@ -315,48 +312,39 @@ Unpaid absence days deducted from monthly salary when an employee is `ABSENT` wi
 A policy control preventing leave balance from dropping below zero unless advance leave is explicitly configured for that leave category. Uncredited days automatically convert to LOP.
 
 ### Compensatory Off (Comp-Off)
-Credit granted when an employee works on a scheduled weekly off or national holiday. Can be redeemed as paid leave within a configurable validity window (e.g., 60 days).
+A leave credit for time worked on a weekly off or a holiday. No redemption window is confirmed. Hours and approval are tracked separately from wage multiplication, which is payroll and stays out of the attendance engine.
 
 ---
 
 ## 5. Statutory & Indian Payroll Terminology
 
-### 10-Step Payroll Wizard
-The sequential processing pipeline in Module M14:
-1. Lock Attendance Summaries
-2. Compute Payable Days & LOP
-3. Calculate Gross Salary Components
-4. Process Overtime & Allowances
-5. Compute Statutory Deductions (EPF, ESI, PT)
-6. Calculate TDS Income Tax (Sec 192)
-7. Process Other Deductions / Advances
-8. Compute Net Pay & Rounding
-9. Audit Review & Discrepancy Checks
-10. Final Period Lock & Payslip Generation
+### Payroll Wizard (PAY-01)
+SRS `PAY-01` requires a guided 10-step payroll wizard with a pre-run reconciliation. The names of those ten steps are not confirmed. Payroll is V2 and is not part of the attendance MVP.
 
 ### Pay Run (`pay_run`)
-A discrete monthly payroll processing instance for a pay group or tenant. Progresses through lifecycle states: `DRAFT` $\rightarrow$ `COMPUTED` $\rightarrow$ `REVIEWED` $\rightarrow$ `LOCKED` $\rightarrow$ `DISBURSED`.
+A monthly payroll processing instance for a pay group. `BR-PAY-12` names the closed state `LOCKED`. The other lifecycle names are not confirmed.
 
 ### Period Lock & Next-Cycle Arrears Routing (BR-PAY-12)
 Once a pay run is marked `LOCKED`, all records become permanently immutable. Retroactive changes (e.g., backdated regularization or salary increment) cannot touch historical runs; they are routed as **Arrears Adjustments** in the next open pay cycle.
 
 ### EPF (Employees' Provident Fund)
-Statutory retirement benefit under the EPF & MP Act, 1952.
-- **Mandatory Ceiling**: ₹15,000/month basic wage ceiling.
-- **Employee Contribution**: 12% of PF Gross.
-- **Employer Contribution**: 3.67% to EPF Account 1 + 8.33% to EPS.
+Statutory retirement benefit under the EPF & MP Act, 1952. Figures below are the `BR-STA-01` description of the standard table. The running system reads ceilings from that table, not from a code constant.
+- **Wage ceiling**: ₹15,000/month, effective-dated.
+- **PF gross**: Basic + DA + retaining allowance.
+- **Employee contribution**: 12% of $\min(\text{PF Gross}, ₹15,000)$, or 12% of the full PF gross when the employee has opted for a higher voluntary contribution.
+- **Employer contribution**: EPS is 8.33% of wages capped at ₹15,000 (maximum ₹1,250/month). Employer EPF is $12\% - \text{EPS}$. Admin charge is 0.50% of PF gross. EDLI is 0.50% capped at ₹15,000 (maximum ₹75/month).
 
 ### EPS (Employees' Pension Scheme)
-Component of employer's PF contribution (8.33%) diverted to the pension fund, capped at ₹1,250/month (8.33% of ₹15,000 ceiling).
+The pension slice of the employer PF contribution: 8.33% of wages capped at ₹15,000, so the monthly EPS amount does not exceed ₹1,250.
 
 ### EDLI (Employees' Deposit Linked Insurance)
-Life insurance benefit funded entirely by employer (0.50% of PF Gross, capped at ₹75/month).
+Employer-funded insurance: 0.50% of wages capped at ₹15,000, so the monthly EDLI amount does not exceed ₹75.
 
 ### ESI (Employees' State Insurance)
-Social security healthcare scheme under the ESI Act, 1948.
-- **Applicability Wage Ceiling**: ₹21,000/month earned gross wage.
-- **Employee Contribution**: 0.75% of Gross Wages.
-- **Employer Contribution**: 3.25% of Gross Wages.
+Social security healthcare scheme under the ESI Act, 1948 (`BR-STA-02`).
+- **Applicability**: employees whose gross wages do not exceed ₹21,000/month, or ₹25,000/month for an employee with a disability.
+- **Employee contribution**: 0.75% of gross wages. **Employer contribution**: 3.25% of gross wages.
+- **Contribution period**: if wages cross ₹21,000 during April–September or October–March, ESI continues until the end of that contribution period.
 
 ### PT (Professional Tax)
 State-level direct tax levied on salaried employees. Varies by state (e.g., Maharashtra: ₹200/month for March–January, ₹300 in February, subject to the constitutional annual ceiling of ₹2,500).
@@ -368,7 +356,7 @@ Monthly income tax withheld from employee salary. System calculates annualized p
 Statutory state welfare fund contribution (employee + employer share) deducted periodically (monthly, half-yearly, or annually depending on state regulations).
 
 ### OSH Code (Occupational Safety, Health and Working Conditions Code)
-The consolidated Indian labor code governing working hours, overtime, and conditions. Sets the statutory baseline overtime rate at **2.0× standard hourly wage**.
+The consolidated Indian labour code governing working hours, overtime, and conditions. Confirmed `Q11` sets the product overtime multipliers as tenant policy: 1.5× ordinary wage on a weekday, and 2.0× on a weekly off or holiday. A flat 2.0× default (`Q21`, OSH Code s.27) is still **RECOMMENDED** and is not the product baseline. State caps stay in versioned statutory tables.
 
 ### Fixed Gross vs Earned Gross
 - **Fixed Gross**: The contractual monthly salary package agreed in the appointment letter (CTC component).
@@ -387,11 +375,11 @@ An immutable JSON document storing the exact line-item breakdown of earnings, de
 ## 6. Organization, Security & Platform Terminology
 
 ### Multi-Tenancy & Tenant Isolation
-APMS hosts multiple business organizations on a shared infrastructure with strict logical isolation. Every database table contains a `tenant_id` column.
+APMS hosts multiple business organizations on a shared infrastructure with strict logical isolation. Tenant-owned tables carry `tenant_id`. `tenants` and the global `permissions` catalog do not.
 
 ### Row-Level Security (RLS) & `app.current_tenant_id`
 PostgreSQL database engine feature enforcing multi-tenant isolation at the kernel level.
-- Every session sets `SET LOCAL app.current_tenant_id = '<uuid>'`.
+- The application sets `app.current_tenant_id` with `set_config(..., true)`, so the value lasts for the current transaction.
 - Postgres policies reject any query attempting to view or modify rows belonging to another tenant, even if SQL omits the tenant filter.
 
 ### Composite Foreign Key `(tenant_id, foreign_id)`
@@ -412,19 +400,18 @@ A distinct physical establishment, factory plant, hospital facility, or office s
 An operational division within a branch (e.g., "Assembly Line 1", "Cardiology", "Quality Assurance"). Supports hierarchical parent-child departmental trees.
 
 ### Designation
-A job title or organizational role scoped to a department (e.g., "Senior CNC Operator", "Staff Nurse"). Defines hierarchy and grade levels.
+A job title scoped to a department. The stored fields are a code and a name, unique within that department. The row does not store a grade.
 
 ### Dynamic Permission-Keyed RBAC (ADR-31)
-Role-Based Access Control architecture where roles are dynamic bundles of explicit string permission keys (`perm_key`, e.g., `org:branch:create`, `emp:read`, `att:regularize`). Tenants can define custom roles by bundling permission keys.
+ADR-31 is **PROPOSED**. The code already checks permission keys. The grammar is `{module}.{resource}.{action}` with a dot separator, for example `org.branch.create` and `attendance.regularization.create`. Actions in the ADR are `create`, `read`, `update`, and `delete`. A role is a bundle of those keys. A grant never crosses a tenant. RLS remains the isolation boundary.
 
-### PII Envelope Encryption (AES-256-GCM / DEK & KEK)
-Security architecture protecting sensitive Personally Identifiable Information (PAN, Aadhaar, Bank Account):
-- Data Encryption Key (DEK): Unique key generated per employee/tenant.
-- Key Encryption Key (KEK): Master root key managed in a hardware security module or KMS.
-- Payload is encrypted with AES-256-GCM authenticated encryption.
+### PII Field Encryption (AES-256-GCM)
+PAN, Aadhaar, bank account, IFSC, UAN, and ESIC numbers are encrypted in `backend/app/core/crypto.py`.
+- The key is SHA-256 of the configured `pii_encryption_key`. There is one application key. There is no per-employee data key and no key-encryption key in an HSM in the current code.
+- Ciphertext is `v1:` plus URL-safe base64 of a 12-byte nonce and the AES-256-GCM ciphertext.
 
 ### Blind Index / SHA-256 HMAC Fingerprint
-A deterministic cryptographic hash of a PII identifier (e.g., `HMAC_SHA256(pan, tenant_secret)`). Allows exact-match searching and uniqueness enforcement on encrypted fields without decrypting the entire database.
+`fingerprint_pii` is HMAC-SHA256 of `{context}:{value}` using that same derived key. `context` is the tenant id. The fingerprint supports exact-match uniqueness without storing the identifier in plaintext.
 
 ### DPDP Act 2023 & Consent Ledger
 Digital Personal Data Protection Act, 2023 (India). APMS enforces explicit employee consent notice before biometric capture, provides non-biometric alternative paths (RFID / Mobile PIN), and records all consent grants/withdrawals in an immutable audit ledger.
