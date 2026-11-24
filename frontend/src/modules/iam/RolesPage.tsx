@@ -1,21 +1,66 @@
-import { useEffect, useState, FormEvent } from "react";
-import { Plus, Shield, Check, Lock } from "lucide-react";
+import { useEffect, useState, useMemo, FormEvent } from "react";
+import { Plus, Search, Shield, Lock, Check } from "lucide-react";
 import { api, Permission, Role } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
-import { Badge } from "../../components/common/Badge";
 import { Modal } from "../../components/common/Modal";
 import { Field } from "../../components/common/Field";
 import { Spinner } from "../../components/common/Spinner";
+
+interface AreaDef {
+  key: string;
+  label: string;
+}
+
+const AREAS: AreaDef[] = [
+  { key: "attendance", label: "Attendance" },
+  { key: "capture", label: "Capture" },
+  { key: "employee", label: "Employee" },
+  { key: "ess", label: "My calendar (ESS)" },
+  { key: "iam", label: "Roles & assignments" },
+  { key: "leave", label: "Leave" },
+  { key: "muster", label: "Muster" },
+  { key: "org", label: "Organization" },
+  { key: "overtime", label: "Overtime" },
+  { key: "policy", label: "Policy" },
+  { key: "privacy", label: "Privacy" },
+  { key: "roster", label: "Roster" },
+  { key: "shift", label: "Shift" },
+  { key: "work_mode", label: "Work mode" },
+];
+
+function getAreaForModule(module: string): string {
+  const m = (module || "").toLowerCase();
+  if (m === "attendance") return "attendance";
+  if (m === "capture") return "capture";
+  if (m === "employee") return "employee";
+  if (m === "ess") return "ess";
+  if (m === "iam") return "iam";
+  if (m === "leave") return "leave";
+  if (m === "muster") return "muster";
+  if (m === "org") return "org";
+  if (m === "overtime" || m === "overtime_record") return "overtime";
+  if (m === "policy" || m === "policy_override") return "policy";
+  if (m === "privacy") return "privacy";
+  if (m === "roster") return "roster";
+  if (m === "shift") return "shift";
+  if (m === "work_mode") return "work_mode";
+  return m;
+}
 
 export function RolesPage() {
   const { can } = useAuth();
   const [roles, setRoles] = useState<Role[]>([]);
   const [catalog, setCatalog] = useState<Permission[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+  const [selectedAreaKey, setSelectedAreaKey] = useState<string>("attendance");
+  const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Staged permissions for active role
+  const [stagedPermissions, setStagedPermissions] = useState<Set<string>>(new Set());
 
   // Create Role Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -27,14 +72,13 @@ export function RolesPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [roleList, permList] = await Promise.all([
-        api.roles(),
-        api.permissions(),
-      ]);
+      const [roleList, permList] = await Promise.all([api.roles(), api.permissions()]);
       setRoles(roleList);
       setCatalog(permList);
-      if (!selectedRoleId && roleList.length > 0) {
-        setSelectedRoleId(roleList[0].id);
+      if (roleList.length > 0) {
+        const initialRole = roleList[0];
+        setSelectedRoleId(initialRole.id);
+        setStagedPermissions(new Set(initialRole.permissions));
       }
       setError("");
     } catch (err) {
@@ -46,31 +90,164 @@ export function RolesPage() {
 
   useEffect(() => {
     void loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const activeRole = roles.find((r) => r.id === selectedRoleId) || roles[0];
+  const activeRole = useMemo(
+    () => roles.find((r) => r.id === selectedRoleId) || roles[0],
+    [roles, selectedRoleId]
+  );
 
-  // Group catalog permissions by module
-  const permissionsByModule = catalog.reduce<Record<string, Permission[]>>((acc, perm) => {
-    const mod = perm.module || "core";
-    if (!acc[mod]) acc[mod] = [];
-    acc[mod].push(perm);
-    return acc;
-  }, {});
+  function handleSelectRole(roleId: string) {
+    if (roleId === selectedRoleId) return;
+    const target = roles.find((r) => r.id === roleId);
+    if (!target) return;
+    setSelectedRoleId(roleId);
+    setStagedPermissions(new Set(target.permissions));
+    setError("");
+  }
 
-  async function handleTogglePermission(role: Role, code: string) {
-    if (!can("iam.role.update") || role.is_system) return;
-    const permissions = role.permissions.includes(code)
-      ? role.permissions.filter((item) => item !== code)
-      : [...role.permissions, code];
+  // Deduplicate permissions: if both colon and dot alias exist, pick a display canonical
+  const canonicalCatalog = useMemo(() => {
+    const seen = new Set<string>();
+    const list: (Permission & { area: string; aliasCode?: string })[] = [];
 
+    for (const p of catalog) {
+      const area = getAreaForModule(p.module);
+      // Clean base key for deduplicating alias (e.g. overtime_record:create vs overtime.record.create)
+      const normalizedKey = p.code.replace(/_/g, ".").replace(/:/g, ".");
+      if (seen.has(normalizedKey)) {
+        // Link alias to existing item
+        const existing = list.find(
+          (item) => item.code.replace(/_/g, ".").replace(/:/g, ".") === normalizedKey
+        );
+        if (existing) {
+          existing.aliasCode = p.code;
+        }
+        continue;
+      }
+      seen.add(normalizedKey);
+      list.push({ ...p, area });
+    }
+    return list;
+  }, [catalog]);
+
+  // Permissions grouped by area
+  const permissionsByArea = useMemo(() => {
+    const map = new Map<string, typeof canonicalCatalog>();
+    for (const p of canonicalCatalog) {
+      const arr = map.get(p.area) || [];
+      arr.push(p);
+      map.set(p.area, arr);
+    }
+    return map;
+  }, [canonicalCatalog]);
+
+  // Current area permissions
+  const currentAreaPermissions = useMemo(() => {
+    return permissionsByArea.get(selectedAreaKey) || [];
+  }, [permissionsByArea, selectedAreaKey]);
+
+  // Filtered permissions by search
+  const filteredPermissions = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return currentAreaPermissions;
+    return currentAreaPermissions.filter(
+      (p) =>
+        p.code.toLowerCase().includes(q) ||
+        (p.description && p.description.toLowerCase().includes(q))
+    );
+  }, [currentAreaPermissions, searchQuery]);
+
+  // Calculate granted counts for areas
+  function getAreaCounts(areaKey: string) {
+    const perms = permissionsByArea.get(areaKey) || [];
+    const total = perms.length;
+    let granted = 0;
+    for (const p of perms) {
+      if (stagedPermissions.has(p.code) || (p.aliasCode && stagedPermissions.has(p.aliasCode))) {
+        granted++;
+      }
+    }
+    return { granted, total };
+  }
+
+  const { granted: currentAreaGrantedCount } = getAreaCounts(selectedAreaKey);
+  const allAreaOn =
+    currentAreaPermissions.length > 0 &&
+    currentAreaGrantedCount === currentAreaPermissions.length;
+
+  function handleTogglePermission(permCode: string, aliasCode?: string) {
+    if (!activeRole) return;
+    const next = new Set(stagedPermissions);
+    const isCurrentlyOn = next.has(permCode) || (aliasCode && next.has(aliasCode));
+
+    if (isCurrentlyOn) {
+      next.delete(permCode);
+      if (aliasCode) next.delete(aliasCode);
+    } else {
+      next.add(permCode);
+      if (aliasCode) next.add(aliasCode);
+    }
+    setStagedPermissions(next);
+  }
+
+  function handleToggleAllInArea() {
+    const next = new Set(stagedPermissions);
+    if (allAreaOn) {
+      // Turn all off in current area
+      for (const p of currentAreaPermissions) {
+        next.delete(p.code);
+        if (p.aliasCode) next.delete(p.aliasCode);
+      }
+    } else {
+      // Turn all on in current area
+      for (const p of currentAreaPermissions) {
+        next.add(p.code);
+        if (p.aliasCode) next.add(p.aliasCode);
+      }
+    }
+    setStagedPermissions(next);
+  }
+
+  // Unsaved changes check
+  const hasUnsavedChanges = useMemo(() => {
+    if (!activeRole) return false;
+    const orig = new Set(activeRole.permissions);
+    if (orig.size !== stagedPermissions.size) return true;
+    for (const p of stagedPermissions) {
+      if (!orig.has(p)) return true;
+    }
+    return false;
+  }, [activeRole, stagedPermissions]);
+
+  const unsavedCount = useMemo(() => {
+    if (!activeRole) return 0;
+    const orig = new Set(activeRole.permissions);
+    let diff = 0;
+    for (const p of stagedPermissions) {
+      if (!orig.has(p)) diff++;
+    }
+    for (const p of orig) {
+      if (!stagedPermissions.has(p)) diff++;
+    }
+    return diff;
+  }, [activeRole, stagedPermissions]);
+
+  function handleDiscardChanges() {
+    if (!activeRole) return;
+    setStagedPermissions(new Set(activeRole.permissions));
+  }
+
+  async function handleSaveChanges() {
+    if (!activeRole) return;
     setSaving(true);
+    setError("");
     try {
-      const updated = await api.updateRole(role.id, permissions);
-      setRoles((current) => current.map((r) => (r.id === role.id ? updated : r)));
+      const updated = await api.updateRole(activeRole.id, Array.from(stagedPermissions));
+      setRoles((current) => current.map((r) => (r.id === activeRole.id ? updated : r)));
+      setStagedPermissions(new Set(updated.permissions));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update the role permissions");
+      setError(err instanceof Error ? err.message : "Failed to save permissions");
     } finally {
       setSaving(false);
     }
@@ -88,6 +265,7 @@ export function RolesPage() {
       setIsCreateOpen(false);
       setRoles((current) => [...current, created]);
       setSelectedRoleId(created.id);
+      setStagedPermissions(new Set());
     } catch (err) {
       setCreateError(err instanceof Error ? err.message : "Failed to create role");
     } finally {
@@ -95,23 +273,43 @@ export function RolesPage() {
     }
   }
 
+  const currentArea = AREAS.find((a) => a.key === selectedAreaKey) || AREAS[0];
+
   return (
-    <div>
-      {/* Header */}
-      <div className="card-header" style={{ marginBottom: "1.5rem" }}>
+    <div style={{ maxWidth: "1280px", margin: "0 auto" }}>
+      {/* Page Header */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          marginBottom: "1.25rem",
+        }}
+      >
         <div>
-          <h2 className="card-title">Roles & Access Control</h2>
-          <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--text-muted)" }}>
-            RBAC definition, system permissions, and module access control matrices.
+          <h1
+            style={{
+              fontSize: "1.75rem",
+              fontWeight: 700,
+              margin: "0 0 0.35rem",
+              color: "var(--text-primary)",
+              letterSpacing: "-0.02em",
+            }}
+          >
+            Roles & access
+          </h1>
+          <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--text-muted)" }}>
+            Pick a role, then an area, then switch on what that role can do.
           </p>
         </div>
+
         {can("iam.role.create") ? (
           <Button
-            variant="primary"
-            icon={<Plus size={16} />}
+            variant="secondary"
             onClick={() => setIsCreateOpen(true)}
+            style={{ borderRadius: "0.5rem", padding: "0.5rem 1rem", fontSize: "0.875rem", fontWeight: 600 }}
           >
-            Create Role
+            New role
           </Button>
         ) : null}
       </div>
@@ -123,7 +321,7 @@ export function RolesPage() {
             backgroundColor: "var(--color-danger-bg)",
             color: "var(--color-danger-fg)",
             border: "1px solid var(--color-danger-border)",
-            borderRadius: "0.375rem",
+            borderRadius: "0.5rem",
             fontSize: "0.875rem",
             marginBottom: "1.25rem",
           }}
@@ -133,193 +331,376 @@ export function RolesPage() {
       ) : null}
 
       {loading ? (
-        <div style={{ textAlign: "center", padding: "3rem" }}>
+        <div style={{ textAlign: "center", padding: "4rem" }}>
           <Spinner size="lg" />
-          <p style={{ color: "var(--text-muted)", marginTop: "1rem" }}>Loading permissions matrix…</p>
+          <p style={{ color: "var(--text-muted)", marginTop: "1rem" }}>Loading roles and permissions…</p>
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(240px, 300px) 1fr", gap: "1.5rem", alignItems: "start" }}>
-          {/* Roles list */}
-          <div className="card-panel" style={{ padding: "0.75rem" }}>
-            <div style={{ padding: "0.5rem 0.75rem", fontWeight: 650, fontSize: "0.875rem", color: "var(--text-muted)" }}>
-              DEFINED ROLES
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+        <>
+          {/* Top Role Selector Bar */}
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: "1rem",
+              flexWrap: "wrap",
+              gap: "0.75rem",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
               {roles.map((r) => {
-                const isSelected = r.id === (activeRole?.id || "");
+                const isSelected = r.id === activeRole?.id;
+                const count = isSelected ? stagedPermissions.size : r.permissions.length;
                 return (
                   <button
                     key={r.id}
                     type="button"
-                    onClick={() => setSelectedRoleId(r.id)}
+                    onClick={() => handleSelectRole(r.id)}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.45rem 0.9rem",
+                      borderRadius: "9999px",
+                      fontSize: "0.875rem",
+                      fontWeight: 600,
+                      border: isSelected
+                        ? "1.5px solid #10b981"
+                        : "1px solid var(--border-default)",
+                      backgroundColor: isSelected
+                        ? "rgba(16, 185, 129, 0.12)"
+                        : "var(--bg-surface)",
+                      color: isSelected ? "#10b981" : "var(--text-secondary)",
+                      cursor: "pointer",
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    <span>{r.name}</span>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        opacity: isSelected ? 1 : 0.75,
+                      }}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+
+              {activeRole?.is_system ? (
+                <span
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    padding: "0.3rem 0.65rem",
+                    borderRadius: "9999px",
+                    fontSize: "0.75rem",
+                    fontWeight: 600,
+                    border: "1px solid rgba(245, 158, 11, 0.4)",
+                    color: "#f59e0b",
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    marginLeft: "0.25rem",
+                  }}
+                >
+                  System role
+                </span>
+              ) : null}
+            </div>
+
+            <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontWeight: 500 }}>
+              {stagedPermissions.size} of {catalog.length} permissions granted
+            </div>
+          </div>
+
+          {/* Main Card Container */}
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "240px 1fr",
+              borderRadius: "0.75rem",
+              backgroundColor: "var(--bg-surface)",
+              border: "1px solid var(--border-default)",
+              overflow: "hidden",
+              minHeight: "560px",
+            }}
+          >
+            {/* Left Area List */}
+            <div
+              style={{
+                borderRight: "1px solid var(--border-default)",
+                padding: "0.75rem 0.5rem",
+                display: "flex",
+                flexDirection: "column",
+                gap: "0.25rem",
+                backgroundColor: "var(--bg-surface)",
+              }}
+            >
+              {AREAS.map((area) => {
+                const isSelected = area.key === selectedAreaKey;
+                const { granted, total } = getAreaCounts(area.key);
+                return (
+                  <button
+                    key={area.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedAreaKey(area.key);
+                      setSearchQuery("");
+                    }}
                     style={{
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "space-between",
-                      padding: "0.75rem",
-                      borderRadius: "0.375rem",
-                      border: isSelected ? "1px solid var(--color-primary-border)" : "1px solid transparent",
-                      backgroundColor: isSelected ? "var(--color-primary-bg)" : "transparent",
-                      color: isSelected ? "var(--color-primary-fg)" : "var(--text-primary)",
-                      textAlign: "left",
+                      padding: "0.6rem 0.85rem",
+                      borderRadius: "0.5rem",
+                      backgroundColor: isSelected ? "rgba(16, 185, 129, 0.15)" : "transparent",
+                      border: isSelected
+                        ? "1px solid rgba(16, 185, 129, 0.35)"
+                        : "1px solid transparent",
+                      color: isSelected ? "var(--text-primary)" : "var(--text-secondary)",
+                      fontWeight: isSelected ? 650 : 500,
+                      fontSize: "0.875rem",
                       cursor: "pointer",
-                      width: "100%",
+                      textAlign: "left",
+                      transition: "all 0.1s ease",
                     }}
                   >
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: "0.875rem" }}>{r.name}</div>
-                      <code style={{ fontSize: "0.75rem", color: isSelected ? "var(--color-primary)" : "var(--text-muted)" }}>
-                        {r.code}
-                      </code>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      {r.is_system ? (
-                        <span title="System Role (Read-only)">
-                          <Lock size={14} color="var(--text-muted)" />
-                        </span>
-                      ) : null}
-                      <Badge variant={isSelected ? "info" : "neutral"} size="sm">
-                        {r.permissions.length}
-                      </Badge>
-                    </div>
+                    <span>{area.label}</span>
+                    <span
+                      style={{
+                        fontSize: "0.75rem",
+                        fontWeight: 600,
+                        color:
+                          granted > 0
+                            ? isSelected
+                              ? "#10b981"
+                              : "#34d399"
+                            : "var(--text-muted)",
+                      }}
+                    >
+                      {granted}/{total}
+                    </span>
                   </button>
                 );
               })}
             </div>
-          </div>
 
-          {/* Permissions Matrix for active role */}
-          {activeRole ? (
-            <div className="card-panel">
-              <div className="card-header" style={{ paddingBottom: "1rem", borderBottom: "1px solid var(--border-default)" }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                    <Shield size={20} color="var(--color-primary)" />
-                    <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 650 }}>
-                      {activeRole.name} Permissions
-                    </h3>
-                    {activeRole.is_system ? (
-                      <Badge variant="warning" size="sm">
-                        System Protected
-                      </Badge>
-                    ) : null}
-                  </div>
-                  <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                    Grant or revoke granular API and UI privileges for this role.
-                  </p>
+            {/* Right Area Permissions Panel */}
+            <div style={{ display: "flex", flexDirection: "column", height: "100%", backgroundColor: "var(--bg-surface)" }}>
+              {/* Header */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: "1.25rem 1.5rem",
+                  borderBottom: "1px solid var(--border-subtle)",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <h2
+                    style={{
+                      fontSize: "1.125rem",
+                      fontWeight: 700,
+                      margin: 0,
+                      color: "var(--text-primary)",
+                    }}
+                  >
+                    {currentArea.label}
+                  </h2>
+                  <span style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
+                    {currentAreaGrantedCount} of {currentAreaPermissions.length} on
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleToggleAllInArea}
+                    style={{
+                      background: "none",
+                      border: "none",
+                      color: "#10b981",
+                      fontWeight: 600,
+                      fontSize: "0.875rem",
+                      cursor: "pointer",
+                      padding: "0 0.25rem",
+                    }}
+                  >
+                    {allAreaOn ? "Deselect all" : "Select all"}
+                  </button>
                 </div>
-                {saving ? (
-                  <Badge variant="info">
-                    <Spinner size="sm" /> Updating…
-                  </Badge>
-                ) : null}
+
+                {/* Search Input */}
+                <div style={{ position: "relative", width: "240px" }}>
+                  <Search
+                    size={15}
+                    style={{
+                      position: "absolute",
+                      left: "0.75rem",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      color: "var(--text-muted)",
+                    }}
+                  />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search all permissions"
+                    className="input"
+                    style={{
+                      paddingLeft: "2.25rem",
+                      fontSize: "0.8125rem",
+                      height: "36px",
+                      borderRadius: "0.5rem",
+                    }}
+                  />
+                </div>
               </div>
 
-              {/* Module Groups */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "1.75rem", marginTop: "1.5rem" }}>
-                {Object.entries(permissionsByModule).map(([moduleName, perms]) => (
-                  <div key={moduleName}>
-                    <div
-                      style={{
-                        fontSize: "0.8125rem",
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        letterSpacing: "0.05em",
-                        color: "var(--text-secondary)",
-                        marginBottom: "0.75rem",
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                      }}
-                    >
-                      <span>Module: {moduleName}</span>
-                      <Badge variant="neutral" size="sm">
-                        {perms.filter((p) => activeRole.permissions.includes(p.code)).length} / {perms.length}
-                      </Badge>
-                    </div>
-
-                    <div
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
-                        gap: "0.625rem",
-                      }}
-                    >
-                      {perms.map((p) => {
-                        const checked = activeRole.permissions.includes(p.code);
-                        const disabled = !can("iam.role.update") || activeRole.is_system;
-
-                        return (
-                          <label
-                            key={p.code}
+              {/* Grid of Permission Toggle Cards */}
+              <div style={{ padding: "1.25rem 1.5rem", flex: 1, overflowY: "auto" }}>
+                {filteredPermissions.length === 0 ? (
+                  <div style={{ textAlign: "center", padding: "3rem", color: "var(--text-muted)", fontSize: "0.875rem" }}>
+                    No permissions match "{searchQuery}" in {currentArea.label}.
+                  </div>
+                ) : (
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(2, 1fr)",
+                      gap: "0.875rem",
+                    }}
+                  >
+                    {filteredPermissions.map((perm) => {
+                      const isChecked =
+                        stagedPermissions.has(perm.code) ||
+                        (Boolean(perm.aliasCode) && stagedPermissions.has(perm.aliasCode!));
+                      return (
+                        <div
+                          key={perm.code}
+                          onClick={() => handleTogglePermission(perm.code, perm.aliasCode)}
+                          style={{
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: "0.875rem",
+                            padding: "1rem",
+                            borderRadius: "0.5rem",
+                            backgroundColor: "var(--bg-card)",
+                            border: "1px solid var(--border-subtle)",
+                            cursor: "pointer",
+                            transition: "border-color 0.15s ease",
+                            userSelect: "none",
+                          }}
+                        >
+                          {/* Toggle Switch */}
+                          <div
                             style={{
-                              display: "flex",
-                              alignItems: "flex-start",
-                              gap: "0.625rem",
-                              padding: "0.625rem 0.75rem",
-                              border: checked
-                                ? "1px solid var(--color-primary-border)"
-                                : "1px solid var(--border-default)",
-                              borderRadius: "0.375rem",
-                              backgroundColor: checked ? "var(--color-primary-bg)" : "var(--bg-surface)",
-                              cursor: disabled ? "not-allowed" : "pointer",
-                              opacity: disabled ? 0.75 : 1,
-                              transition: "all 0.15s ease",
+                              width: "38px",
+                              height: "22px",
+                              borderRadius: "9999px",
+                              backgroundColor: isChecked ? "#10b981" : "var(--border-strong)",
+                              position: "relative",
+                              flexShrink: 0,
+                              marginTop: "2px",
+                              transition: "background-color 0.2s ease",
                             }}
                           >
-                            <input
-                              type="checkbox"
-                              style={{ marginTop: "0.2rem" }}
-                              checked={checked}
-                              disabled={disabled}
-                              onChange={() => void handleTogglePermission(activeRole, p.code)}
+                            <div
+                              style={{
+                                width: "16px",
+                                height: "16px",
+                                borderRadius: "50%",
+                                backgroundColor: "#ffffff",
+                                position: "absolute",
+                                top: "3px",
+                                left: isChecked ? "19px" : "3px",
+                                transition: "left 0.2s ease",
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                              }}
                             />
-                            <div style={{ display: "flex", flexDirection: "column" }}>
-                              <span style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                                {p.code}
-                              </span>
-                              <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                                {p.description || `${p.action} on ${p.resource}`}
-                              </span>
+                          </div>
+
+                          {/* Label & Code */}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                            <div
+                              style={{
+                                fontSize: "0.875rem",
+                                fontWeight: 600,
+                                color: "var(--text-primary)",
+                                lineHeight: 1.3,
+                              }}
+                            >
+                              {perm.description || perm.code}
                             </div>
-                          </label>
-                        );
-                      })}
-                    </div>
+                            <code style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                              {perm.code}
+                            </code>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
-                ))}
+                )}
               </div>
+
+              {/* Bottom Sticky Action Footer */}
+              {hasUnsavedChanges ? (
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    padding: "1rem 1.5rem",
+                    borderTop: "1px solid var(--border-default)",
+                    backgroundColor: "var(--bg-card)",
+                  }}
+                >
+                  <span style={{ fontSize: "0.875rem", color: "var(--text-secondary)", fontWeight: 500 }}>
+                    {unsavedCount} unsaved change{unsavedCount > 1 ? "s" : ""}
+                  </span>
+                  <div style={{ display: "flex", gap: "0.75rem" }}>
+                    <Button variant="ghost" onClick={handleDiscardChanges} disabled={saving}>
+                      Discard
+                    </Button>
+                    <Button
+                      variant="primary"
+                      onClick={handleSaveChanges}
+                      loading={saving}
+                      style={{
+                        backgroundColor: "#10b981",
+                        borderColor: "#10b981",
+                        color: "#ffffff",
+                        fontWeight: 600,
+                        padding: "0.45rem 1.1rem",
+                      }}
+                    >
+                      Save changes
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
+          </div>
+        </>
       )}
 
       {/* Create Role Modal */}
       <Modal
         isOpen={isCreateOpen}
-        onClose={() => {
-          setIsCreateOpen(false);
-          setCreateError("");
-        }}
+        onClose={() => setIsCreateOpen(false)}
         title="Create New Role"
-        description="Define a custom role name and code."
+        description="Define a new role code and display name for this tenant."
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsCreateOpen(false);
-                setCreateError("");
-              }}
-              disabled={createSubmitting}
-            >
+            <Button variant="ghost" onClick={() => setIsCreateOpen(false)}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              onClick={(e) => handleCreateRole(e as unknown as FormEvent)}
+              onClick={handleCreateRole}
               loading={createSubmitting}
-              disabled={!newName.trim() || !newCode.trim()}
+              disabled={!newCode || !newName}
             >
               Create Role
             </Button>
@@ -341,22 +722,22 @@ export function RolesPage() {
             </div>
           ) : null}
 
-          <Field label="Role Name" required help="e.g. Shift Incharge, Attendance Auditor">
+          <Field label="Role Name" required help="Human-readable title (e.g. Line Supervisor, Payroll Auditor)">
             <input
               className="input"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="e.g. Shift Supervisor"
+              placeholder="e.g. Attendance Clerk"
               required
             />
           </Field>
 
-          <Field label="Role Code" required help="Unique identifier, e.g. shift_supervisor">
+          <Field label="Role Code" required help="Unique programmatic identifier (lowercase, e.g. clerk, auditor)">
             <input
               className="input"
               value={newCode}
-              onChange={(e) => setNewCode(e.target.value.toLowerCase())}
-              placeholder="e.g. shift_supervisor"
+              onChange={(e) => setNewCode(e.target.value)}
+              placeholder="e.g. attendance_clerk"
               required
             />
           </Field>
