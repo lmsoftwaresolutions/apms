@@ -341,17 +341,17 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
                     justifyContent: "center",
                     borderRadius: "0.5rem",
                     border: isGroupActive
-                      ? "1.5px solid var(--color-primary-border, #10b981)"
+                      ? "1.5px solid var(--color-primary-border, #3b82f6)"
                       : !isGroupCollapsed
                       ? "1px solid var(--border-default)"
                       : "1px solid transparent",
                     backgroundColor: isGroupActive
-                      ? "var(--color-primary-bg, rgba(16, 185, 129, 0.12))"
+                      ? "var(--color-primary-bg, rgba(37, 99, 235, 0.12))"
                       : !isGroupCollapsed
                       ? "var(--bg-subtle)"
                       : "transparent",
                     color: isGroupActive
-                      ? "var(--color-primary-fg, #10b981)"
+                      ? "var(--color-primary-fg, #2563eb)"
                       : !isGroupCollapsed
                       ? "var(--text-primary)"
                       : "var(--text-muted)",
@@ -382,7 +382,7 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
                         width: 6,
                         height: 6,
                         borderRadius: "50%",
-                        backgroundColor: "var(--color-primary-fg, #10b981)",
+                        backgroundColor: "var(--color-primary-fg, #2563eb)",
                       }}
                     />
                   ) : null}

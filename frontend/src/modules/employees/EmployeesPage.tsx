@@ -14,6 +14,13 @@ import {
   Power,
   RotateCw,
   X,
+  UserCheck,
+  UserMinus,
+  ShieldCheck,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 import { api, Branch, Department, Designation, Employee } from "../../api";
 import { useAuth } from "../../context/AuthContext";
@@ -42,6 +49,10 @@ export function EmployeesPage() {
   const [deptFilter, setDeptFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "ACTIVE" | "INACTIVE">("ALL");
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   // Drawers and Modals
   const [drawerEmployee, setDrawerEmployee] = useState<Employee | null>(null);
@@ -86,6 +97,11 @@ export function EmployeesPage() {
     return departments.filter((d) => d.branch_id === branchFilter);
   }, [departments, branchFilter]);
 
+  // Reset pagination when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, branchFilter, deptFilter, typeFilter, statusFilter]);
+
   // Client-side filtering
   const filteredEmployees = useMemo(() => {
     return employees.filter((emp) => {
@@ -110,6 +126,13 @@ export function EmployeesPage() {
     });
   }, [employees, search, branchFilter, deptFilter, typeFilter, statusFilter]);
 
+  // Total pages and Paginated slice
+  const totalPages = Math.max(1, Math.ceil(filteredEmployees.length / pageSize));
+  const paginatedEmployees = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredEmployees.slice(start, start + pageSize);
+  }, [filteredEmployees, page, pageSize]);
+
   // Stats calculation
   const stats = useMemo(() => {
     const total = employees.length;
@@ -128,7 +151,6 @@ export function EmployeesPage() {
   function handleOpenEdit(emp: Employee) {
     setEditingEmployee(emp);
     setIsFormOpen(true);
-    // If drawer is open with this employee, keep it in sync
     if (drawerEmployee?.id === emp.id) {
       setDrawerEmployee(null);
     }
@@ -144,7 +166,6 @@ export function EmployeesPage() {
       }
       return [saved, ...prev];
     });
-    // Update drawer if opened
     if (drawerEmployee?.id === saved.id) {
       setDrawerEmployee(saved);
     }
@@ -228,56 +249,128 @@ export function EmployeesPage() {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-          gap: "0.875rem",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "1rem",
           marginBottom: "1.25rem",
         }}
       >
+        {/* Active Workforce */}
         <div
           style={{
             backgroundColor: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "0.625rem",
-            padding: "0.875rem 1rem",
+            padding: "1rem 1.25rem",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>Active Workforce</div>
-          <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--color-success-fg)", marginTop: "0.15rem" }}>
-            {stats.active}
-            <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-muted)", marginLeft: "0.35rem" }}>
-              / {stats.total}
-            </span>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 550, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              Active Workforce
+            </div>
+            <div style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--color-success-fg)", marginTop: "0.2rem" }}>
+              {stats.active}
+              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-muted)", marginLeft: "0.35rem" }}>
+                / {stats.total}
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: "50%",
+              backgroundColor: "rgba(22, 163, 74, 0.1)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--color-success)",
+              flexShrink: 0,
+            }}
+          >
+            <UserCheck size={22} />
           </div>
         </div>
 
+        {/* Inactive / Left */}
         <div
           style={{
             backgroundColor: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "0.625rem",
-            padding: "0.875rem 1rem",
+            padding: "1rem 1.25rem",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>Inactive / Left</div>
-          <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-muted)", marginTop: "0.15rem" }}>
-            {stats.inactive}
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 550, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              Inactive / Left
+            </div>
+            <div style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--text-secondary)", marginTop: "0.2rem" }}>
+              {stats.inactive}
+            </div>
+          </div>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: "50%",
+              backgroundColor: "var(--bg-subtle)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--text-muted)",
+              flexShrink: 0,
+            }}
+          >
+            <UserMinus size={22} />
           </div>
         </div>
 
+        {/* DPDP Biometric Consent */}
         <div
           style={{
             backgroundColor: "var(--bg-surface)",
             border: "1px solid var(--border-default)",
             borderRadius: "0.625rem",
-            padding: "0.875rem 1rem",
+            padding: "1rem 1.25rem",
+            boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.02)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 500 }}>DPDP Biometric Consent</div>
-          <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--color-primary-fg)", marginTop: "0.15rem" }}>
-            {stats.dpdpConsented}
-            <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-muted)", marginLeft: "0.35rem" }}>
-              ({stats.total > 0 ? Math.round((stats.dpdpConsented / stats.total) * 100) : 0}%)
-            </span>
+          <div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 550, textTransform: "uppercase", letterSpacing: "0.03em" }}>
+              DPDP Biometric Consent
+            </div>
+            <div style={{ fontSize: "1.375rem", fontWeight: 700, color: "var(--color-primary)", marginTop: "0.2rem" }}>
+              {stats.dpdpConsented}
+              <span style={{ fontSize: "0.8125rem", fontWeight: 500, color: "var(--text-muted)", marginLeft: "0.35rem" }}>
+                ({stats.total > 0 ? Math.round((stats.dpdpConsented / stats.total) * 100) : 0}%)
+              </span>
+            </div>
+          </div>
+          <div
+            style={{
+              width: 42,
+              height: 42,
+              borderRadius: "50%",
+              backgroundColor: "var(--color-primary-bg)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "var(--color-primary)",
+              flexShrink: 0,
+            }}
+          >
+            <ShieldCheck size={22} />
           </div>
         </div>
       </div>
@@ -295,6 +388,7 @@ export function EmployeesPage() {
           gap: "0.75rem",
           alignItems: "center",
           justifyContent: "space-between",
+          boxShadow: "0 1px 2px rgba(0, 0, 0, 0.03)",
         }}
       >
         <div style={{ display: "flex", flexWrap: "wrap", gap: "0.625rem", alignItems: "center", flex: 1 }}>
@@ -396,7 +490,7 @@ export function EmployeesPage() {
         </div>
 
         <div style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-          Showing <strong>{filteredEmployees.length}</strong> of {employees.length} workers
+          Found <strong>{filteredEmployees.length}</strong> matching worker{filteredEmployees.length !== 1 ? "s" : ""}
         </div>
       </div>
 
@@ -426,7 +520,7 @@ export function EmployeesPage() {
       )}
 
       {/* Main Table Container */}
-      <div className="table-container-responsive">
+      <div className="table-container-responsive" style={{ boxShadow: "0 1px 3px rgba(0, 0, 0, 0.04)" }}>
         {loading ? (
           <div style={{ padding: "4rem 0", display: "flex", justifyContent: "center" }}>
             <Spinner />
@@ -458,186 +552,326 @@ export function EmployeesPage() {
             }
           />
         ) : (
-          <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ borderBottom: "1px solid var(--border-default)", textAlign: "left" }}>
-                <th style={{ padding: "0.75rem 1rem", fontSize: "0.75rem", textTransform: "uppercase" }}>Worker</th>
-                <th style={{ padding: "0.75rem 1rem", fontSize: "0.75rem", textTransform: "uppercase" }}>Organization</th>
-                <th style={{ padding: "0.75rem 1rem", fontSize: "0.75rem", textTransform: "uppercase" }}>Terms</th>
-                <th style={{ padding: "0.75rem 1rem", fontSize: "0.75rem", textTransform: "uppercase" }}>Statutory & Vault</th>
-                <th style={{ padding: "0.75rem 1rem", fontSize: "0.75rem", textTransform: "uppercase" }}>Status</th>
-                <th style={{ padding: "0.75rem 1rem", fontSize: "0.75rem", textTransform: "uppercase", textAlign: "right" }}>
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmployees.map((emp) => {
-                const branch = branchById.get(emp.branch_id);
-                const dept = emp.department_id ? deptById.get(emp.department_id) : null;
-                const desig = emp.designation_id ? desigById.get(emp.designation_id) : null;
+          <>
+            <table className="table" style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr
+                  style={{
+                    backgroundColor: "var(--bg-subtle)",
+                    borderBottom: "1px solid var(--border-default)",
+                    textAlign: "left",
+                  }}
+                >
+                  <th style={{ padding: "0.85rem 1rem", fontSize: "0.75rem", fontWeight: 650, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Worker
+                  </th>
+                  <th style={{ padding: "0.85rem 1rem", fontSize: "0.75rem", fontWeight: 650, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Organization
+                  </th>
+                  <th style={{ padding: "0.85rem 1rem", fontSize: "0.75rem", fontWeight: 650, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Terms
+                  </th>
+                  <th style={{ padding: "0.85rem 1rem", fontSize: "0.75rem", fontWeight: 650, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Statutory & Vault
+                  </th>
+                  <th style={{ padding: "0.85rem 1rem", fontSize: "0.75rem", fontWeight: 650, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
+                    Status
+                  </th>
+                  <th style={{ padding: "0.85rem 1rem", fontSize: "0.75rem", fontWeight: 650, color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.04em", textAlign: "right" }}>
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedEmployees.map((emp) => {
+                  const branch = branchById.get(emp.branch_id);
+                  const dept = emp.department_id ? deptById.get(emp.department_id) : null;
+                  const desig = emp.designation_id ? desigById.get(emp.designation_id) : null;
 
-                const initials = emp.full_name
-                  .split(" ")
-                  .map((n) => n[0])
-                  .filter(Boolean)
-                  .slice(0, 2)
-                  .join("")
-                  .toUpperCase();
+                  const initials = emp.full_name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .join("")
+                    .toUpperCase();
 
-                return (
-                  <tr
-                    key={emp.id}
-                    style={{
-                      borderBottom: "1px solid var(--border-subtle)",
-                      cursor: "pointer",
-                      transition: "background-color 0.1s ease",
-                    }}
-                    onClick={() => setDrawerEmployee(emp)}
-                    className="hover-row"
-                  >
-                    {/* Worker Info */}
-                    <td style={{ padding: "0.875rem 1rem" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                        <div
-                          style={{
-                            width: 36,
-                            height: 36,
-                            borderRadius: "50%",
-                            backgroundColor: "var(--color-primary-bg)",
-                            border: "1px solid var(--color-primary-border)",
-                            color: "var(--color-primary-fg)",
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontWeight: 700,
-                            fontSize: "0.875rem",
-                            flexShrink: 0,
-                          }}
-                        >
-                          {initials}
-                        </div>
-                        <div>
-                          <div style={{ fontWeight: 650, color: "var(--text-primary)", fontSize: "0.875rem" }}>
-                            {emp.full_name}
+                  return (
+                    <tr
+                      key={emp.id}
+                      style={{
+                        borderBottom: "1px solid var(--border-subtle)",
+                        cursor: "pointer",
+                        transition: "background-color 0.15s ease",
+                      }}
+                      onClick={() => setDrawerEmployee(emp)}
+                      className="hover-row"
+                    >
+                      {/* Worker Info */}
+                      <td style={{ padding: "0.875rem 1rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                          <div
+                            style={{
+                              width: 36,
+                              height: 36,
+                              borderRadius: "50%",
+                              backgroundColor: "var(--color-primary-bg)",
+                              border: "1px solid var(--color-primary-border)",
+                              color: "var(--color-primary)",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontWeight: 700,
+                              fontSize: "0.875rem",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {initials}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginTop: "0.15rem" }}>
-                            <span
-                              style={{
-                                fontSize: "0.75rem",
-                                fontFamily: "monospace",
-                                color: "var(--text-secondary)",
-                                backgroundColor: "var(--bg-card)",
-                                padding: "0.05rem 0.35rem",
-                                borderRadius: "0.25rem",
-                                border: "1px solid var(--border-subtle)",
-                                fontWeight: 600,
-                              }}
-                            >
-                              {emp.employee_code}
-                            </span>
+                          <div>
+                            <div style={{ fontWeight: 650, color: "var(--text-primary)", fontSize: "0.875rem" }}>
+                              {emp.full_name}
+                            </div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", marginTop: "0.15rem" }}>
+                              <span
+                                style={{
+                                  fontSize: "0.75rem",
+                                  fontFamily: "monospace",
+                                  color: "var(--text-secondary)",
+                                  backgroundColor: "var(--bg-subtle)",
+                                  padding: "0.05rem 0.35rem",
+                                  borderRadius: "0.25rem",
+                                  border: "1px solid var(--border-default)",
+                                  fontWeight: 600,
+                                }}
+                              >
+                                {emp.employee_code}
+                              </span>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Organization */}
-                    <td style={{ padding: "0.875rem 1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
-                        <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                          {desig?.name || emp.designation || "Staff"}
+                      {/* Organization */}
+                      <td style={{ padding: "0.875rem 1rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.2rem" }}>
+                          <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                            {desig?.name || emp.designation || "Staff"}
+                          </div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                            {dept ? dept.name : "No Department"} • {branch ? branch.name : "Branch"}
+                          </div>
                         </div>
-                        <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          {dept ? dept.name : "No Department"} • {branch ? branch.name : "Branch"}
-                        </div>
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Terms */}
-                    <td style={{ padding: "0.875rem 1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <Badge variant="neutral" size="sm" style={{ width: "fit-content" }}>
-                          {emp.employment_type.replace(/_/g, " ")}
-                        </Badge>
-                        <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                          Joined: {emp.date_of_joining}
-                        </span>
-                      </div>
-                    </td>
-
-                    {/* Statutory & Vault */}
-                    <td style={{ padding: "0.875rem 1rem" }}>
-                      <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem" }}>
-                          <Shield size={13} color="var(--color-primary)" />
-                          <span style={{ color: "var(--text-secondary)", fontFamily: "monospace" }}>
-                            {emp.pan_masked ? `PAN: ${emp.pan_masked}` : "PAN missing"}
+                      {/* Terms */}
+                      <td style={{ padding: "0.875rem 1rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                          <Badge variant="neutral" size="sm" style={{ width: "fit-content", fontWeight: 550 }}>
+                            {emp.employment_type.replace(/_/g, " ")}
+                          </Badge>
+                          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                            Joined: {emp.date_of_joining}
                           </span>
                         </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem" }}>
-                          {emp.biometric_consent_at ? (
-                            <>
-                              <CheckCircle2 size={13} color="var(--color-success)" />
-                              <span style={{ color: "var(--color-success-fg)" }}>DPDP Consent OK</span>
-                            </>
-                          ) : (
-                            <>
-                              <AlertCircle size={13} color="var(--color-warning)" />
-                              <span style={{ color: "var(--color-warning-fg)" }}>Consent Pending</span>
-                            </>
+                      </td>
+
+                      {/* Statutory & Vault */}
+                      <td style={{ padding: "0.875rem 1rem" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem" }}>
+                            <Shield size={13} color="var(--color-primary)" />
+                            <span style={{ color: "var(--text-secondary)", fontFamily: "monospace", fontWeight: 550 }}>
+                              {emp.pan_masked ? `PAN: ${emp.pan_masked}` : "PAN missing"}
+                            </span>
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", fontSize: "0.75rem" }}>
+                            {emp.biometric_consent_at ? (
+                              <>
+                                <CheckCircle2 size={13} color="var(--color-success)" />
+                                <span style={{ color: "var(--color-success-fg)", fontWeight: 500 }}>DPDP Consent OK</span>
+                              </>
+                            ) : (
+                              <>
+                                <AlertCircle size={13} color="var(--color-warning)" />
+                                <span style={{ color: "var(--color-warning-fg)", fontWeight: 500 }}>Consent Pending</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* Status */}
+                      <td style={{ padding: "0.875rem 1rem" }}>
+                        <Badge variant={emp.is_active ? "success" : "neutral"} size="sm">
+                          {emp.is_active ? "Active" : "Inactive"}
+                        </Badge>
+                      </td>
+
+                      {/* Actions */}
+                      <td
+                        style={{ padding: "0.875rem 1rem", textAlign: "right" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
+                          <button
+                            type="button"
+                            onClick={() => setDrawerEmployee(emp)}
+                            title="View Employee 360"
+                            style={{
+                              display: "inline-flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              width: 30,
+                              height: 30,
+                              borderRadius: "0.375rem",
+                              border: "1px solid var(--border-default)",
+                              backgroundColor: "var(--bg-surface)",
+                              color: "var(--color-primary)",
+                              cursor: "pointer",
+                              transition: "all 0.15s ease",
+                            }}
+                          >
+                            <Eye size={14} />
+                          </button>
+
+                          {can("employee.employee.update") && (
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEdit(emp)}
+                              title="Edit Profile"
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: 30,
+                                height: 30,
+                                borderRadius: "0.375rem",
+                                border: "1px solid var(--border-default)",
+                                backgroundColor: "var(--bg-surface)",
+                                color: "var(--text-secondary)",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Edit2 size={14} />
+                            </button>
+                          )}
+
+                          {can("employee.employee.update") && (
+                            <button
+                              type="button"
+                              onClick={() => setToggleTarget(emp)}
+                              title={emp.is_active ? "Deactivate Employee" : "Activate Employee"}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                width: 30,
+                                height: 30,
+                                borderRadius: "0.375rem",
+                                border: "1px solid var(--border-default)",
+                                backgroundColor: "var(--bg-surface)",
+                                color: emp.is_active ? "var(--color-danger-fg)" : "var(--color-success-fg)",
+                                cursor: "pointer",
+                                transition: "all 0.15s ease",
+                              }}
+                            >
+                              <Power size={14} />
+                            </button>
                           )}
                         </div>
-                      </div>
-                    </td>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
 
-                    {/* Status */}
-                    <td style={{ padding: "0.875rem 1rem" }}>
-                      <Badge variant={emp.is_active ? "success" : "neutral"} size="sm">
-                        {emp.is_active ? "Active" : "Inactive"}
-                      </Badge>
-                    </td>
+            {/* Pagination Controls Footer */}
+            <div
+              style={{
+                padding: "0.875rem 1.25rem",
+                backgroundColor: "var(--bg-surface)",
+                borderTop: "1px solid var(--border-default)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: "0.75rem",
+                fontSize: "0.8125rem",
+                color: "var(--text-secondary)",
+              }}
+            >
+              <div>
+                Showing <strong>{(page - 1) * pageSize + 1}</strong> to{" "}
+                <strong>{Math.min(page * pageSize, filteredEmployees.length)}</strong> of{" "}
+                <strong>{filteredEmployees.length}</strong> workers
+              </div>
 
-                    {/* Actions */}
-                    <td
-                      style={{ padding: "0.875rem 1rem", textAlign: "right" }}
-                      onClick={(e) => e.stopPropagation()} // Don't trigger drawer on action clicks
-                    >
-                      <div style={{ display: "inline-flex", alignItems: "center", gap: "0.35rem" }}>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<Eye size={14} />}
-                          onClick={() => setDrawerEmployee(emp)}
-                          title="View Employee 360"
-                        />
-                        {can("employee.employee.update") && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            icon={<Edit2 size={14} />}
-                            onClick={() => handleOpenEdit(emp)}
-                            title="Edit Profile"
-                          />
-                        )}
-                        {can("employee.employee.update") && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            icon={<Power size={14} />}
-                            onClick={() => setToggleTarget(emp)}
-                            title={emp.is_active ? "Deactivate Employee" : "Activate Employee"}
-                            style={{
-                              color: emp.is_active ? "var(--color-danger-fg)" : "var(--color-success-fg)",
-                            }}
-                          />
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+              <div style={{ display: "flex", alignItems: "center", gap: "1.25rem", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Rows per page:</span>
+                  <select
+                    className="select"
+                    value={pageSize}
+                    onChange={(e) => {
+                      setPageSize(Number(e.target.value));
+                      setPage(1);
+                    }}
+                    style={{ width: "auto", padding: "0.2rem 0.5rem", height: "30px", fontSize: "0.75rem" }}
+                  >
+                    <option value={15}>15</option>
+                    <option value={25}>25</option>
+                    <option value={50}>50</option>
+                    <option value={100}>100</option>
+                  </select>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage(1)}
+                    disabled={page <= 1}
+                    icon={<ChevronsLeft size={14} />}
+                    title="First Page"
+                    style={{ width: 30, height: 30, padding: 0, justifyContent: "center" }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    disabled={page <= 1}
+                    icon={<ChevronLeft size={14} />}
+                    title="Previous Page"
+                    style={{ width: 30, height: 30, padding: 0, justifyContent: "center" }}
+                  />
+                  <span style={{ padding: "0 0.5rem", fontWeight: 600, fontSize: "0.75rem", color: "var(--text-primary)" }}>
+                    Page {page} of {totalPages}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                    disabled={page >= totalPages}
+                    icon={<ChevronRight size={14} />}
+                    title="Next Page"
+                    style={{ width: 30, height: 30, padding: 0, justifyContent: "center" }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPage(totalPages)}
+                    disabled={page >= totalPages}
+                    icon={<ChevronsRight size={14} />}
+                    title="Last Page"
+                    style={{ width: 30, height: 30, padding: 0, justifyContent: "center" }}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
         )}
       </div>
 

@@ -6,8 +6,8 @@
   --bg-surface: #ffffff;
   --bg-card: #ffffff;
   --bg-subtle: #f1f5f9;
-  --bg-hover: #e2e8f0;
-  --bg-active: #cbd5e1;
+  --bg-hover: #f1f5f9;
+  --bg-active: #e2e8f0;
 
   /* Text Colors */
   --text-primary: #0f172a;
@@ -20,12 +20,12 @@
   --border-default: #e2e8f0;
   --border-strong: #cbd5e1;
 
-  /* Semantic Brand / Primary */
-  --color-primary: #0f766e;
-  --color-primary-hover: #115e59;
-  --color-primary-bg: #f0fdfa;
-  --color-primary-fg: #0f766e;
-  --color-primary-border: #99f6e4;
+  /* Semantic Brand / Primary (Corporate Royal Blue) */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-bg: #eff6ff;
+  --color-primary-fg: #1d4ed8;
+  --color-primary-border: #bfdbfe;
 
   /* Semantic Success */
   --color-success: #16a34a;
@@ -52,7 +52,7 @@
   --color-info-border: #bae6fd;
 
   /* Focus Ring & Shadows */
-  --focus-ring: rgba(15, 118, 110, 0.4);
+  --focus-ring: rgba(37, 99, 235, 0.25);
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
@@ -90,12 +90,12 @@
   --border-default: #26354f;
   --border-strong: #3b4e6f;
 
-  /* Semantic Brand / Primary */
-  --color-primary: #14b8a6;
-  --color-primary-hover: #2dd4bf;
-  --color-primary-bg: #042f2e;
-  --color-primary-fg: #5eead4;
-  --color-primary-border: #115e59;
+  /* Semantic Brand / Primary (Sapphire Electric Blue) */
+  --color-primary: #3b82f6;
+  --color-primary-hover: #60a5fa;
+  --color-primary-bg: rgba(37, 99, 235, 0.15);
+  --color-primary-fg: #60a5fa;
+  --color-primary-border: #1e40af;
 
   /* Semantic Success */
   --color-success: #22c55e;
@@ -122,7 +122,7 @@
   --color-info-border: #075985;
 
   /* Focus Ring & Shadows */
-  --focus-ring: rgba(20, 184, 166, 0.4);
+  --focus-ring: rgba(59, 130, 246, 0.4);
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.5);
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.4);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.5);
@@ -407,10 +407,16 @@ a {
   background-color: var(--color-primary);
   color: #ffffff;
   border-color: var(--color-primary);
+  box-shadow: 0 1px 2px 0 rgba(37, 99, 235, 0.2);
+  font-weight: 600;
 }
 .btn-primary:hover:not(:disabled) {
   background-color: var(--color-primary-hover);
   border-color: var(--color-primary-hover);
+  box-shadow: 0 2px 4px 0 rgba(37, 99, 235, 0.25);
+}
+.btn-primary:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-secondary {
