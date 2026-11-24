@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, FormEvent } from "react";
-import { Plus, Search, Shield, Lock, Check } from "lucide-react";
+import { Plus, Search, Shield, Lock, Check, X, Info, UserCheck, Users, HelpCircle } from "lucide-react";
 import { api, Permission, Role } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -48,6 +48,96 @@ function getAreaForModule(module: string): string {
   return m;
 }
 
+interface RoleDetailInfo {
+  tagline: string;
+  whoItIsFor: string;
+  canDo: string[];
+  cannotDo: string[];
+  accessLevel: "Self-Service (ESS)" | "Team Supervisor" | "Full Tenant Admin" | "Custom";
+  accessColor: string;
+}
+
+const ROLE_DETAILED_INFO: Record<string, RoleDetailInfo> = {
+  EMPLOYEE: {
+    tagline: "Standard workforce member with personal self-service capabilities",
+    whoItIsFor: "Factory line operators, desk staff, and individual workforce members",
+    canDo: [
+      "Clock in/out daily via biometric devices, mobile GPS, or web punch",
+      "View personal monthly attendance calendar, assigned shifts, and work hours",
+      "Apply for leaves (Casual, Sick, Earned, Comp-Off) and check balances",
+      "Request attendance regularization for missed or forgotten punches",
+      "Apply for work from home (WFH) or on-duty client visits",
+      "Inspect personal overtime records and comp-off credits",
+    ],
+    cannotDo: [
+      "Cannot approve or reject requests submitted by other team members",
+      "Cannot view or modify shift schedules, rosters, or penalty policies",
+      "Cannot view company-wide attendance rollups or Form XX muster rolls",
+      "Cannot manage organization branches, departments, or system roles",
+    ],
+    accessLevel: "Self-Service (ESS)",
+    accessColor: "#10b981",
+  },
+  SUPERVISOR: {
+    tagline: "Line manager / department lead managing team attendance and shifts",
+    whoItIsFor: "Shift foremen, line supervisors, department leads, and project managers",
+    canDo: [
+      "Approve or reject punch regularizations and missing punch requests",
+      "Approve or reject team leave applications and work-from-home requests",
+      "Pre-approve and post-approve overtime hours for direct reports",
+      "Inspect live biometric punch feeds and daily attendance rollup for the team",
+      "View roster matrices and propose shift overrides or rotation swaps",
+      "Review continuous absentees and punch anomaly resolution queues",
+    ],
+    cannotDo: [
+      "Cannot modify tenant statutory settings (PF/ESI slabs, Form XX definitions)",
+      "Cannot create, edit, or delete system roles or assign admin permissions",
+      "Cannot reconfigure biometric hardware terminals or edge agent credentials",
+    ],
+    accessLevel: "Team Supervisor",
+    accessColor: "#f59e0b",
+  },
+  TENANT_ADMIN: {
+    tagline: "Full administrative authority over the entire organization",
+    whoItIsFor: "HR Directors, Plant Operations Heads, and System Administrators",
+    canDo: [
+      "Full access across all 77 permissions and all 14 functional areas",
+      "Create, onboard, and manage worker profiles in the Employee Master",
+      "Configure shift templates, split-shift bands (N65), and attendance policies",
+      "Publish monthly roster matrices and manage rotating schedules",
+      "Manage biometric device fleet, IP connectivity, and template sync queues",
+      "Export Indian statutory Form XX muster rolls and audit explanation traces",
+      "Create custom roles, edit permissions, and manage portal user accounts",
+    ],
+    cannotDo: [
+      "Cannot cross tenant isolation boundaries (Row-Level Security strictly enforces tenant privacy)",
+    ],
+    accessLevel: "Full Tenant Admin",
+    accessColor: "#818cf8",
+  },
+};
+
+function getRoleDetail(role: Role): RoleDetailInfo {
+  const code = role.code.toUpperCase();
+  if (ROLE_DETAILED_INFO[code]) {
+    return ROLE_DETAILED_INFO[code];
+  }
+  const permCount = role.permissions.length;
+  const hasAdmin = role.permissions.some((p) => p.startsWith("iam.") || p.startsWith("policy."));
+  const hasApprove = role.permissions.some((p) => p.includes(".approve"));
+  return {
+    tagline: `Custom role configured with ${permCount} assigned permissions`,
+    whoItIsFor: "Specialized operators, payroll auditors, or plant departmental staff",
+    canDo: [
+      `Access ${role.permissions.length} authorized functional operations`,
+      "Inspect assigned module dashboards and records",
+    ],
+    cannotDo: hasAdmin ? [] : ["Administrative system configuration not explicitly granted"],
+    accessLevel: hasAdmin ? "Full Tenant Admin" : hasApprove ? "Team Supervisor" : "Custom",
+    accessColor: hasAdmin ? "#818cf8" : hasApprove ? "#f59e0b" : "#10b981",
+  };
+}
+
 export function RolesPage() {
   const { can } = useAuth();
   const [roles, setRoles] = useState<Role[]>([]);
@@ -61,6 +151,7 @@ export function RolesPage() {
 
   // Staged permissions for active role
   const [stagedPermissions, setStagedPermissions] = useState<Set<string>>(new Set());
+  const [hoveredRoleId, setHoveredRoleId] = useState<string | null>(null);
 
   // Create Role Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -95,6 +186,11 @@ export function RolesPage() {
   const activeRole = useMemo(
     () => roles.find((r) => r.id === selectedRoleId) || roles[0],
     [roles, selectedRoleId]
+  );
+
+  const activeRoleDetail = useMemo(
+    () => (activeRole ? getRoleDetail(activeRole) : null),
+    [activeRole]
   );
 
   function handleSelectRole(roleId: string) {
@@ -349,44 +445,170 @@ export function RolesPage() {
             }}
           >
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-              {roles.map((r) => {
+              {roles.map((r, idx) => {
                 const isSelected = r.id === activeRole?.id;
                 const count = isSelected ? stagedPermissions.size : r.permissions.length;
+                const isHovered = hoveredRoleId === r.id;
+                const detail = getRoleDetail(r);
                 return (
-                  <button
+                  <div
                     key={r.id}
-                    type="button"
-                    onClick={() => handleSelectRole(r.id)}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "0.5rem",
-                      padding: "0.45rem 0.9rem",
-                      borderRadius: "9999px",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                      border: isSelected
-                        ? "1.5px solid #10b981"
-                        : "1px solid var(--border-default)",
-                      backgroundColor: isSelected
-                        ? "rgba(16, 185, 129, 0.12)"
-                        : "var(--bg-surface)",
-                      color: isSelected ? "#10b981" : "var(--text-secondary)",
-                      cursor: "pointer",
-                      transition: "all 0.15s ease",
-                    }}
+                    style={{ position: "relative" }}
+                    onMouseEnter={() => setHoveredRoleId(r.id)}
+                    onMouseLeave={() => setHoveredRoleId(null)}
                   >
-                    <span>{r.name}</span>
-                    <span
+                    <button
+                      type="button"
+                      onClick={() => handleSelectRole(r.id)}
                       style={{
-                        fontSize: "0.75rem",
+                        display: "inline-flex",
+                        alignItems: "center",
+                        gap: "0.5rem",
+                        padding: "0.45rem 0.9rem",
+                        borderRadius: "9999px",
+                        fontSize: "0.875rem",
                         fontWeight: 600,
-                        opacity: isSelected ? 1 : 0.75,
+                        border: isSelected
+                          ? "1.5px solid #10b981"
+                          : "1px solid var(--border-default)",
+                        backgroundColor: isSelected
+                          ? "rgba(16, 185, 129, 0.12)"
+                          : "var(--bg-surface)",
+                        color: isSelected ? "#10b981" : "var(--text-secondary)",
+                        cursor: "pointer",
+                        transition: "all 0.15s ease",
                       }}
                     >
-                      {count}
-                    </span>
-                  </button>
+                      <span>{r.name}</span>
+                      <span
+                        style={{
+                          fontSize: "0.75rem",
+                          fontWeight: 600,
+                          opacity: isSelected ? 1 : 0.75,
+                        }}
+                      >
+                        {count}
+                      </span>
+                    </button>
+
+                    {/* Detailed Role Hover Card Popover ("scrolled over it") */}
+                    {isHovered ? (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "calc(100% + 8px)",
+                          left: idx >= 2 ? "auto" : 0,
+                          right: idx >= 2 ? 0 : "auto",
+                          width: "370px",
+                          backgroundColor: "var(--bg-card)",
+                          border: "1px solid var(--border-strong)",
+                          borderRadius: "0.75rem",
+                          boxShadow: "0 16px 36px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3)",
+                          padding: "1rem",
+                          zIndex: 100,
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "0.75rem",
+                          pointerEvents: "none",
+                        }}
+                      >
+                        {/* Header */}
+                        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "0.5rem" }}>
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: "0.9375rem", color: "var(--text-primary)" }}>
+                              {r.name}
+                            </div>
+                            <div style={{ fontSize: "0.6875rem", color: "var(--text-muted)", fontFamily: "monospace", marginTop: "1px" }}>
+                              {r.code} {r.is_system ? "· System Role" : "· Custom Role"}
+                            </div>
+                          </div>
+                          <span
+                            style={{
+                              fontSize: "0.6875rem",
+                              fontWeight: 700,
+                              padding: "0.2rem 0.55rem",
+                              borderRadius: "9999px",
+                              backgroundColor: `${detail.accessColor}18`,
+                              color: detail.accessColor,
+                              border: `1px solid ${detail.accessColor}40`,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {detail.accessLevel}
+                          </span>
+                        </div>
+
+                        {/* Tagline */}
+                        <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", lineHeight: 1.4 }}>
+                          {detail.tagline}
+                        </div>
+
+                        {/* Who it is for */}
+                        <div
+                          style={{
+                            fontSize: "0.75rem",
+                            padding: "0.45rem 0.65rem",
+                            borderRadius: "0.375rem",
+                            backgroundColor: "var(--bg-surface)",
+                            border: "1px solid var(--border-subtle)",
+                            color: "var(--text-muted)",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          <strong style={{ color: "var(--text-primary)" }}>Target users: </strong>
+                          {detail.whoItIsFor}
+                        </div>
+
+                        {/* What users can do */}
+                        <div>
+                          <div style={{ fontSize: "0.6875rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                            What user can do:
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                            {detail.canDo.slice(0, 4).map((item, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "0.45rem", fontSize: "0.75rem", color: "var(--text-primary)", lineHeight: 1.35 }}>
+                                <Check size={13} style={{ color: "#10b981", marginTop: "2px", flexShrink: 0 }} />
+                                <span>{item}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* What users cannot do */}
+                        {detail.cannotDo.length > 0 ? (
+                          <div>
+                            <div style={{ fontSize: "0.6875rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.06em", textTransform: "uppercase", marginBottom: "0.4rem" }}>
+                              What user cannot do:
+                            </div>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem" }}>
+                              {detail.cannotDo.slice(0, 2).map((item, i) => (
+                                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "0.45rem", fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.35 }}>
+                                  <X size={13} style={{ color: "#f87171", marginTop: "2px", flexShrink: 0 }} />
+                                  <span>{item}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {/* Footer */}
+                        <div
+                          style={{
+                            paddingTop: "0.5rem",
+                            borderTop: "1px solid var(--border-subtle)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "space-between",
+                            fontSize: "0.6875rem",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          <span>{count} permissions granted</span>
+                          <span style={{ color: "var(--color-primary-fg)", fontWeight: 600 }}>Click pill to select</span>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                 );
               })}
 
@@ -414,6 +636,74 @@ export function RolesPage() {
               {stagedPermissions.size} of {catalog.length} permissions granted
             </div>
           </div>
+
+          {/* Active Role Quick Overview Ribbon */}
+          {activeRole && activeRoleDetail ? (
+            <div
+              style={{
+                marginBottom: "1rem",
+                padding: "0.75rem 1rem",
+                borderRadius: "0.625rem",
+                backgroundColor: "var(--bg-surface)",
+                border: "1px solid var(--border-default)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: "1rem",
+                flexWrap: "wrap",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: "0.5rem",
+                    backgroundColor: `${activeRoleDetail.accessColor}18`,
+                    color: activeRoleDetail.accessColor,
+                    display: "grid",
+                    placeItems: "center",
+                    border: `1px solid ${activeRoleDetail.accessColor}35`,
+                    flexShrink: 0,
+                  }}
+                >
+                  <Shield size={18} />
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+                    <span style={{ fontWeight: 700, fontSize: "0.875rem", color: "var(--text-primary)" }}>
+                      {activeRole.name}
+                    </span>
+                    <span style={{ fontSize: "0.6875rem", color: "var(--text-muted)", fontFamily: "monospace" }}>
+                      ({activeRole.code})
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.6875rem",
+                        fontWeight: 600,
+                        padding: "0.15rem 0.5rem",
+                        borderRadius: "9999px",
+                        backgroundColor: `${activeRoleDetail.accessColor}18`,
+                        color: activeRoleDetail.accessColor,
+                        border: `1px solid ${activeRoleDetail.accessColor}35`,
+                      }}
+                    >
+                      {activeRoleDetail.accessLevel}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: "0.8125rem", color: "var(--text-secondary)", marginTop: "2px" }}>
+                    {activeRoleDetail.tagline} — <span style={{ color: "var(--text-muted)" }}>Target: {activeRoleDetail.whoItIsFor}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexShrink: 0 }}>
+                <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)", fontWeight: 500 }}>
+                  <strong style={{ color: "var(--text-primary)" }}>{stagedPermissions.size}</strong> of {catalog.length} permissions
+                </span>
+              </div>
+            </div>
+          ) : null}
 
           {/* Main Card Container */}
           <div
@@ -569,6 +859,7 @@ export function RolesPage() {
                         <div
                           key={perm.code}
                           onClick={() => handleTogglePermission(perm.code, perm.aliasCode)}
+                          title={`${perm.description || perm.code}\nCode: ${perm.code}\nClick to toggle permission`}
                           style={{
                             display: "flex",
                             alignItems: "flex-start",
@@ -578,8 +869,16 @@ export function RolesPage() {
                             backgroundColor: "var(--bg-card)",
                             border: "1px solid var(--border-subtle)",
                             cursor: "pointer",
-                            transition: "border-color 0.15s ease",
+                            transition: "all 0.15s ease",
                             userSelect: "none",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.borderColor = "var(--border-strong)";
+                            e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.borderColor = "var(--border-subtle)";
+                            e.currentTarget.style.backgroundColor = "var(--bg-card)";
                           }}
                         >
                           {/* Toggle Switch */}
