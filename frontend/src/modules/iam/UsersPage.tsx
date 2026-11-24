@@ -120,14 +120,6 @@ export function UsersPage() {
   const [drawerSuccessMsg, setDrawerSuccessMsg] = useState("");
   const [drawerErrorMsg, setDrawerErrorMsg] = useState("");
 
-  // Invite User Modal
-  const [isInviteOpen, setIsInviteOpen] = useState(false);
-  const [inviteName, setInviteName] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRoleId, setInviteRoleId] = useState("");
-  const [inviteSubmitting, setInviteSubmitting] = useState(false);
-  const [inviteError, setInviteError] = useState("");
-
   // Batch Assign Modal
   const [isBatchOpen, setIsBatchOpen] = useState(false);
   const [batchRoleId, setBatchRoleId] = useState("");
@@ -336,31 +328,6 @@ export function UsersPage() {
     }
   }
 
-  // Invite User Submit
-  async function handleInviteSubmit(e: FormEvent) {
-    e.preventDefault();
-    if (!inviteName || !inviteEmail) return;
-    setInviteSubmitting(true);
-    setInviteError("");
-    try {
-      const newUser = await api.createUser({
-        full_name: inviteName.trim(),
-        email: inviteEmail.trim(),
-        role_id: inviteRoleId || undefined,
-      });
-      setUsers((prev) => [newUser, ...prev]);
-      setActiveUserId(newUser.id);
-      setIsInviteOpen(false);
-      setInviteName("");
-      setInviteEmail("");
-      setInviteRoleId("");
-    } catch (err) {
-      setInviteError(err instanceof Error ? err.message : "Failed to invite user");
-    } finally {
-      setInviteSubmitting(false);
-    }
-  }
-
   // Batch Assign Submit
   async function handleBatchSubmit(e: FormEvent) {
     e.preventDefault();
@@ -534,23 +501,6 @@ export function UsersPage() {
             Select a person to see and change the roles they have.
           </p>
         </div>
-
-        {can("iam.assignment.create") ? (
-          <Button
-            variant="primary"
-            onClick={() => setIsInviteOpen(true)}
-            style={{
-              backgroundColor: "#10b981",
-              borderColor: "#10b981",
-              color: "#ffffff",
-              borderRadius: "0.5rem",
-              fontWeight: 600,
-              padding: "0.5rem 1.15rem",
-            }}
-          >
-            Invite user
-          </Button>
-        ) : null}
       </div>
 
       {error ? (
@@ -1238,82 +1188,6 @@ export function UsersPage() {
           </div>
         ) : null}
       </div>
-
-      {/* Invite User Modal */}
-      <Modal
-        isOpen={isInviteOpen}
-        onClose={() => setIsInviteOpen(false)}
-        title="Invite New User"
-        description="Provision portal login access for a new workforce member or manager."
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setIsInviteOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="primary"
-              onClick={handleInviteSubmit}
-              loading={inviteSubmitting}
-              disabled={!inviteName || !inviteEmail}
-              style={{ backgroundColor: "#10b981", borderColor: "#10b981", color: "#ffffff" }}
-            >
-              Send Invite
-            </Button>
-          </>
-        }
-      >
-        <form onSubmit={handleInviteSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {inviteError ? (
-            <div
-              style={{
-                padding: "0.5rem 0.75rem",
-                backgroundColor: "var(--color-danger-bg)",
-                color: "var(--color-danger-fg)",
-                borderRadius: "0.375rem",
-                fontSize: "0.8125rem",
-              }}
-            >
-              {inviteError}
-            </div>
-          ) : null}
-
-          <Field label="Full Name" required help="e.g. Ramesh Kumar, John Doe">
-            <input
-              className="input"
-              value={inviteName}
-              onChange={(e) => setInviteName(e.target.value)}
-              placeholder="e.g. Anand Sharma"
-              required
-            />
-          </Field>
-
-          <Field label="Email Address" required help="Login email used for portal authentication">
-            <input
-              type="email"
-              className="input"
-              value={inviteEmail}
-              onChange={(e) => setInviteEmail(e.target.value)}
-              placeholder="e.g. anand@northmill.example"
-              required
-            />
-          </Field>
-
-          <Field label="Initial Role" help="Default access role assigned upon first login">
-            <select
-              className="select"
-              value={inviteRoleId}
-              onChange={(e) => setInviteRoleId(e.target.value)}
-            >
-              <option value="">No role (Assign later)</option>
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name} ({r.code})
-                </option>
-              ))}
-            </select>
-          </Field>
-        </form>
-      </Modal>
 
       {/* Batch Assign Role Modal */}
       <Modal
