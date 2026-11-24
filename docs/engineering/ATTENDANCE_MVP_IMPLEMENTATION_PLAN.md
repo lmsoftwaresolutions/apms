@@ -11,8 +11,8 @@ Engineering sequence only. Product truth stays in [`CONTEXT.md`](../../CONTEXT.m
 | Cutoff rollup for a silent absence | [#40](https://github.com/lmsoftwaresolutions/apms/issues/40) | Branch only. Beat process is not deployed |
 | Employee calendar, today, own shifts | [#41](https://github.com/lmsoftwaresolutions/apms/issues/41) | Branch only |
 | Work modes and OT gating | [#39](https://github.com/lmsoftwaresolutions/apms/issues/39) | Not started |
-| Leave, holidays, sandwich | [#27](https://github.com/lmsoftwaresolutions/apms/issues/27) | Not started |
-| Muster export | [#28](https://github.com/lmsoftwaresolutions/apms/issues/28) | Not started |
+| Leave, holidays, sandwich | [#27](https://github.com/lmsoftwaresolutions/apms/issues/27) | `feat/leave-and-muster`. Ledger, holidays, half-day, sandwich evaluation |
+| Muster export | [#28](https://github.com/lmsoftwaresolutions/apms/issues/28) | `feat/leave-and-muster`. Status, hours, leave. No wages |
 | Operator UI | [#33](https://github.com/lmsoftwaresolutions/apms/issues/33)–[#38](https://github.com/lmsoftwaresolutions/apms/issues/38) | Not started |
 | Device heartbeat | [#29](https://github.com/lmsoftwaresolutions/apms/issues/29) | Not started. SQLite buffer is on the branch |
 | Policy, OT hours, geofence | [#25](https://github.com/lmsoftwaresolutions/apms/issues/25), [#31](https://github.com/lmsoftwaresolutions/apms/issues/31), [#32](https://github.com/lmsoftwaresolutions/apms/issues/32) | Not started |

@@ -10,6 +10,8 @@ from app.modules.designations.router import router as designations_router
 from app.modules.employees.router import router as employees_router
 from app.modules.iam.router import router as iam_router
 from app.modules.privacy.router import router as privacy_router
+from app.modules.leave.router import router as leave_router
+from app.modules.muster.router import router as muster_router
 from app.modules.punches.router import router as punches_router
 from app.modules.roster.router import router as roster_router
 from app.modules.shifts.router import router as shifts_router
@@ -27,4 +29,6 @@ api_router.include_router(roster_router)
 api_router.include_router(punches_router)
 api_router.include_router(regularizations_router)
 api_router.include_router(ess_router)
+api_router.include_router(leave_router)
+api_router.include_router(muster_router)
 api_router.include_router(attendance_router)

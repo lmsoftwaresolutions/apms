@@ -6,6 +6,7 @@ from app.models.rollup_failure import AttendanceRollupFailure
 from app.models.department import Department
 from app.models.designation import Designation
 from app.models.employee import Employee
+from app.models.leave import Holiday, LeaveRequest, LeaveTransaction, LeaveType
 from app.models.punch import PunchEvent, RawEnvelope
 from app.models.roster import DatedShiftInstance, RosterPattern
 from app.models.shift import ShiftSession, ShiftTemplate
@@ -31,6 +32,10 @@ __all__ = [
     "Department",
     "Designation",
     "Employee",
+    "Holiday",
+    "LeaveRequest",
+    "LeaveTransaction",
+    "LeaveType",
     "PunchEvent",
     "RawEnvelope",
     "RosterPattern",
