@@ -796,8 +796,8 @@ async def test_adversarial_idempotency_key_rejects_mutated_body(seeded_tenants: 
 async def test_adversarial_pii_ciphertext_hides_plaintext(seeded_tenants: tuple[Tenant, Tenant]):
     """Vector F: stored PAN and bank account columns do not contain the plaintext."""
     tenant, _ = seeded_tenants
-    pan = "ABCDE1234F"
-    account = "123456789012"
+    pan = f"ADVPA{uuid4().int % 9000 + 1000}Z"
+    account = f"{uuid4().int % 900000000000 + 100000000000}"
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant.id)

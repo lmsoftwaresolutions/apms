@@ -10,7 +10,9 @@ from app.adapters.csv_bulk import CSVBulkAdapter
 from app.adapters.etimeoffice import ETimeOfficeAdapter
 from app.adapters.zkteco import ZKTecoADMSAdapter
 from app.models.punch import PunchEvent, RawEnvelope
+from app.modules.attendance.cutoff import record_rollup_failure
 from app.modules.attendance.service import calculate_and_save_daily_attendance
+from app.modules.privacy.repository import latest_consent_action
 from app.modules.punches.repository import (
     find_envelope_by_hash,
     find_recent_punch_within_window,
@@ -21,6 +23,20 @@ from app.modules.punches.repository import (
 from app.modules.punches.schemas import PunchIngestResult
 
 IST = ZoneInfo("Asia/Kolkata")
+BIOMETRIC_SOURCES = frozenset({"ZKTECO", "ADMS", "ETIMEOFFICE", "ETIME", "ESSL"})
+
+
+def punch_status_for_consent(source: str, consent_withdrawn: bool, duplicate: bool) -> str:
+    """A withdrawn biometric consent keeps the alternate punch path open.
+
+    Employees with no consent ledger row keep the existing device path. Only an
+    explicit WITHDRAWN event blocks ZKTeco, eSSL, and eTimeOffice punches.
+    """
+    if source.upper() in BIOMETRIC_SOURCES and consent_withdrawn:
+        return "CONSENT_WITHDRAWN"
+    if duplicate:
+        return "DUPLICATE_IGNORED"
+    return "ACTIVE"
 
 
 def get_adapter_for_source(source: str) -> BasePunchAdapter:
@@ -98,6 +114,7 @@ async def process_and_ingest_punches(
 
     # Cache code to employee_id lookups
     employee_cache: dict[str, UUID | None] = {}
+    withdrawn_cache: dict[UUID, bool] = {}
 
     for punch in canonical_punches:
         code = punch.employee_code
@@ -125,11 +142,12 @@ async def process_and_ingest_punches(
             window_seconds=60,
         )
 
-        punch_status = "ACTIVE"
-        if recent is not None:
-            punch_status = "DUPLICATE_IGNORED"
+        if emp_id not in withdrawn_cache:
+            withdrawn_cache[emp_id] = await latest_consent_action(session, tenant_id, emp_id) == "WITHDRAWN"
+        punch_status = punch_status_for_consent(punch.source, withdrawn_cache[emp_id], recent is not None)
+        if punch_status == "DUPLICATE_IGNORED":
             duplicate_count += 1
-        else:
+        elif punch_status == "ACTIVE":
             active_count += 1
 
         events_to_insert.append(
@@ -159,15 +177,15 @@ async def process_and_ingest_punches(
 
         for emp_id, cal_date in affected_dates:
             try:
-                await calculate_and_save_daily_attendance(
-                    session=session,
-                    tenant_id=tenant_id,
-                    employee_id=emp_id,
-                    calendar_date=cal_date,
-                )
-            except Exception:
-                # Do not block punch ingest if attendance rollup fails
-                pass
+                async with session.begin_nested():
+                    await calculate_and_save_daily_attendance(
+                        session=session,
+                        tenant_id=tenant_id,
+                        employee_id=emp_id,
+                        calendar_date=cal_date,
+                    )
+            except Exception as exc:
+                await record_rollup_failure(session, tenant_id, emp_id, cal_date, exc)
 
     return PunchIngestResult(
         raw_envelope_id=envelope.id,

@@ -55,7 +55,7 @@ class AttendanceExplanationTrace(Base):
             ["tenant_id", "attendance_record_id"],
             ["attendance_daily_records.tenant_id", "attendance_daily_records.id"],
             name="fk_attendance_trace_record",
-            ondelete="CASCADE",
+            ondelete="RESTRICT",
         ),
     )
 

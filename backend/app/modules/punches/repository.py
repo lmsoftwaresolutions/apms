@@ -1,8 +1,8 @@
 from collections.abc import Sequence
-from datetime import datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.punch import PunchEvent, RawEnvelope
@@ -82,6 +82,24 @@ async def list_punches_for_employee(
     )
     result = await session.execute(stmt)
     return result.scalars().all()
+
+
+async def newest_active_punch_created_at(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_id: UUID,
+    calendar_date: date,
+) -> datetime | None:
+    start = datetime.combine(calendar_date, time(0, 0), tzinfo=UTC) - timedelta(hours=6)
+    end = datetime.combine(calendar_date, time(23, 59, 59), tzinfo=UTC) + timedelta(hours=14)
+    stmt = select(func.max(PunchEvent.created_at)).where(
+        PunchEvent.tenant_id == tenant_id,
+        PunchEvent.employee_id == employee_id,
+        PunchEvent.status == "ACTIVE",
+        PunchEvent.punch_time >= start,
+        PunchEvent.punch_time <= end,
+    )
+    return await session.scalar(stmt)
 
 
 async def list_punch_events(

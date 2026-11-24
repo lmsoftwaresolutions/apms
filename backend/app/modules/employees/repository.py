@@ -49,6 +49,11 @@ async def get_employee_by_id(session: AsyncSession, tenant_id: UUID, employee_id
     return emp
 
 
+async def get_employee_by_user_id(session: AsyncSession, tenant_id: UUID, user_id: UUID) -> Employee | None:
+    stmt = select(Employee).where(Employee.tenant_id == tenant_id, Employee.user_id == user_id)
+    return await session.scalar(stmt)
+
+
 async def list_employees_by_tenant(
     session: AsyncSession,
     tenant_id: UUID,

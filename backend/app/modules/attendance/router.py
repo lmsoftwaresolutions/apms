@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -10,12 +10,14 @@ from app.modules.attendance.repository import (
     get_attendance_record_by_id,
     get_trace_by_record_id,
     list_attendance_records,
+    list_rollup_failures,
 )
 from app.modules.attendance.schemas import (
     AttendanceTraceRead,
     DailyAttendanceRead,
     RecalculateAttendanceRequest,
 )
+from app.modules.attendance.cutoff import run_cutoff_rollup
 from app.modules.attendance.service import calculate_and_save_daily_attendance
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -93,6 +95,34 @@ async def get_trace_endpoint(
         trace_payload=trace.trace_payload,
         evaluated_at=trace.evaluated_at,
     )
+
+
+@router.get("/rollup/failures", summary="List attendance evaluations that failed after a punch or cutoff")
+async def list_failures(
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("attendance.rollup.read"))],
+) -> list[dict[str, object]]:
+    rows = await list_rollup_failures(session, current.tenant_id)
+    return [
+        {
+            "id": str(row.id),
+            "employee_id": str(row.employee_id),
+            "calendar_date": row.calendar_date.isoformat(),
+            "error_title": row.error_title,
+            "error_detail": row.error_detail,
+            "created_at": row.created_at.isoformat(),
+        }
+        for row in rows
+    ]
+
+
+@router.post("/rollup/cutoff", summary="Evaluate dated shifts whose post-window has closed")
+async def run_cutoff(
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("attendance.daily.recalculate"))],
+) -> dict[str, int]:
+    evaluated = await run_cutoff_rollup(session, current.tenant_id, datetime.now(UTC))
+    return {"evaluated": evaluated}
 
 
 @router.post(

@@ -27,14 +27,17 @@ async def test_employee_api_crud_and_masking() -> None:
 
         # 3. Create employee with raw PII
         emp_code = f"API-{uuid4().hex[:6].upper()}"
+        pan_num = uuid4().int % 9000 + 1000
+        aadhaar_num = uuid4().int % 9000 + 1000
+        bank_num = uuid4().int % 9000 + 1000
         create_payload = {
             "employee_code": emp_code,
             "full_name": "API Test Employee",
             "branch_id": branch_id,
             "date_of_joining": "2026-02-01",
-            "pan": "ABCDE1234F",
-            "aadhaar": "999988881234",
-            "bank_account": "112233445566",
+            "pan": f"ABCDE{pan_num}F",
+            "aadhaar": f"99998888{aadhaar_num}",
+            "bank_account": f"11223344{bank_num}",
             "bank_ifsc": "HDFC0001234",
             "biometric_consent": True,
         }
@@ -49,9 +52,9 @@ async def test_employee_api_crud_and_masking() -> None:
         emp_id = data["id"]
 
         # Verify masked output in API response
-        assert data["pan_masked"] == "XXXXX1234"
-        assert data["aadhaar_masked"] == "XXXXXXXX1234"
-        assert data["bank_account_masked"] == "XXXXXXXX5566"
+        assert data["pan_masked"] == f"XXXXX{pan_num}"
+        assert data["aadhaar_masked"] == f"XXXXXXXX{aadhaar_num}"
+        assert data["bank_account_masked"] == f"XXXXXXXX{bank_num}"
         assert data["bank_ifsc_masked"] == "XXXXXXX1234"
         assert data["biometric_consent_at"] is not None
         # Verify raw PII does not exist in response keys
@@ -97,6 +100,7 @@ async def test_employee_api_crud_and_masking() -> None:
         assert delete_resp.status_code == 200
         assert delete_resp.json()["id"] == emp_id
 
-        # 9. Verify deletion: GET returns 404
+        # 9. Offboarding keeps the row and marks the employee inactive
         get_after_delete = await client.get(f"/api/v1/employees/{emp_id}", headers=headers)
-        assert get_after_delete.status_code == 404
+        assert get_after_delete.status_code == 200
+        assert get_after_delete.json()["is_active"] is False

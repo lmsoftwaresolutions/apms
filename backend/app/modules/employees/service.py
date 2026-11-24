@@ -20,6 +20,8 @@ from app.modules.branches import repository as branch_repo
 from app.modules.departments import repository as dept_repo
 from app.modules.designations import repository as desig_repo
 from app.modules.employees import repository as emp_repo
+from app.modules.privacy.repository import insert_consent_event
+from app.modules.privacy.service import consent_action
 from app.modules.employees.schemas import EmployeeCreate, EmployeeOut, EmployeeUpdate
 from app.modules.iam import repository as iam_repo
 
@@ -117,7 +119,12 @@ async def _require_user(session: AsyncSession, tenant_id: UUID, user_id: UUID) -
         raise ProblemError(400, "Invalid user", "User does not exist in this tenant.")
 
 
-async def create_employee(session: AsyncSession, tenant_id: UUID, payload: EmployeeCreate) -> EmployeeOut:
+async def create_employee(
+    session: AsyncSession,
+    tenant_id: UUID,
+    payload: EmployeeCreate,
+    actor_user_id: UUID | None = None,
+) -> EmployeeOut:
     await _require_branch(session, tenant_id, payload.branch_id)
     if payload.department_id is not None:
         await _require_department_in_branch(session, tenant_id, payload.department_id, payload.branch_id)
@@ -176,6 +183,9 @@ async def create_employee(session: AsyncSession, tenant_id: UUID, payload: Emplo
             "An employee with this code or linked user already exists in this tenant.",
         ) from exc
 
+    if payload.biometric_consent:
+        await insert_consent_event(session, tenant_id, emp.id, "GRANTED", actor_user_id)
+
     return employee_to_out(emp)
 
 
@@ -208,6 +218,7 @@ async def update_employee(
     tenant_id: UUID,
     employee_id: UUID,
     payload: EmployeeUpdate,
+    actor_user_id: UUID | None = None,
 ) -> EmployeeOut:
     emp = await emp_repo.get_employee_by_id(session, tenant_id, employee_id)
     if emp is None:
@@ -215,6 +226,7 @@ async def update_employee(
 
     original_branch_id = emp.branch_id
     original_department_id = emp.department_id
+    had_consent = emp.biometric_consent_at is not None
     target_branch_id = payload.branch_id if payload.branch_id is not None else original_branch_id
     if payload.branch_id is not None and payload.branch_id != original_branch_id:
         await _require_branch(session, tenant_id, payload.branch_id)
@@ -315,11 +327,18 @@ async def update_employee(
             "Update failed due to unique constraint conflict.",
         ) from exc
 
+    action = consent_action(had_consent, payload.biometric_consent)
+    if action is not None:
+        await insert_consent_event(session, tenant_id, emp.id, action, actor_user_id)
+
     return employee_to_out(emp)
 
 
 async def delete_employee(session: AsyncSession, tenant_id: UUID, employee_id: UUID) -> None:
+    """Offboarding keeps the row. Attendance traces and consent history cannot be deleted."""
     emp = await emp_repo.get_employee_by_id(session, tenant_id, employee_id)
     if emp is None:
         raise ProblemError(404, "Employee not found", "No employee with that id exists in this tenant.")
-    await emp_repo.delete_employee_record(session, emp)
+    emp.is_active = False
+    emp.updated_at = datetime.now(UTC)
+    await emp_repo.flush_employee(session)
