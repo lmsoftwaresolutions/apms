@@ -15,11 +15,11 @@ import {
   Briefcase,
   Shield,
   UserCheck,
-  ChevronLeft,
   ChevronRight,
   ChevronDown,
   LogOut,
   User as UserIcon,
+  Menu,
   LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -117,69 +117,104 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
       <div
         style={{
           height: "var(--topbar-height)",
-          padding: collapsed ? "0 0.75rem" : "0 1.25rem",
+          padding: collapsed ? "0 0.5rem" : "0 0.875rem 0 1.25rem",
           display: "flex",
           alignItems: "center",
-          justifyContent: collapsed ? "center" : "flex-start",
-          gap: "0.75rem",
+          justifyContent: collapsed ? "center" : "space-between",
           borderBottom: "1px solid var(--border-default)",
           overflow: "hidden",
         }}
       >
-        {me?.tenant.logo_url ? (
-          <img
-            src={me.tenant.logo_url}
-            alt=""
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              objectFit: "cover",
-              flexShrink: 0,
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: 32,
-              height: 32,
-              borderRadius: 6,
-              backgroundColor: "var(--color-primary)",
-              color: "#ffffff",
-              display: "grid",
-              placeItems: "center",
-              fontWeight: 700,
-              fontSize: "1rem",
-              flexShrink: 0,
-            }}
-          >
-            {initial}
-          </div>
-        )}
         {!collapsed ? (
-          <div style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
-            <div
-              style={{
-                fontWeight: 700,
-                fontSize: "1rem",
-                color: "var(--text-primary)",
-                letterSpacing: "-0.02em",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-              }}
-            >
-              {me?.tenant.display_name || "APMS"}
-            </div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "var(--text-muted)",
-              }}
-            >
-              Enterprise Portal
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", minWidth: 0, overflow: "hidden" }}>
+            {me?.tenant.logo_url ? (
+              <img
+                src={me.tenant.logo_url}
+                alt=""
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  objectFit: "cover",
+                  flexShrink: 0,
+                }}
+              />
+            ) : (
+              <div
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 6,
+                  backgroundColor: "var(--color-primary)",
+                  color: "#ffffff",
+                  display: "grid",
+                  placeItems: "center",
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                  flexShrink: 0,
+                }}
+              >
+                {initial}
+              </div>
+            )}
+            <div style={{ overflow: "hidden", whiteSpace: "nowrap" }}>
+              <div
+                style={{
+                  fontWeight: 700,
+                  fontSize: "0.9375rem",
+                  color: "var(--text-primary)",
+                  letterSpacing: "-0.02em",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {me?.tenant.display_name || "APMS"}
+              </div>
+              <div
+                style={{
+                  fontSize: "0.75rem",
+                  color: "var(--text-muted)",
+                }}
+              >
+                Enterprise Portal
+              </div>
             </div>
           </div>
         ) : null}
+
+        {/* 3-Line Hamburger Sidebar Toggle Button at Top Right */}
+        <button
+          type="button"
+          onClick={onToggleCollapse}
+          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 32,
+            height: 32,
+            borderRadius: "0.375rem",
+            border: "1px solid var(--border-default)",
+            backgroundColor: "var(--bg-surface)",
+            color: "var(--text-secondary)",
+            cursor: "pointer",
+            flexShrink: 0,
+            transition: "all 0.15s ease",
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = "var(--text-primary)";
+            e.currentTarget.style.borderColor = "var(--border-strong)";
+            e.currentTarget.style.backgroundColor = "var(--bg-subtle)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--text-secondary)";
+            e.currentTarget.style.borderColor = "var(--border-default)";
+            e.currentTarget.style.backgroundColor = "var(--bg-surface)";
+          }}
+        >
+          <Menu size={18} />
+        </button>
       </div>
 
       {/* Navigation Groups */}
@@ -418,30 +453,6 @@ export function Sidebar({ collapsed, onToggleCollapse }: SidebarProps) {
             </button>
           </div>
         )}
-
-        {/* Collapse Sidebar Button */}
-        <div style={{ display: "flex", justifyContent: collapsed ? "center" : "flex-end" }}>
-          <button
-            type="button"
-            onClick={onToggleCollapse}
-            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: "0.375rem",
-              border: "1px solid var(--border-default)",
-              backgroundColor: "var(--bg-surface)",
-              color: "var(--text-secondary)",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
-          </button>
-        </div>
       </div>
     </aside>
   );
