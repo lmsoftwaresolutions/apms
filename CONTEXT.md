@@ -1,7 +1,8 @@
 # APMS — Master Context (Single Source of Truth)
 
 > **Status:** Authoritative | **Phase:** Discovery & Design | **Market:** India-first  
-> **Precedence:** `CONTEXT.md` > `docs/product/SRS.md` > `docs/requirements/BUSINESS_RULES.md` > other docs  
+> **Precedence:** `CONTEXT.md` > `docs/product/SRS.md` > `docs/requirements/BUSINESS_RULES.md` > `docs/GLOSSARY.md` > other docs  
+> **Glossary:** [`docs/GLOSSARY.md`](docs/GLOSSARY.md) — Master domain & codebase terminology index  
 > **Market evidence:** `docs/market/MARKET_RESEARCH.md` (secondary web research, 2026-11-18)  
 > **Rule:** Do not duplicate truths elsewhere. Link here. Mark OPEN / RECOMMENDED / CONFIRMED.
 

@@ -6,6 +6,7 @@
 **Master SSOT:** [`CONTEXT.md`](CONTEXT.md)  
 **Requirements:** [`docs/product/SRS.md`](docs/product/SRS.md)  
 **Formulas:** [`docs/requirements/BUSINESS_RULES.md`](docs/requirements/BUSINESS_RULES.md)  
+**Glossary:** [`docs/GLOSSARY.md`](docs/GLOSSARY.md)  
 **Decisions:** [`docs/requirements/OPEN_QUESTIONS.md`](docs/requirements/OPEN_QUESTIONS.md) · [`docs/decisions/DECISION_REGISTER.md`](docs/decisions/DECISION_REGISTER.md)
 
 ## Stack
