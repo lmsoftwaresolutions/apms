@@ -12,7 +12,7 @@ from app.adapters.zkteco import ZKTecoADMSAdapter
 from app.models.punch import PunchEvent, RawEnvelope
 from app.modules.attendance.cutoff import record_rollup_failure
 from app.modules.attendance.service import calculate_and_save_daily_attendance
-from app.modules.employees import repository as emp_repo
+from app.modules.privacy.repository import latest_consent_action
 from app.modules.punches.repository import (
     find_envelope_by_hash,
     find_recent_punch_within_window,
@@ -26,9 +26,13 @@ IST = ZoneInfo("Asia/Kolkata")
 BIOMETRIC_SOURCES = frozenset({"ZKTECO", "ADMS", "ETIMEOFFICE", "ETIME", "ESSL"})
 
 
-def punch_status_for_consent(source: str, consent_granted: bool, duplicate: bool) -> str:
-    """A withdrawn or missing biometric consent keeps the alternate punch path open."""
-    if source.upper() in BIOMETRIC_SOURCES and not consent_granted:
+def punch_status_for_consent(source: str, consent_withdrawn: bool, duplicate: bool) -> str:
+    """A withdrawn biometric consent keeps the alternate punch path open.
+
+    Employees with no consent ledger row keep the existing device path. Only an
+    explicit WITHDRAWN event blocks ZKTeco, eSSL, and eTimeOffice punches.
+    """
+    if source.upper() in BIOMETRIC_SOURCES and consent_withdrawn:
         return "CONSENT_WITHDRAWN"
     if duplicate:
         return "DUPLICATE_IGNORED"
@@ -110,7 +114,7 @@ async def process_and_ingest_punches(
 
     # Cache code to employee_id lookups
     employee_cache: dict[str, UUID | None] = {}
-    consent_cache: dict[UUID, bool] = {}
+    withdrawn_cache: dict[UUID, bool] = {}
 
     for punch in canonical_punches:
         code = punch.employee_code
@@ -138,10 +142,9 @@ async def process_and_ingest_punches(
             window_seconds=60,
         )
 
-        if emp_id not in consent_cache:
-            employee = await emp_repo.get_employee_by_id(session, tenant_id, emp_id)
-            consent_cache[emp_id] = employee is not None and employee.biometric_consent_at is not None
-        punch_status = punch_status_for_consent(punch.source, consent_cache[emp_id], recent is not None)
+        if emp_id not in withdrawn_cache:
+            withdrawn_cache[emp_id] = await latest_consent_action(session, tenant_id, emp_id) == "WITHDRAWN"
+        punch_status = punch_status_for_consent(punch.source, withdrawn_cache[emp_id], recent is not None)
         if punch_status == "DUPLICATE_IGNORED":
             duplicate_count += 1
         elif punch_status == "ACTIVE":

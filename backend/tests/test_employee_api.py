@@ -97,6 +97,7 @@ async def test_employee_api_crud_and_masking() -> None:
         assert delete_resp.status_code == 200
         assert delete_resp.json()["id"] == emp_id
 
-        # 9. Verify deletion: GET returns 404
+        # 9. Offboarding keeps the row and marks the employee inactive
         get_after_delete = await client.get(f"/api/v1/employees/{emp_id}", headers=headers)
-        assert get_after_delete.status_code == 404
+        assert get_after_delete.status_code == 200
+        assert get_after_delete.json()["is_active"] is False

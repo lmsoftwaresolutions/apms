@@ -65,9 +65,11 @@ def test_correction_punch_must_fall_inside_the_day_window() -> None:
 
 
 def test_withdrawn_consent_rejects_biometric_and_keeps_the_alternate_path() -> None:
-    assert punch_status_for_consent("ZKTECO", False, False) == "CONSENT_WITHDRAWN"
-    assert punch_status_for_consent("CSV_BULK", False, False) == "ACTIVE"
-    assert punch_status_for_consent("ZKTECO", True, True) == "DUPLICATE_IGNORED"
+    assert punch_status_for_consent("ZKTECO", True, False) == "CONSENT_WITHDRAWN"
+    assert punch_status_for_consent("ZKTECO", False, False) == "ACTIVE"
+    assert punch_status_for_consent("CSV_BULK", True, False) == "ACTIVE"
+    assert punch_status_for_consent("ZKTECO", False, True) == "DUPLICATE_IGNORED"
+    assert punch_status_for_consent("ETIMEOFFICE", True, True) == "CONSENT_WITHDRAWN"
 
 
 def test_edge_buffer_keeps_seven_days_and_uploads_once(tmp_path: Path) -> None:

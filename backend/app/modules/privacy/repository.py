@@ -32,6 +32,18 @@ async def insert_consent_event(
     await session.flush()
 
 
+async def latest_consent_action(
+    session: AsyncSession, tenant_id: UUID, employee_id: UUID
+) -> str | None:
+    stmt = (
+        select(ConsentEvent.action)
+        .where(ConsentEvent.tenant_id == tenant_id, ConsentEvent.employee_id == employee_id)
+        .order_by(ConsentEvent.recorded_at.desc())
+        .limit(1)
+    )
+    return await session.scalar(stmt)
+
+
 async def list_consent_events(
     session: AsyncSession, tenant_id: UUID, employee_id: UUID
 ) -> list[ConsentEvent]:
