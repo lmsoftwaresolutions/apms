@@ -111,6 +111,10 @@ async def calculate_and_save_daily_attendance(
                 policy = await get_policy(session, tenant_id, tpl.policy_id)
             shift_contract.policy = policy
 
+    # 0.05 Resolve Cascading Effective Policy (M12)
+    from app.modules.policies.resolver import resolve_effective_policy
+    effective_policy = await resolve_effective_policy(session, tenant_id, employee_id, base_policy=policy)
+
     # 0.1 Check approved work mode (WFH / ON_DUTY)
     from app.modules.work_modes.repository import list_approved_work_modes
     from app.modules.work_modes.service import work_mode_coverage
@@ -132,14 +136,14 @@ async def calculate_and_save_daily_attendance(
     )
 
     # 2. Pair punches chronologically (BR-ATT-01, N65)
-    pairing = pair_punches_for_shift(shift_contract, punches, policy=policy)
+    pairing = pair_punches_for_shift(shift_contract, punches, policy=effective_policy)
 
     # 3. Rollup decisions (N66a, N66b, Q4, BR-ATT-17, BR-OTC-01)
     decision = evaluate_daily_rollup(
         pairing,
         theta_present,
         theta_half_day,
-        policy=policy,
+        policy=effective_policy,
         work_mode=work_mode_code,
         session_target=session_target,
     )
@@ -153,8 +157,8 @@ async def calculate_and_save_daily_attendance(
         prior_late_count = await count_prior_late_days_in_month(
             session, tenant_id, employee_id, calendar_date
         )
-        max_free = policy.max_free_lates_per_month
-        penalty_action = policy.late_penalty_action
+        max_free = effective_policy.max_free_lates_per_month
+        penalty_action = effective_policy.late_penalty_action
 
         exceeded = prior_late_count >= max_free
         late_penalty_info = {
@@ -172,7 +176,7 @@ async def calculate_and_save_daily_attendance(
                 session,
                 tenant_id,
                 employee_id,
-                policy.late_penalty_leave_type_id,
+                effective_policy.late_penalty_leave_type_id,
                 calendar_date,
                 penalty_action,
             )
@@ -187,7 +191,7 @@ async def calculate_and_save_daily_attendance(
         decision,
         theta_present,
         theta_half_day,
-        policy=policy,
+        policy=effective_policy,
         work_mode=work_mode_code,
         session_target=session_target,
         late_penalty=late_penalty_info,
@@ -243,5 +247,56 @@ async def calculate_and_save_daily_attendance(
         evaluated_at=now,
     )
     await save_explanation_trace(session, trace)
+
+    # 7. Overtime Record Upsert & Auto-Approval (M12)
+    from app.models.overtime import OvertimeRecord
+    from app.modules.overtime.repository import get_overtime_record_by_attendance_id
+
+    existing_ot = await get_overtime_record_by_attendance_id(session, tenant_id, record.id)
+    raw_ot_mins = decision.overtime_minutes or 0
+
+    if raw_ot_mins > 0:
+        ot_approval_mode = getattr(effective_policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL")
+        ot_threshold = getattr(effective_policy, "ot_auto_approve_threshold_minutes", 0) or 0
+
+        if ot_approval_mode == "AUTO_APPROVE_ALL":
+            ot_status = "APPROVED_FOR_PAY"
+            approved_mins = raw_ot_mins
+        elif ot_approval_mode == "AUTO_APPROVE_BELOW_THRESHOLD" and raw_ot_mins <= ot_threshold:
+            ot_status = "APPROVED_FOR_PAY"
+            approved_mins = raw_ot_mins
+        else:
+            ot_status = "UNREVIEWED"
+            approved_mins = 0
+
+        if existing_ot is not None:
+            if existing_ot.status == "UNREVIEWED":
+                existing_ot.raw_overtime_minutes = raw_ot_mins
+                existing_ot.approved_overtime_minutes = approved_mins
+                existing_ot.status = ot_status
+                existing_ot.updated_at = now
+        else:
+            ot_rec = OvertimeRecord(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                attendance_record_id=record.id,
+                employee_id=employee_id,
+                overtime_date=calendar_date,
+                raw_overtime_minutes=raw_ot_mins,
+                approved_overtime_minutes=approved_mins,
+                rate_multiplier=Decimal("2.00"),
+                status=ot_status,
+                comp_off_leave_transaction_id=None,
+                supervisor_id=None,
+                decision_reason="Auto-approved by policy rule" if ot_status == "APPROVED_FOR_PAY" else None,
+                reviewed_at=now if ot_status == "APPROVED_FOR_PAY" else None,
+                created_at=now,
+                updated_at=now,
+            )
+            session.add(ot_rec)
+            await session.flush()
+    elif existing_ot is not None and existing_ot.status == "UNREVIEWED":
+        existing_ot.raw_overtime_minutes = 0
+        existing_ot.updated_at = now
 
     return record, trace

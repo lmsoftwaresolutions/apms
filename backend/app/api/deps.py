@@ -50,10 +50,11 @@ async def get_current_user(
     return CurrentUser(user, permissions)
 
 
-def require_permission(code: str):
+def require_permission(*codes: str):
     async def checker(current: Annotated[CurrentUser, Depends(get_current_user)]) -> CurrentUser:
-        if code not in current.permissions:
-            raise ProblemError(403, "Forbidden", f"Missing permission {code}.")
+        if not any(code in current.permissions for code in codes):
+            missing = codes[0] if len(codes) == 1 else " / ".join(codes)
+            raise ProblemError(403, "Forbidden", f"Missing permission {missing}.")
         return current
 
     return checker

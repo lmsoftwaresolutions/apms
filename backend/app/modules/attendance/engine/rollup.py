@@ -185,8 +185,15 @@ def evaluate_daily_rollup(
     if max_ot is not None:
         ot_minutes = min(ot_minutes, max_ot)
 
-    # N20: extra minutes are not payable until a supervisor authorizes them.
-    if work_mode == "WFH" and ot_minutes > 0:
+    allow_ot = getattr(policy, "allow_overtime", True) if policy else True
+    if allow_ot is None:
+        allow_ot = True
+    if not allow_ot and ot_minutes > 0:
+        ot_minutes = 0
+        explanation += " Overtime disabled by policy."
+
+    allow_wfh_ot = getattr(policy, "allow_wfh_overtime", False) if policy else False
+    if work_mode == "WFH" and not allow_wfh_ot and ot_minutes > 0:
         ot_minutes = 0
         explanation += " Extra minutes stay unpayable until a supervisor authorizes overtime (N20)."
 

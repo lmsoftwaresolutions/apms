@@ -88,9 +88,18 @@ async def apply_work_mode(
         )
 
     policy = await resolve_employee_policy(session, tenant_id, employee_id, payload.calendar_date)
-    quota = policy.wfh_monthly_auto_quota if policy is not None else 4
+    from app.modules.policies.resolver import resolve_effective_policy
+    effective_pol = await resolve_effective_policy(session, tenant_id, employee_id, base_policy=policy)
 
     if payload.work_mode == "WFH":
+        if not effective_pol.allow_wfh:
+            raise ProblemError(
+                422,
+                "Work From Home disabled",
+                "Work From Home is disabled for this employee/department/role",
+            )
+
+        quota = effective_pol.wfh_monthly_auto_quota
         used_days = await count_approved_wfh_days_in_month(
             session, tenant_id, employee_id, payload.calendar_date.year, payload.calendar_date.month
         )

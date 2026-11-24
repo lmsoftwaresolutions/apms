@@ -13,6 +13,8 @@ from app.modules.punches.repository import list_punch_events
 from app.modules.roster.repository import list_dated_shift_instances
 from app.modules.work_modes.schemas import WorkModeApply, WorkModeOut
 from app.modules.work_modes.service import apply_work_mode, list_requests
+from app.modules.overtime.schemas import OvertimeRecordOut
+from app.modules.overtime.repository import list_overtime_records
 
 router = APIRouter(prefix="/ess", tags=["ess"])
 
@@ -135,4 +137,28 @@ async def ess_my_work_mode_requests(
         end_date=end_date,
     )
     return [WorkModeOut.model_validate(r) for r in rows]
+
+
+@router.get("/overtime/my-records", response_model=list[OvertimeRecordOut])
+async def ess_my_overtime_records(
+    session: SessionDep,
+    current: Annotated[
+        CurrentUser,
+        Depends(require_permission("overtime_record:read", "overtime.record.read", "ess.calendar.read")),
+    ],
+    status_filter: str | None = Query(default=None, alias="status"),
+    start_date: date | None = None,
+    end_date: date | None = None,
+) -> list[OvertimeRecordOut]:
+    emp = await _own_employee(session, current)
+    rows = await list_overtime_records(
+        session,
+        current.tenant_id,
+        employee_id=emp.id,
+        status=status_filter,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    return [OvertimeRecordOut.model_validate(r) for r in rows]
+
 
