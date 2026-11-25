@@ -100,6 +100,8 @@ async def test_cascading_override_resolution(seeded_tenants: tuple[Tenant, Tenan
             PolicyCreate(
                 code=f"BASE_{uuid4().hex[:6].upper()}",
                 name="Base Factory Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 allow_wfh=True,
                 wfh_monthly_auto_quota=4,
                 allow_overtime=True,

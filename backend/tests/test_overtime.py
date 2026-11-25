@@ -134,6 +134,8 @@ async def test_overtime_approval_modes_in_attendance_rollup(seeded_tenants: tupl
             PolicyCreate(
                 code=f"OT_ALL_{uuid4().hex[:6].upper()}",
                 name="OT Auto Approve All Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 allow_overtime=True,
                 ot_approval_mode="AUTO_APPROVE_ALL",
                 ot_minimum_minutes=30,
@@ -200,6 +202,8 @@ async def test_overtime_approval_modes_in_attendance_rollup(seeded_tenants: tupl
             PolicyCreate(
                 code=f"OT_REQ_{uuid4().hex[:6].upper()}",
                 name="OT Require Approval Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 allow_overtime=True,
                 ot_approval_mode="ALWAYS_REQUIRE_APPROVAL",
                 ot_minimum_minutes=30,
@@ -265,6 +269,8 @@ async def test_overtime_approval_modes_in_attendance_rollup(seeded_tenants: tupl
             PolicyCreate(
                 code=f"OT_THR_{uuid4().hex[:6].upper()}",
                 name="OT Threshold Policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
                 allow_overtime=True,
                 ot_approval_mode="AUTO_APPROVE_BELOW_THRESHOLD",
                 ot_auto_approve_threshold_minutes=60,

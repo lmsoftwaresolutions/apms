@@ -51,18 +51,22 @@ class OvertimeRecord(Base):
             name="fk_overtime_records_employee",
             ondelete="RESTRICT",
         ),
+        ForeignKeyConstraint(
+            ["tenant_id", "attendance_record_id"],
+            ["attendance_daily_records.tenant_id", "attendance_daily_records.id"],
+            name="fk_overtime_records_attendance",
+            ondelete="CASCADE",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
-    attendance_record_id: Mapped[UUID] = mapped_column(
-        ForeignKey("attendance_daily_records.id", ondelete="CASCADE")
-    )
+    attendance_record_id: Mapped[UUID]
     employee_id: Mapped[UUID]
     overtime_date: Mapped[date] = mapped_column(Date)
     raw_overtime_minutes: Mapped[int] = mapped_column(Integer, default=0)
     approved_overtime_minutes: Mapped[int] = mapped_column(Integer, default=0)
-    rate_multiplier: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("2.00"))
+    rate_multiplier: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("1.50"))
     status: Mapped[str] = mapped_column(String(30), default="UNREVIEWED")
     comp_off_leave_transaction_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("leave_transactions.id", ondelete="SET NULL"), default=None

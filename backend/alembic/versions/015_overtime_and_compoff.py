@@ -110,7 +110,7 @@ STATEMENTS = [
         CREATE TABLE policy_scope_overrides (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           tenant_id uuid NOT NULL REFERENCES tenants(id),
-          policy_id uuid REFERENCES policy_master(id) ON DELETE SET NULL,
+          policy_id uuid,
           scope_type varchar(20) NOT NULL,
           scope_id uuid NOT NULL,
           allow_wfh boolean,
@@ -127,6 +127,8 @@ STATEMENTS = [
           CONSTRAINT uq_policy_scope_tenant_type_id UNIQUE (tenant_id, scope_type, scope_id),
           CONSTRAINT ck_policy_scope_type CHECK (scope_type IN ('EMPLOYEE', 'DEPARTMENT', 'DESIGNATION')),
           CONSTRAINT ck_policy_scope_wfh_quota_mode CHECK (wfh_quota_mode IN ('ABSOLUTE', 'ADDITIVE')),
+          CONSTRAINT fk_policy_scope_policy FOREIGN KEY (tenant_id, policy_id)
+            REFERENCES policy_master (tenant_id, id) ON DELETE RESTRICT,
           CONSTRAINT ck_policy_scope_ot_mode CHECK (
             ot_approval_mode IS NULL OR ot_approval_mode IN (
               'ALWAYS_REQUIRE_APPROVAL',
@@ -164,12 +166,12 @@ STATEMENTS = [
         CREATE TABLE overtime_records (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           tenant_id uuid NOT NULL REFERENCES tenants(id),
-          attendance_record_id uuid NOT NULL REFERENCES attendance_daily_records(id) ON DELETE CASCADE,
+          attendance_record_id uuid NOT NULL,
           employee_id uuid NOT NULL,
           overtime_date date NOT NULL,
           raw_overtime_minutes integer NOT NULL DEFAULT 0,
           approved_overtime_minutes integer NOT NULL DEFAULT 0,
-          rate_multiplier numeric(3, 2) NOT NULL DEFAULT 2.00,
+          rate_multiplier numeric(3, 2) NOT NULL DEFAULT 1.50,
           status varchar(30) NOT NULL DEFAULT 'UNREVIEWED',
           comp_off_leave_transaction_id uuid REFERENCES leave_transactions(id) ON DELETE SET NULL,
           supervisor_id uuid REFERENCES users(id) ON DELETE SET NULL,
@@ -179,6 +181,8 @@ STATEMENTS = [
           updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
           CONSTRAINT uq_overtime_records_tenant_id UNIQUE (tenant_id, id),
           CONSTRAINT uq_overtime_records_tenant_att UNIQUE (tenant_id, attendance_record_id),
+          CONSTRAINT fk_overtime_records_attendance FOREIGN KEY (tenant_id, attendance_record_id)
+            REFERENCES attendance_daily_records (tenant_id, id) ON DELETE CASCADE,
           CONSTRAINT fk_overtime_records_employee FOREIGN KEY (tenant_id, employee_id)
             REFERENCES employees (tenant_id, id) ON DELETE RESTRICT,
           CONSTRAINT ck_overtime_records_status CHECK (
@@ -257,6 +261,16 @@ def downgrade() -> None:
               DROP COLUMN IF EXISTS allow_overtime,
               DROP COLUMN IF EXISTS wfh_ot_requires_approval,
               DROP COLUMN IF EXISTS ot_auto_approve_threshold_minutes
+            """
+        )
+    )
+    conn.execute(text("ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_ot_approval_mode"))
+    conn.execute(
+        text(
+            """
+            ALTER TABLE policy_master ADD CONSTRAINT ck_policy_ot_approval_mode CHECK (
+              ot_approval_mode IN ('ALWAYS_REQUIRE_APPROVAL')
+            )
             """
         )
     )

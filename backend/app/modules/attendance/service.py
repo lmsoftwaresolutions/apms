@@ -185,6 +185,19 @@ async def calculate_and_save_daily_attendance(
                 f" Late arrival exceeded monthly allowance ({prior_late_count}/{max_free}). Action: {penalty_action}."
             )
 
+    # 3.2 WFH extra minutes stay off the daily payable field until a supervisor acts (N20).
+    # The candidate is kept for the overtime ledger below.
+    candidate_ot_mins = decision.overtime_minutes or 0
+    wfh_needs_supervisor = work_mode_code == "WFH" and getattr(
+        effective_policy, "wfh_ot_requires_approval", True
+    ) is not False
+    if wfh_needs_supervisor and candidate_ot_mins > 0:
+        decision.overtime_minutes = 0
+        if "supervisor authorizes overtime" not in decision.explanation:
+            decision.explanation += (
+                " Extra minutes stay unpayable until a supervisor authorizes overtime (N20)."
+            )
+
     # 4. Build explanation trace (Invariant 4, ATT-09)
     trace_payload = build_explanation_trace(
         pairing,
@@ -253,13 +266,16 @@ async def calculate_and_save_daily_attendance(
     from app.modules.overtime.repository import get_overtime_record_by_attendance_id
 
     existing_ot = await get_overtime_record_by_attendance_id(session, tenant_id, record.id)
-    raw_ot_mins = decision.overtime_minutes or 0
+    raw_ot_mins = candidate_ot_mins
 
     if raw_ot_mins > 0:
         ot_approval_mode = getattr(effective_policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL")
         ot_threshold = getattr(effective_policy, "ot_auto_approve_threshold_minutes", 0) or 0
 
-        if ot_approval_mode == "AUTO_APPROVE_ALL":
+        if wfh_needs_supervisor:
+            ot_status = "UNREVIEWED"
+            approved_mins = 0
+        elif ot_approval_mode == "AUTO_APPROVE_ALL":
             ot_status = "APPROVED_FOR_PAY"
             approved_mins = raw_ot_mins
         elif ot_approval_mode == "AUTO_APPROVE_BELOW_THRESHOLD" and raw_ot_mins <= ot_threshold:
@@ -268,6 +284,9 @@ async def calculate_and_save_daily_attendance(
         else:
             ot_status = "UNREVIEWED"
             approved_mins = 0
+
+        multiplier = getattr(effective_policy, "ot_multiplier", None)
+        rate_multiplier = Decimal("1.50") if multiplier is None else Decimal(str(multiplier))
 
         if existing_ot is not None:
             if existing_ot.status == "UNREVIEWED":
@@ -284,7 +303,7 @@ async def calculate_and_save_daily_attendance(
                 overtime_date=calendar_date,
                 raw_overtime_minutes=raw_ot_mins,
                 approved_overtime_minutes=approved_mins,
-                rate_multiplier=Decimal("2.00"),
+                rate_multiplier=rate_multiplier,
                 status=ot_status,
                 comp_off_leave_transaction_id=None,
                 supervisor_id=None,

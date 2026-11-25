@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.api.deps import CurrentUser, SessionDep, require_permission
 from app.core.errors import ProblemError
+from app.modules.employees.repository import get_employee_by_user_id
 from app.modules.overtime.repository import (
     get_overtime_record,
     get_quarterly_approved_ot_minutes,
@@ -26,6 +27,23 @@ from app.modules.overtime.service import (
 
 router = APIRouter(prefix="/attendance/overtime", tags=["overtime"])
 
+_REVIEW_CODES = ("overtime_record:update", "overtime.record.update")
+
+
+async def _readable_employee_id(
+    session: SessionDep,
+    current: CurrentUser,
+    requested: UUID | None,
+) -> UUID | None:
+    if any(code in current.permissions for code in _REVIEW_CODES):
+        return requested
+    own = await get_employee_by_user_id(session, current.tenant_id, current.user.id)
+    if own is None:
+        raise ProblemError(404, "Employee profile missing", "This sign-in is not linked to an employee.")
+    if requested is not None and requested != own.id:
+        raise ProblemError(403, "Forbidden", "You can read only your own overtime.")
+    return own.id
+
 
 @router.get("/pending", response_model=list[OvertimeRecordOut])
 async def list_pending_overtime(
@@ -38,6 +56,7 @@ async def list_pending_overtime(
     start_date: Annotated[date | None, Query()] = None,
     end_date: Annotated[date | None, Query()] = None,
 ) -> list[OvertimeRecordOut]:
+    employee_id = await _readable_employee_id(session, current, employee_id)
     rows = await list_overtime_records(
         session,
         current.tenant_id,
@@ -62,6 +81,7 @@ async def list_all_overtime(
     start_date: Annotated[date | None, Query()] = None,
     end_date: Annotated[date | None, Query()] = None,
 ) -> list[OvertimeRecordOut]:
+    employee_id = await _readable_employee_id(session, current, employee_id)
     rows = await list_overtime_records(
         session,
         current.tenant_id,
@@ -85,6 +105,10 @@ async def get_overtime_detail(
     rec = await get_overtime_record(session, current.tenant_id, overtime_id)
     if rec is None:
         raise ProblemError(404, "Overtime record not found", "Overtime record not found in this tenant.")
+    if not any(code in current.permissions for code in _REVIEW_CODES):
+        own = await get_employee_by_user_id(session, current.tenant_id, current.user.id)
+        if own is None or rec.employee_id != own.id:
+            raise ProblemError(404, "Overtime record not found", "Overtime record not found in this tenant.")
 
     quarter = (rec.overtime_date.month - 1) // 3 + 1
     used_mins = await get_quarterly_approved_ot_minutes(

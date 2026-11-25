@@ -80,11 +80,17 @@ class PolicyScopeOverride(Base):
     __table_args__ = (
         UniqueConstraint("tenant_id", "id", name="uq_policy_scope_overrides_tenant_id"),
         UniqueConstraint("tenant_id", "scope_type", "scope_id", name="uq_policy_scope_tenant_type_id"),
+        ForeignKeyConstraint(
+            ["tenant_id", "policy_id"],
+            ["policy_master.tenant_id", "policy_master.id"],
+            name="fk_policy_scope_policy",
+            ondelete="RESTRICT",
+        ),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
-    policy_id: Mapped[UUID | None] = mapped_column(ForeignKey("policy_master.id", ondelete="SET NULL"), default=None)
+    policy_id: Mapped[UUID | None] = mapped_column(default=None)
     scope_type: Mapped[str] = mapped_column(String(20))  # 'EMPLOYEE', 'DEPARTMENT', 'DESIGNATION'
     scope_id: Mapped[UUID]
     allow_wfh: Mapped[bool | None] = mapped_column(Boolean, default=None)

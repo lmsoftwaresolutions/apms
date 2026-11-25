@@ -28,6 +28,8 @@ async def approve_overtime(
     rec = await get_overtime_record(session, tenant_id, overtime_id)
     if rec is None:
         raise ProblemError(404, "Overtime record not found", "The overtime record does not exist in this tenant.")
+    if rec.status in {"CONVERTED_TO_COMPOFF", "REJECTED"}:
+        raise ProblemError(409, "Overtime already decided", "This overtime record can no longer be approved.")
 
     if approved_minutes <= 0:
         raise ProblemError(422, "Invalid overtime minutes", "approved_minutes must be greater than zero.")
@@ -50,7 +52,6 @@ async def approve_overtime(
     now = datetime.now(UTC)
     rec.status = "APPROVED_FOR_PAY"
     rec.approved_overtime_minutes = approved_minutes
-    rec.rate_multiplier = Decimal("2.00")
     rec.supervisor_id = supervisor_id
     rec.decision_reason = decision_reason.strip() if decision_reason else None
     rec.reviewed_at = now
@@ -69,6 +70,10 @@ async def convert_to_compoff(
     rec = await get_overtime_record(session, tenant_id, overtime_id)
     if rec is None:
         raise ProblemError(404, "Overtime record not found", "The overtime record does not exist in this tenant.")
+    if rec.status == "CONVERTED_TO_COMPOFF":
+        raise ProblemError(409, "Already converted", "This overtime record was already converted to comp-off.")
+    if rec.status == "REJECTED":
+        raise ProblemError(409, "Overtime rejected", "Rejected overtime cannot be converted to comp-off.")
 
     ot_mins = rec.approved_overtime_minutes if rec.approved_overtime_minutes > 0 else rec.raw_overtime_minutes
     if ot_mins <= 0:
@@ -76,6 +81,8 @@ async def convert_to_compoff(
 
     # 1. Double-Entry Comp-off Days: Decimal(ot_mins) / Decimal(480) rounded to 1 decimal place (Invariant 3)
     calculated_days = round(Decimal(str(ot_mins)) / Decimal("480"), 1)
+    if calculated_days <= 0:
+        raise ProblemError(422, "Comp-off too small", "These overtime minutes round to zero comp-off days.")
 
     # 2. Find or create COMP_OFF leave type
     lt_stmt = select(LeaveType).where(LeaveType.tenant_id == tenant_id, LeaveType.code == "COMP_OFF")
@@ -135,6 +142,8 @@ async def reject_overtime(
     rec = await get_overtime_record(session, tenant_id, overtime_id)
     if rec is None:
         raise ProblemError(404, "Overtime record not found", "The overtime record does not exist in this tenant.")
+    if rec.status == "CONVERTED_TO_COMPOFF":
+        raise ProblemError(409, "Already converted", "Comp-off overtime cannot be rejected.")
 
     now = datetime.now(UTC)
     rec.status = "REJECTED"
