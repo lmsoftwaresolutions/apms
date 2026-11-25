@@ -11,15 +11,18 @@ class BranchOut(BaseModel):
     id: UUID
     name: str
     code: str
+    registration_number: str | None
     is_active: bool
 
 
 class BranchCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     code: str = Field(min_length=2, max_length=20, pattern=r"^[A-Z0-9_-]+$")
+    registration_number: str | None = Field(default=None, min_length=1, max_length=80)
 
 
 class BranchUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     code: str | None = Field(default=None, min_length=2, max_length=20, pattern=r"^[A-Z0-9_-]+$")
+    registration_number: str | None = Field(default=None, min_length=1, max_length=80)
     is_active: bool | None = None

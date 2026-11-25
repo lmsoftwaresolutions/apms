@@ -37,6 +37,7 @@ This document serves as the **single source of truth** for all business logic, m
   4. In at 08:10 and out at 18:55. The arrival is 50 minutes early and the departure is 55 minutes late. Both are larger than their windows, so both count in full: 50 + 55 = 105 minutes of overtime. The punches remain 08:10 and 18:55.
 - `FIRST_IN_LAST_OUT` subtracts the session's scheduled break once from the first-to-last span, because that span still contains the break.
 - `ALL_IN_OUT` sums each in/out pair. Time between pairs is already excluded. The scheduled break is reduced by those punched gaps, and only the remainder is subtracted. A 09:00–13:00 and 14:00–18:00 day with a 60-minute scheduled break is 480 minutes. The same two punches at 09:00 and 18:00, with no punched gap, are 540 − 60 = 480 minutes.
+- An odd trailing punch under `ALL_IN_OUT` leaves a pair open. The day is `NEEDS_REVIEW` with overtime 0, including when earlier pairs already cover a full day.
 
 ### BR-ATT-02: Mid-Shift Gap Handling (Confirmed N65)
 - In multi-session shifts (e.g., Morning Session 08:00–12:00, Evening Session 16:00–20:00), the interval between sessions:

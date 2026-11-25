@@ -222,11 +222,11 @@ async def fetch_muster(
         )
 
     scoped_branch_ids = {emp.branch_id for emp in employees if emp.branch_id is not None}
-    registration_number = tenant.subdomain if tenant else ""
+    registration_number = ""
     factory_name = tenant_name
     if len(scoped_branch_ids) == 1:
         only_branch = next(branch for branch in branches if branch.id in scoped_branch_ids)
-        registration_number = only_branch.code
+        registration_number = only_branch.registration_number or ""
         factory_name = only_branch.name
     elif employees and employees[0].branch_id in branch_map:
         factory_name = branch_map[employees[0].branch_id]

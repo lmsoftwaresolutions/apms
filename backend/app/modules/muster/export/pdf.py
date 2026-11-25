@@ -58,7 +58,7 @@ def generate_muster_pdf(
     tenant_name = tenant_meta.get("tenant_name", "APMS Enterprise")
     branch_name = tenant_meta.get("branch_name", "Main Branch")
     factory_name = tenant_meta.get("factory_name", tenant_name)
-    reg_number = tenant_meta.get("registration_number", "REG-FAC-1948")
+    reg_number = tenant_meta.get("registration_number") or ""
     est_name = tenant_meta.get("establishment_name", tenant_name)
     contractor_name = tenant_meta.get("contractor_name", "N/A - Direct Employment")
     generated_at = tenant_meta.get("generated_at", "")

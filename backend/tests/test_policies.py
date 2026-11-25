@@ -772,3 +772,28 @@ def test_all_in_out_still_subtracts_an_unpunched_break():
     ]
     pairing = pair_punches_for_shift(shift, punches, policy=policy)
     assert pairing.total_worked_minutes == 480
+
+
+def test_all_in_out_open_pair_needs_review():
+    """A third punch with no matching out keeps the day in review."""
+    cal_date = date(2026, 11, 20)
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_OPEN",
+        name="Open pair",
+        in_out_rule="ALL_IN_OUT",
+        full_day_work_duration_minutes=240,
+        half_day_work_duration_minutes=120,
+    )
+    punches = [
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 3, 30, tzinfo=UTC)),  # 09:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 7, 30, tzinfo=UTC)),  # 13:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 8, 30, tzinfo=UTC)),  # 14:00
+    ]
+    pairing = pair_punches_for_shift(_nine_to_six(cal_date), punches, policy=policy)
+    decision = evaluate_daily_rollup(pairing, policy=policy)
+    assert pairing.sessions[0].is_single_punch is True
+    assert decision.status == "NEEDS_REVIEW"
+    assert decision.overtime_minutes == 0
+    assert decision.anomaly_code == "LONE_PUNCH_ANOMALY"

@@ -213,6 +213,8 @@ def pair_punches_for_shift(
                 unpaid_break = s.break_duration_minutes
             net_worked = max(0, raw_duration - unpaid_break)
             session_res.worked_minutes = net_worked
+            if in_out_rule == "ALL_IN_OUT" and len(matched) % 2 == 1:
+                session_res.is_single_punch = True
 
             # Late calculation
             if first_p > sched_start_utc:

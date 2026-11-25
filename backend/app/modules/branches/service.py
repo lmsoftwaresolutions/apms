@@ -11,7 +11,13 @@ from app.modules.branches.schemas import BranchCreate, BranchOut, BranchUpdate
 
 
 def branch_to_out(branch: Branch) -> BranchOut:
-    return BranchOut(id=branch.id, name=branch.name, code=branch.code, is_active=branch.is_active)
+    return BranchOut(
+        id=branch.id,
+        name=branch.name,
+        code=branch.code,
+        registration_number=branch.registration_number,
+        is_active=branch.is_active,
+    )
 
 
 async def list_branches(session: AsyncSession, tenant_id: UUID) -> list[BranchOut]:
@@ -25,6 +31,7 @@ async def create_branch(session: AsyncSession, tenant_id: UUID, payload: BranchC
         tenant_id=tenant_id,
         name=payload.name,
         code=payload.code,
+        registration_number=payload.registration_number,
         is_active=True,
         created_at=datetime.now(UTC),
     )
@@ -52,6 +59,8 @@ async def update_branch(
             name=payload.name,
             code=payload.code,
             is_active=payload.is_active,
+            registration_number=payload.registration_number,
+            update_registration="registration_number" in payload.model_fields_set,
         )
     except IntegrityError as exc:
         raise ProblemError(409, "Branch already exists", "A branch with this code already exists.") from exc
