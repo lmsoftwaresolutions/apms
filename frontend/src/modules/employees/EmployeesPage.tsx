@@ -415,8 +415,8 @@ export function EmployeesPage() {
             />
           </div>
 
-          {/* Branch Filter */}
-          {branches.length > 1 && (
+          {/* Branch Filter — only active branches are assignable/filterable */}
+          {branches.filter((b) => b.is_active).length > 1 && (
             <select
               className="select"
               aria-label="Filter by branch"
@@ -428,11 +428,13 @@ export function EmployeesPage() {
               style={{ width: "auto", minWidth: "150px", height: "36px", fontSize: "0.8125rem" }}
             >
               <option value="">All Branches</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
-                </option>
-              ))}
+              {branches
+                .filter((b) => b.is_active)
+                .map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.code})
+                  </option>
+                ))}
             </select>
           )}
 

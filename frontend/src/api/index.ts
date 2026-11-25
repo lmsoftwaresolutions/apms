@@ -236,8 +236,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  deleteEmployee: (id: string) =>
-    request<{ id: string }>(`/api/v1/employees/${id}`, { method: "DELETE" }),
+  // deleteEmployee: (id: string) =>
+  //   request<{ id: string }>(`/api/v1/employees/${id}`, { method: "DELETE" }),
   unmaskPii: (id: string, fields: string[]) =>
     request<UnmaskPiiResult>(`/api/v1/employees/${id}/unmask`, {
       method: "POST",
