@@ -18,6 +18,7 @@ from app.modules.roster.router import router as roster_router
 from app.modules.shifts.router import router as shifts_router
 from app.modules.work_modes.router import router as work_modes_router
 from app.modules.overtime.router import router as overtime_router
+from app.modules.pending_actions.router import router as pending_actions_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -38,3 +39,4 @@ api_router.include_router(policies_router)
 api_router.include_router(work_modes_router)
 api_router.include_router(overtime_router)
 api_router.include_router(attendance_router)
+api_router.include_router(pending_actions_router)

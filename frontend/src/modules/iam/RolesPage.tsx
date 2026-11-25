@@ -360,11 +360,11 @@ export function RolesPage() {
 
   async function handleCreateRole(e: FormEvent) {
     e.preventDefault();
-    if (!newCode || !newName) return;
+    if (!newCode.trim() || !newName.trim()) return;
     setCreateSubmitting(true);
     setCreateError("");
     try {
-      const created = await api.createRole(newCode.toLowerCase(), newName, []);
+      const created = await api.createRole(newCode.trim().toUpperCase(), newName.trim(), []);
       setNewCode("");
       setNewName("");
       setIsCreateOpen(false);
@@ -1063,12 +1063,12 @@ export function RolesPage() {
             />
           </Field>
 
-          <Field label="Role Code" required help="Unique programmatic identifier (lowercase, e.g. clerk, auditor)">
+          <Field label="Role Code" required help="Uppercase identifier, e.g. ATTENDANCE_CLERK, AUDITOR">
             <input
               className="input"
               value={newCode}
-              onChange={(e) => setNewCode(e.target.value)}
-              placeholder="e.g. attendance_clerk"
+              onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+              placeholder="e.g. ATTENDANCE_CLERK"
               required
             />
           </Field>

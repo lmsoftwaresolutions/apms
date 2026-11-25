@@ -51,5 +51,30 @@ async def update_tenant_profile(session: AsyncSession, tenant_id: UUID, payload:
     if tenant is None:
         raise ProblemError(404, "Tenant not found", "No tenant exists with this id.")
 
-    updated = await iam_repo.update_tenant(session, tenant, payload.display_name, payload.logo_url)
+    clean_name: str | None = None
+    if payload.display_name is not None:
+        clean_name = payload.display_name.strip()
+        if not clean_name:
+            raise ProblemError(422, "Invalid display name", "Display name cannot be blank.")
+
+    update_logo = "logo_url" in payload.model_fields_set
+    clean_logo: str | None = None
+    if update_logo and payload.logo_url is not None:
+        stripped_logo = payload.logo_url.strip()
+        if stripped_logo:
+            if not stripped_logo.startswith(("https://", "http://", "/")):
+                raise ProblemError(
+                    422,
+                    "Invalid logo URL",
+                    "Logo URL must start with https://, http://, or /.",
+                )
+            clean_logo = stripped_logo
+
+    updated = await iam_repo.update_tenant(
+        session,
+        tenant,
+        clean_name,
+        clean_logo,
+        update_logo=update_logo,
+    )
     return TenantOut(id=updated.id, display_name=updated.display_name, logo_url=updated.logo_url)

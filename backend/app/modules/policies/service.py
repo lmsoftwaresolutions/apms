@@ -154,9 +154,51 @@ async def delete_policy(session: AsyncSession, tenant_id: UUID, policy_id: UUID)
     await repo_delete_policy(session, policy)
 
 
+async def _validate_override_targets(
+    session: AsyncSession,
+    tenant_id: UUID,
+    policy_id: UUID | None,
+    scope_type: str,
+    scope_id: UUID,
+) -> None:
+    if policy_id is not None:
+        pol = await repo_get_policy(session, tenant_id, policy_id)
+        if pol is None:
+            raise ProblemError(404, "Policy not found", f"Policy with ID '{policy_id}' does not exist.")
+        if not pol.is_active:
+            raise ProblemError(400, "Inactive policy", "Cannot link a policy override to a deactivated policy.")
+
+    if scope_type == "EMPLOYEE":
+        from app.modules.employees.repository import get_employee_by_id
+
+        emp = await get_employee_by_id(session, tenant_id, scope_id)
+        if emp is None:
+            raise ProblemError(404, "Employee not found", f"Employee with ID '{scope_id}' does not exist.")
+        if not emp.is_active:
+            raise ProblemError(400, "Inactive employee", "Cannot create a policy override for a deactivated employee.")
+    elif scope_type == "DEPARTMENT":
+        from app.modules.departments.repository import get_department_by_id
+
+        dept = await get_department_by_id(session, tenant_id, scope_id)
+        if dept is None:
+            raise ProblemError(404, "Department not found", f"Department with ID '{scope_id}' does not exist.")
+        if not dept.is_active:
+            raise ProblemError(400, "Inactive department", "Cannot create a policy override for a deactivated department.")
+    elif scope_type == "DESIGNATION":
+        from app.modules.designations.repository import get_designation_by_id
+
+        desig = await get_designation_by_id(session, tenant_id, scope_id)
+        if desig is None:
+            raise ProblemError(404, "Designation not found", f"Designation with ID '{scope_id}' does not exist.")
+        if not desig.is_active:
+            raise ProblemError(400, "Inactive designation", "Cannot create a policy override for a deactivated designation.")
+
+
 async def create_override(
     session: AsyncSession, tenant_id: UUID, data: PolicyOverrideCreate
 ) -> PolicyScopeOverride:
+    await _validate_override_targets(session, tenant_id, data.policy_id, data.scope_type, data.scope_id)
+
     existing = await repo_get_override_by_scope(session, tenant_id, data.scope_type, data.scope_id)
     if existing is not None:
         raise ProblemError(
@@ -214,6 +256,19 @@ async def update_override(
     updates = data.model_dump(exclude_unset=True)
     if not updates:
         return ov
+
+    target_policy_id = updates.get("policy_id", ov.policy_id)
+    reactivating = updates.get("is_active") is True and not ov.is_active
+    policy_changed = "policy_id" in updates and updates["policy_id"] != ov.policy_id
+
+    if policy_changed and target_policy_id is not None:
+        pol = await repo_get_policy(session, tenant_id, target_policy_id)
+        if pol is None:
+            raise ProblemError(404, "Policy not found", f"Policy with ID '{target_policy_id}' does not exist.")
+        if not pol.is_active:
+            raise ProblemError(400, "Inactive policy", "Cannot link a policy override to a deactivated policy.")
+    if reactivating:
+        await _validate_override_targets(session, tenant_id, target_policy_id, ov.scope_type, ov.scope_id)
 
     for field_name, value in updates.items():
         setattr(ov, field_name, value)

@@ -9,7 +9,8 @@ export interface ModalProps {
   description?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
+  zIndex?: number;
 }
 
 export function Modal({
@@ -20,6 +21,7 @@ export function Modal({
   children,
   footer,
   size = "md",
+  zIndex,
 }: ModalProps) {
   useEffect(() => {
     if (!isOpen) return;
@@ -44,6 +46,7 @@ export function Modal({
   return (
     <div
       className="modal-backdrop"
+      style={zIndex ? { zIndex } : undefined}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();

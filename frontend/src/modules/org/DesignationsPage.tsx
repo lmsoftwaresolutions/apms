@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Briefcase, Trash2, Power, Filter, UserCheck, ArrowRight } from "lucide-react";
+import { Plus, Briefcase, Trash2, Power, Filter, UserCheck, ArrowRight, Pencil } from "lucide-react";
 import { api, Branch, Department, Designation, EmployeeRow } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -23,45 +23,54 @@ export function DesignationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Add Designation Modal
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Add / Edit Designation Modal
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingDesig, setEditingDesig] = useState<Designation | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [createError, setCreateError] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
-  // Delete Confirm Modal
+  // Delete & Deactivate Modals
   const [deleteTarget, setDeleteTarget] = useState<Designation | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<Designation | null>(null);
+  const [deactivateSubmitting, setDeactivateSubmitting] = useState(false);
 
   async function loadData(targetBranchId?: string, targetDeptId?: string) {
     setLoading(true);
     try {
       const branchList = await api.branches();
       setBranches(branchList);
+      const activeBranches = branchList.filter((b) => b.is_active);
+      const defaultBranch = activeBranches[0] || branchList[0];
       const activeBranchId =
-        targetBranchId !== undefined
+        targetBranchId !== undefined && activeBranches.some((b) => b.id === targetBranchId)
           ? targetBranchId
-          : selectedBranchId || branchList[0]?.id || "";
+          : selectedBranchId && activeBranches.some((b) => b.id === selectedBranchId)
+            ? selectedBranchId
+            : defaultBranch?.id || "";
       setSelectedBranchId(activeBranchId);
 
       const deptList = await api.departments(activeBranchId || undefined);
       setDepartments(deptList);
 
+      const activeDepts = deptList.filter((d) => d.is_active);
+      const defaultDept = activeDepts[0] || deptList[0];
       const activeDeptId =
-        targetDeptId !== undefined
+        targetDeptId !== undefined && targetDeptId !== "" && activeDepts.some((d) => d.id === targetDeptId)
           ? targetDeptId
-          : selectedDeptId && deptList.some((d) => d.id === selectedDeptId)
+          : selectedDeptId && activeDepts.some((d) => d.id === selectedDeptId)
             ? selectedDeptId
-            : deptList[0]?.id || "";
+            : defaultDept?.id || "";
       setSelectedDeptId(activeDeptId);
 
       if (activeDeptId) {
         const desigList = await api.designations(activeDeptId);
         setDesignations(desigList);
         if (can("employee.employee.read")) {
-          const empList = await api.employees(activeDeptId);
+          const empList = await api.employees(activeDeptId, true);
           setEmployees(empList);
         } else {
           setEmployees([]);
@@ -93,31 +102,85 @@ export function DesignationsPage() {
     await loadData(selectedBranchId, newDeptId);
   }
 
-  async function handleCreate(e: FormEvent) {
+  function openCreateModal() {
+    setEditingDesig(null);
+    setName("");
+    setCode("");
+    setDescription("");
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function openEditModal(desig: Designation) {
+    setEditingDesig(desig);
+    setName(desig.name);
+    setCode(desig.code);
+    setDescription(desig.description || "");
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function closeFormModal() {
+    setIsFormOpen(false);
+    setEditingDesig(null);
+    setFormError("");
+  }
+
+  async function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!selectedDeptId || !name || code.length < 2) return;
-    setCreateSubmitting(true);
-    setCreateError("");
+    const trimmedName = name.trim();
+    const trimmedCode = code.trim().toUpperCase();
+    const trimmedDesc = description.trim();
+    if (!trimmedName || trimmedCode.length < 2) return;
+    if (!editingDesig && !selectedDeptId) return;
+    setFormSubmitting(true);
+    setFormError("");
     try {
-      await api.createDesignation(selectedDeptId, name, code.toUpperCase(), description || null);
+      if (editingDesig) {
+        await api.updateDesignation(editingDesig.id, {
+          name: trimmedName,
+          code: trimmedCode,
+          description: trimmedDesc || null,
+        });
+      } else {
+        await api.createDesignation(selectedDeptId, trimmedName, trimmedCode, trimmedDesc || null);
+      }
       setName("");
       setCode("");
       setDescription("");
-      setIsCreateOpen(false);
+      closeFormModal();
       await loadData(selectedBranchId, selectedDeptId);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create designation");
+      setFormError(err instanceof Error ? err.message : `Failed to ${editingDesig ? "update" : "create"} designation`);
     } finally {
-      setCreateSubmitting(false);
+      setFormSubmitting(false);
     }
   }
 
   async function handleToggleActive(desig: Designation) {
+    if (desig.is_active) {
+      setDeactivateTarget(desig);
+      return;
+    }
     try {
-      await api.updateDesignation(desig.id, { is_active: !desig.is_active });
+      await api.updateDesignation(desig.id, { is_active: true });
       await loadData(selectedBranchId, selectedDeptId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update designation status");
+    }
+  }
+
+  async function handleDeactivateConfirm() {
+    if (!deactivateTarget) return;
+    setDeactivateSubmitting(true);
+    try {
+      await api.updateDesignation(deactivateTarget.id, { is_active: false });
+      setDeactivateTarget(null);
+      await loadData(selectedBranchId, selectedDeptId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to deactivate designation");
+    } finally {
+      setDeactivateSubmitting(false);
     }
   }
 
@@ -145,6 +208,12 @@ export function DesignationsPage() {
   }
 
   const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const selectedDept = departments.find((d) => d.id === selectedDeptId);
+  const canCreateUnderSelection =
+    Boolean(selectedDeptId) &&
+    (selectedBranch ? selectedBranch.is_active : true) &&
+    (selectedDept ? selectedDept.is_active : true);
 
   return (
     <div>
@@ -159,7 +228,7 @@ export function DesignationsPage() {
 
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           {/* Branch & Dept Filters */}
-          {branches.length > 1 ? (
+          {branches.filter((b) => b.is_active).length > 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Filter size={16} color="var(--text-muted)" />
               <select
@@ -168,27 +237,31 @@ export function DesignationsPage() {
                 value={selectedBranchId}
                 onChange={(e) => void handleBranchChange(e.target.value)}
               >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.code})
-                  </option>
-                ))}
+                {branches
+                  .filter((b) => b.is_active)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
               </select>
             </div>
           ) : null}
 
-          {departments.length > 0 ? (
+          {departments.filter((d) => d.is_active).length > 0 ? (
             <select
               className="select"
               style={{ width: "auto", minWidth: "160px", padding: "0.45rem 0.75rem" }}
               value={selectedDeptId}
               onChange={(e) => void handleDeptChange(e.target.value)}
             >
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.code})
-                </option>
-              ))}
+              {departments
+                .filter((d) => d.is_active)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.code})
+                  </option>
+                ))}
             </select>
           ) : null}
 
@@ -196,9 +269,15 @@ export function DesignationsPage() {
             <Button
               variant="primary"
               icon={<Plus size={16} />}
-              onClick={() => setIsCreateOpen(true)}
-              disabled={!selectedDeptId}
-              title={!selectedDeptId ? "Please create or select a department first" : undefined}
+              onClick={openCreateModal}
+              disabled={!canCreateUnderSelection}
+              title={
+                !selectedDeptId
+                  ? "Please create or select a department first"
+                  : !canCreateUnderSelection
+                    ? "Cannot add designations under a deactivated branch or department"
+                    : undefined
+              }
             >
               Add Designation
             </Button>
@@ -226,24 +305,36 @@ export function DesignationsPage() {
         <EmptyState
           icon={<Briefcase size={24} />}
           title="No departments found"
-          description="Designations belong to a department. Create a department first under this branch to begin adding job positions."
-          action={{
-            label: "Create Department",
-            onClick: () => navigate("/org/departments"),
-            icon: <ArrowRight size={16} />,
-            variant: "primary",
-          }}
+          description={
+            selectedBranch && !selectedBranch.is_active
+              ? "This branch is deactivated. Switch to an active branch to create departments and designations."
+              : "Designations belong to a department. Create a department first under this branch to begin adding job positions."
+          }
+          action={
+            can("org.department.create") && (!selectedBranch || selectedBranch.is_active)
+              ? {
+                  label: "Create Department",
+                  onClick: () => navigate("/org/departments"),
+                  icon: <ArrowRight size={16} />,
+                  variant: "primary",
+                }
+              : undefined
+          }
         />
       ) : !loading && designations.length === 0 ? (
         <EmptyState
           icon={<Briefcase size={24} />}
           title="No designations in this department"
-          description="Add job designations (e.g., Spinning Operator, Line Supervisor, QA Inspector)."
+          description={
+            !canCreateUnderSelection
+              ? "This branch or department is deactivated. Re-activate it or select an active department to add designations."
+              : "Add job designations (e.g., Spinning Operator, Line Supervisor, QA Inspector)."
+          }
           action={
-            can("org.designation.create")
+            can("org.designation.create") && canCreateUnderSelection
               ? {
                   label: "Add Designation",
-                  onClick: () => setIsCreateOpen(true),
+                  onClick: openCreateModal,
                   icon: <Plus size={16} />,
                 }
               : undefined
@@ -259,7 +350,7 @@ export function DesignationsPage() {
                 <th>Department</th>
                 <th>Description</th>
                 <th style={{ width: "120px" }}>Status</th>
-                <th style={{ width: "200px", textAlign: "right" }}>Actions</th>
+                <th style={{ width: "260px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -286,14 +377,25 @@ export function DesignationsPage() {
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                         {can("org.designation.update") ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            icon={<Power size={14} />}
-                            onClick={() => handleToggleActive(desig)}
-                          >
-                            {desig.is_active ? "Deactivate" : "Activate"}
-                          </Button>
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<Pencil size={14} />}
+                              onClick={() => openEditModal(desig)}
+                              title="Edit designation"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<Power size={14} />}
+                              onClick={() => handleToggleActive(desig)}
+                            >
+                              {desig.is_active ? "Deactivate" : "Activate"}
+                            </Button>
+                          </>
                         ) : null}
                         {can("org.designation.delete") ? (
                           <Button
@@ -362,7 +464,7 @@ export function DesignationsPage() {
                       .filter((d) => d.is_active || d.id === emp.designation_id)
                       .map((d) => (
                         <option key={d.id} value={d.id}>
-                          {d.name} ({d.code})
+                          {d.name} ({d.code}){!d.is_active ? " (Inactive)" : ""}
                         </option>
                       ))}
                   </select>
@@ -373,40 +475,34 @@ export function DesignationsPage() {
         </div>
       ) : null}
 
-      {/* Add Designation Modal */}
+      {/* Add / Edit Designation Modal */}
       <Modal
-        isOpen={isCreateOpen}
-        onClose={() => {
-          setIsCreateOpen(false);
-          setCreateError("");
-        }}
-        title="Add Designation"
-        description={`Add a job title to ${deptNameById.get(selectedDeptId) || "the department"}.`}
+        isOpen={isFormOpen}
+        onClose={closeFormModal}
+        title={editingDesig ? "Edit Designation" : "Add Designation"}
+        description={
+          editingDesig
+            ? `Update title, code, or scope for ${editingDesig.name} in ${deptNameById.get(editingDesig.department_id) || "department"}.`
+            : `Add a job title to ${deptNameById.get(selectedDeptId) || "the department"}.`
+        }
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsCreateOpen(false);
-                setCreateError("");
-              }}
-              disabled={createSubmitting}
-            >
+            <Button variant="secondary" onClick={closeFormModal} disabled={formSubmitting}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              onClick={(e) => handleCreate(e as unknown as FormEvent)}
-              loading={createSubmitting}
-              disabled={!name.trim() || code.trim().length < 2 || !selectedDeptId}
+              onClick={(e) => handleFormSubmit(e as unknown as FormEvent)}
+              loading={formSubmitting}
+              disabled={!name.trim() || code.trim().length < 2 || (!editingDesig && !selectedDeptId)}
             >
-              Create Designation
+              {editingDesig ? "Save Changes" : "Create Designation"}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {createError ? (
+        <form onSubmit={handleFormSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {formError ? (
             <div
               style={{
                 padding: "0.5rem 0.75rem",
@@ -416,7 +512,7 @@ export function DesignationsPage() {
                 fontSize: "0.8125rem",
               }}
             >
-              {createError}
+              {formError}
             </div>
           ) : null}
 
@@ -465,6 +561,22 @@ export function DesignationsPage() {
         }
         confirmText="Delete Designation"
         loading={deleteSubmitting}
+      />
+
+      {/* Deactivate Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deactivateTarget)}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={handleDeactivateConfirm}
+        title="Deactivate Designation"
+        message={
+          <>
+            Are you sure you want to deactivate <strong>{deactivateTarget?.name} ({deactivateTarget?.code})</strong>?
+            Deactivated designations cannot be assigned to new employees.
+          </>
+        }
+        confirmText="Deactivate Designation"
+        loading={deactivateSubmitting}
       />
     </div>
   );

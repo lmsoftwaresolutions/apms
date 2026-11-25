@@ -71,6 +71,8 @@ async def assign_role(session: AsyncSession, tenant_id: UUID, user_id: UUID, rol
     role = await iam_repo.get_role_by_id(session, role_id)
     if user is None or user.tenant_id != tenant_id:
         raise ProblemError(404, "User not found", "No user with that id exists in this tenant.")
+    if not user.is_active:
+        raise ProblemError(400, "Inactive user", "Cannot assign roles to a deactivated user account.")
     if role is None or role.tenant_id != tenant_id:
         raise ProblemError(404, "Role not found", "No role with that id exists in this tenant.")
 

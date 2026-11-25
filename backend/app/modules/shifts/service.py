@@ -126,6 +126,12 @@ async def create_template(
                 "Policy not found",
                 f"Policy with ID '{payload.policy_id}' does not exist in this tenant.",
             )
+        if not pol.is_active:
+            raise ProblemError(
+                400,
+                "Inactive policy",
+                "Cannot attach a deactivated attendance policy to a shift template.",
+            )
 
     template = ShiftTemplate(
         id=template_id,
@@ -208,7 +214,22 @@ async def update_template(
                     "Policy not found",
                     f"Policy with ID '{payload.policy_id}' does not exist in this tenant.",
                 )
+            if (payload.policy_id != template.policy_id or (payload.is_active is True and not template.is_active)) and not pol.is_active:
+                raise ProblemError(
+                    400,
+                    "Inactive policy",
+                    "Cannot attach a deactivated attendance policy to a shift template.",
+                )
         updates["policy_id"] = payload.policy_id
+    elif payload.is_active is True and not template.is_active and template.policy_id is not None:
+        from app.modules.policies.repository import get_policy
+        pol = await get_policy(session, tenant_id, template.policy_id)
+        if pol is not None and not pol.is_active:
+            raise ProblemError(
+                400,
+                "Inactive policy",
+                "Cannot activate a shift template attached to a deactivated attendance policy.",
+            )
 
     new_session_models = None
     if payload.sessions is not None:

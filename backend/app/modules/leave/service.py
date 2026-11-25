@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
 from app.models.leave import Holiday, LeaveRequest, LeaveTransaction, LeaveType
+from app.modules.branches import repository as branch_repo
 from app.modules.employees.repository import get_employee_by_id
 from app.modules.leave.ledger import balance, request_span, split_shortfall
 from app.modules.leave.repository import (
@@ -41,6 +42,11 @@ async def create_leave_type(
 async def create_holiday(
     session: AsyncSession, tenant_id: UUID, branch_id: UUID, calendar_date, name: str
 ) -> Holiday:
+    branch = await branch_repo.get_branch_by_id(session, tenant_id, branch_id)
+    if branch is None:
+        raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
+    if not branch.is_active:
+        raise ProblemError(400, "Inactive branch", "Cannot add a holiday to a deactivated branch.")
     row = Holiday(
         id=uuid4(),
         tenant_id=tenant_id,
@@ -64,6 +70,10 @@ async def create_leave_request(
     employee = await get_employee_by_id(session, tenant_id, employee_id)
     if employee is None:
         raise ProblemError(404, "Employee not found", "The employee is not in this tenant.")
+    if not employee.is_active:
+        raise ProblemError(400, "Inactive employee", "Cannot credit leave to a deactivated employee.")
+    if not employee.is_active:
+        raise ProblemError(400, "Inactive employee", "Cannot create a leave request for a deactivated employee.")
     leave_type = await get_leave_type(session, tenant_id, leave_type_id)
     if leave_type is None:
         raise ProblemError(404, "Leave type not found", "The leave type is not in this tenant.")
@@ -105,6 +115,8 @@ async def credit_leave(
     employee = await get_employee_by_id(session, tenant_id, employee_id)
     if employee is None:
         raise ProblemError(404, "Employee not found", "The employee is not in this tenant.")
+    if not employee.is_active:
+        raise ProblemError(400, "Inactive employee", "Cannot credit leave to a deactivated employee.")
     leave_type = await get_leave_type(session, tenant_id, leave_type_id)
     if leave_type is None:
         raise ProblemError(404, "Leave type not found", "The leave type is not in this tenant.")

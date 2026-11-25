@@ -28,6 +28,80 @@ export type EmployeeRow = {
   designation: string | null;
 };
 
+export type Employee = {
+  id: string;
+  tenant_id: string;
+  user_id: string | null;
+  branch_id: string;
+  department_id: string | null;
+  designation_id: string | null;
+  designation: string | null;
+  employee_code: string;
+  full_name: string;
+  date_of_joining: string;
+  date_of_birth: string | null;
+  employment_type: string;
+  probation_end_date: string | null;
+  confirmation_date: string | null;
+  pan_masked: string | null;
+  aadhaar_masked: string | null;
+  bank_account_masked: string | null;
+  bank_ifsc_masked: string | null;
+  epf_uan_masked: string | null;
+  esic_number_masked: string | null;
+  is_active: boolean;
+  biometric_consent_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EmployeeCreateInput = {
+  employee_code: string;
+  full_name: string;
+  branch_id: string;
+  department_id?: string | null;
+  designation_id?: string | null;
+  user_id?: string | null;
+  designation?: string | null;
+  date_of_joining: string;
+  date_of_birth?: string | null;
+  employment_type?: string;
+  probation_end_date?: string | null;
+  confirmation_date?: string | null;
+  pan?: string | null;
+  aadhaar?: string | null;
+  bank_account?: string | null;
+  bank_ifsc?: string | null;
+  epf_uan?: string | null;
+  esic_number?: string | null;
+  biometric_consent?: boolean;
+  is_active?: boolean;
+};
+
+export type EmployeeUpdateInput = {
+  full_name?: string | null;
+  branch_id?: string | null;
+  department_id?: string | null;
+  designation_id?: string | null;
+  user_id?: string | null;
+  designation?: string | null;
+  date_of_joining?: string | null;
+  date_of_birth?: string | null;
+  employment_type?: string | null;
+  probation_end_date?: string | null;
+  confirmation_date?: string | null;
+  pan?: string | null;
+  aadhaar?: string | null;
+  bank_account?: string | null;
+  bank_ifsc?: string | null;
+  epf_uan?: string | null;
+  esic_number?: string | null;
+  biometric_consent?: boolean | null;
+  is_active?: boolean | null;
+};
+
+export type UnmaskPiiResult = Record<string, string | null>;
+
 export type Designation = {
   id: string;
   department_id: string;
@@ -42,6 +116,59 @@ export type Role = { id: string; code: string; name: string; is_system: boolean;
 export type Permission = { code: string; module: string; resource: string; action: string; description: string };
 
 export type DirectoryUser = { id: string; email: string; full_name: string; is_active: boolean; roles: string[] };
+
+export type PendingAction = {
+  id: string;
+  tenant_id: string;
+  action_type: string;
+  subject_type: string;
+  subject_id: string;
+  due_date: string;
+  status: "PENDING" | "RESOLVED" | "DISMISSED";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string | null;
+  metadata: {
+    employee_id?: string;
+    employee_code?: string;
+    full_name?: string;
+    date_of_joining?: string;
+    probation_end_date?: string;
+    branch_id?: string;
+    department_id?: string;
+    designation_id?: string;
+    [key: string]: any;
+  };
+  resolution: {
+    action: "CONFIRM" | "EXTEND" | "DISMISS";
+    note?: string;
+    target_employment_type?: string;
+    target_department_id?: string;
+    target_designation_id?: string;
+    new_end_date?: string;
+    [key: string]: any;
+  } | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  days_remaining: number | null;
+};
+
+export type PendingActionCount = {
+  pending: number;
+  overdue: number;
+  due_soon: number;
+};
+
+export type ResolvePendingActionInput = {
+  action: "CONFIRM" | "EXTEND" | "DISMISS";
+  note?: string;
+  target_employment_type?: string;
+  target_department_id?: string;
+  target_designation_id?: string;
+  new_end_date?: string;
+};
 
 const TOKEN_KEY = "apms.token";
 
@@ -97,8 +224,8 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<Me>("/api/v1/auth/me"),
-  updateTenant: (display_name: string) =>
-    request<Tenant>("/api/v1/auth/tenant", { method: "PATCH", body: JSON.stringify({ display_name }) }),
+  updateTenant: (payload: { display_name?: string | null; logo_url?: string | null }) =>
+    request<Tenant>("/api/v1/auth/tenant", { method: "PATCH", body: JSON.stringify(payload) }),
   branches: () => request<Branch[]>("/api/v1/branches"),
   createBranch: (name: string, code: string) =>
     request<Branch>("/api/v1/branches", {
@@ -137,8 +264,38 @@ export const api = {
     body: Partial<Pick<Designation, "name" | "code" | "description" | "is_active">>,
   ) => request<Designation>(`/api/v1/designations/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDesignation: (id: string) => request(`/api/v1/designations/${id}`, { method: "DELETE" }),
-  employees: (departmentId: string) =>
-    request<EmployeeRow[]>(`/api/v1/employees?department_id=${encodeURIComponent(departmentId)}`),
+  employees: (departmentId: string, isActive?: boolean) => {
+    const query = new URLSearchParams({ department_id: departmentId });
+    if (isActive !== undefined) query.set("is_active", String(isActive));
+    return request<EmployeeRow[]>(`/api/v1/employees?${query.toString()}`);
+  },
+  employeesList: (params?: { branch_id?: string; department_id?: string; is_active?: boolean }) => {
+    const query = new URLSearchParams();
+    if (params?.branch_id) query.set("branch_id", params.branch_id);
+    if (params?.department_id) query.set("department_id", params.department_id);
+    if (params?.is_active !== undefined) query.set("is_active", String(params.is_active));
+    const qs = query.toString();
+    return request<Employee[]>(`/api/v1/employees${qs ? `?${qs}` : ""}`);
+  },
+  employee: (id: string) => request<Employee>(`/api/v1/employees/${id}`),
+  createEmployee: (payload: EmployeeCreateInput) =>
+    request<Employee>("/api/v1/employees", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    }),
+  updateEmployee: (id: string, payload: EmployeeUpdateInput) =>
+    request<Employee>(`/api/v1/employees/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  // deleteEmployee: (id: string) =>
+  //   request<{ id: string }>(`/api/v1/employees/${id}`, { method: "DELETE" }),
+  unmaskPii: (id: string, fields: string[]) =>
+    request<UnmaskPiiResult>(`/api/v1/employees/${id}/unmask`, {
+      method: "POST",
+      body: JSON.stringify({ fields }),
+    }),
   assignDesignation: (id: string, designation_id: string | null) =>
     request<EmployeeRow>(`/api/v1/employees/${id}`, {
       method: "PATCH",
@@ -168,5 +325,22 @@ export const api = {
   unassignRole: (userId: string, roleId: string) =>
     request<void>(`/api/v1/users/${userId}/roles/${roleId}`, {
       method: "DELETE",
+    }),
+  pendingActions: (params?: { status?: string; action_type?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.status) search.set("status", params.status);
+    if (params?.action_type) search.set("action_type", params.action_type);
+    const qs = search.toString();
+    return request<PendingAction[]>(`/api/v1/pending-actions${qs ? `?${qs}` : ""}`);
+  },
+  pendingActionsCount: () => request<PendingActionCount>("/api/v1/pending-actions/count"),
+  scanPendingActions: () =>
+    request<{ status: string; new_actions_created: number }>("/api/v1/pending-actions/scan", {
+      method: "POST",
+    }),
+  resolvePendingAction: (id: string, payload: ResolvePendingActionInput) =>
+    request<PendingAction>(`/api/v1/pending-actions/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };

@@ -335,6 +335,16 @@ async def test_policy_override_crud_and_effective_config_api():
         del_resp = await client.delete(f"/api/v1/policies/overrides/{override_id}", headers=headers)
         assert del_resp.status_code == 204
 
+        # Cleanup test employee and department to prevent dev database pollution
+        async with MigrateSession() as mig:
+            emp_row = await mig.get(Employee, emp_id)
+            if emp_row:
+                await mig.delete(emp_row)
+            dept_row = await mig.get(Department, dept_id)
+            if dept_row:
+                await mig.delete(dept_row)
+            await mig.commit()
+
 
 @pytest.mark.asyncio
 async def test_policy_override_rls_isolation(seeded_tenants: tuple[Tenant, Tenant]):
@@ -343,7 +353,7 @@ async def test_policy_override_rls_isolation(seeded_tenants: tuple[Tenant, Tenan
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        _, dept_a, _, _ = await _create_org_structure(session, tenant_a.id)
+        _, dept_a, desig_a, emp_a = await _create_org_structure(session, tenant_a.id)
 
         ov_a = await create_override(
             session,
@@ -356,6 +366,9 @@ async def test_policy_override_rls_isolation(seeded_tenants: tuple[Tenant, Tenan
         )
         await session.commit()
         ov_id = ov_a.id
+        dept_id = dept_a.id
+        desig_id = desig_a.id
+        emp_id = emp_a.id
 
     # In Tenant B session, get_override must raise 404
     async with SessionLocal() as session:
@@ -363,3 +376,19 @@ async def test_policy_override_rls_isolation(seeded_tenants: tuple[Tenant, Tenan
         with pytest.raises(ProblemError) as exc_info:
             await get_override(session, tenant_b.id, ov_id)
         assert exc_info.value.status == 404
+
+    # Cleanup to prevent dev database pollution
+    async with MigrateSession() as mig:
+        ov_row = await mig.get(PolicyScopeOverride, ov_id)
+        if ov_row:
+            await mig.delete(ov_row)
+        emp_row = await mig.get(Employee, emp_id)
+        if emp_row:
+            await mig.delete(emp_row)
+        desig_row = await mig.get(Designation, desig_id)
+        if desig_row:
+            await mig.delete(desig_row)
+        dept_row = await mig.get(Department, dept_id)
+        if dept_row:
+            await mig.delete(dept_row)
+        await mig.commit()

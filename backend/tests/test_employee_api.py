@@ -104,3 +104,37 @@ async def test_employee_api_crud_and_masking() -> None:
         get_after_delete = await client.get(f"/api/v1/employees/{emp_id}", headers=headers)
         assert get_after_delete.status_code == 200
         assert get_after_delete.json()["is_active"] is False
+
+        # 10. Attempting to assign an employee to an inactive branch fails with 400
+        branch_code = f"I{uuid4().hex[:3].upper()}"
+        branch_resp = await client.post(
+            "/api/v1/branches",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json={"name": "Temp Inactive Branch", "code": branch_code},
+        )
+        assert branch_resp.status_code == 201
+        inactive_branch_id = branch_resp.json()["id"]
+        # Deactivate branch
+        deact_resp = await client.patch(
+            f"/api/v1/branches/{inactive_branch_id}",
+            headers=headers,
+            json={"is_active": False},
+        )
+        assert deact_resp.status_code == 200
+        # Try creating employee under the inactive branch
+        fail_create_resp = await client.post(
+            "/api/v1/employees",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json={
+                "employee_code": f"FAIL-{uuid4().hex[:4].upper()}",
+                "full_name": "Should Fail Employee",
+                "branch_id": inactive_branch_id,
+                "date_of_joining": "2026-02-01",
+            },
+        )
+        assert fail_create_resp.status_code == 400
+        assert "Inactive branch" in fail_create_resp.text
+
+        # Clean up temporary branch created during negative test
+        del_branch_resp = await client.delete(f"/api/v1/branches/{inactive_branch_id}", headers=headers)
+        assert del_branch_resp.status_code == 200

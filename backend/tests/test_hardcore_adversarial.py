@@ -622,7 +622,9 @@ def _employee(tenant_id, branch_id, code: str, name: str) -> Employee:
 
 
 async def _branch(session, tenant_id):
-    branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_id))
+    branch = await session.scalar(
+        select(Branch).where(Branch.tenant_id == tenant_id, Branch.is_active.is_(True))
+    )
     assert branch is not None
     return branch
 
@@ -855,7 +857,30 @@ async def test_adversarial_composite_fk_and_designation_tenant_wall(seeded_tenan
         await session.rollback()
         await set_tenant(session, tenant_a.id)
 
-        dept = await session.scalar(select(Department).where(Department.tenant_id == tenant_a.id))
+        dept = await session.scalar(
+            select(Department)
+            .join(Branch, (Branch.id == Department.branch_id) & (Branch.tenant_id == Department.tenant_id))
+            .where(
+                Department.tenant_id == tenant_a.id,
+                Department.is_active.is_(True),
+                Branch.is_active.is_(True),
+            )
+        )
+        created_temp_dept = False
+        if dept is None:
+            branch_a = await _branch(session, tenant_a.id)
+            dept = Department(
+                id=uuid4(),
+                tenant_id=tenant_a.id,
+                branch_id=branch_a.id,
+                name="Adversarial Temp Dept",
+                code=f"ADV-D-{uuid4().hex[:4].upper()}",
+                is_active=True,
+                created_at=datetime.now(UTC),
+            )
+            session.add(dept)
+            await session.flush()
+            created_temp_dept = True
         assert dept is not None
         code = f"ADV{uuid4().hex[:4].upper()}"
         created = await create_designation(
@@ -888,6 +913,11 @@ async def test_adversarial_composite_fk_and_designation_tenant_wall(seeded_tenan
     async with SessionLocal() as session_a:
         await set_tenant(session_a, tenant_a.id)
         await delete_designation(session_a, tenant_a.id, created.id)
+        if created_temp_dept:
+            dept_row = await session_a.get(Department, dept.id)
+            if dept_row is not None:
+                await session_a.delete(dept_row)
+        await session_a.commit()
 
 
 @pytest.mark.asyncio

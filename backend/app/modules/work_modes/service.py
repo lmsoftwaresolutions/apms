@@ -62,7 +62,9 @@ async def resolve_employee_policy(
     if instances and instances[0].shift_template_id:
         tpl = await get_shift_template_by_id(session, tenant_id, instances[0].shift_template_id)
         if tpl and tpl.policy_id:
-            return await get_policy(session, tenant_id, tpl.policy_id)
+            policy = await get_policy(session, tenant_id, tpl.policy_id)
+            if policy is not None and policy.is_active:
+                return policy
 
     return None
 
@@ -76,6 +78,8 @@ async def apply_work_mode(
     emp = await get_employee_by_id(session, tenant_id, employee_id)
     if emp is None:
         raise ProblemError(404, "Employee not found", "The employee is not in this tenant.")
+    if not emp.is_active:
+        raise ProblemError(400, "Inactive employee", "Cannot apply work mode for a deactivated employee.")
 
     existing = await get_work_mode_by_date_session(
         session, tenant_id, employee_id, payload.calendar_date, payload.session_target
