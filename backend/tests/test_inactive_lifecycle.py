@@ -277,7 +277,13 @@ async def test_shifts_roster_and_policies_reject_inactive_targets(tenant_a: Tena
         inactive_pol = await create_policy(
             session,
             tenant_a.id,
-            PolicyCreate(code=f"IPOL_{suffix}", name="Inactive Pol", is_active=False),
+            PolicyCreate(
+                code=f"IPOL_{suffix}",
+                name="Inactive Pol",
+                is_active=False,
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+            ),
         )
         with pytest.raises(ProblemError) as exc:
             await create_template(
@@ -436,7 +442,7 @@ async def test_shifts_roster_and_policies_reject_inactive_targets(tenant_a: Tena
         assert exc.value.status == 400
         assert exc.value.title == "Inactive department"
 
-        # resolve_employee_policy skips inactive shift-linked policy and falls back
+        # An inactive shift-linked policy is not used. There is no fallback policy.
         inst.shift_template_id = active_shift.id
         tpl_model = await session.get(ShiftTemplate, active_shift.id)
         assert tpl_model is not None
@@ -444,7 +450,7 @@ async def test_shifts_roster_and_policies_reject_inactive_targets(tenant_a: Tena
         await session.flush()
 
         resolved = await resolve_employee_policy(session, tenant_a.id, emp.id, date(2026, 12, 1))
-        assert resolved is None or resolved.id != inactive_pol.id
+        assert resolved is None
 
 
 @pytest.mark.asyncio
