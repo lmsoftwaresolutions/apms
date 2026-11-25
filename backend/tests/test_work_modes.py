@@ -101,6 +101,7 @@ async def test_wfh_auto_approval_quota(seeded_tenants: tuple[Tenant, Tenant]):
             updated_at=now,
         )
         session.add(template)
+        await session.flush()
         for day in (date(2026, 11, 2), date(2026, 11, 3), date(2026, 11, 4), date(2026, 11, 5)):
             session.add(
                 DatedShiftInstance(
