@@ -266,7 +266,7 @@ Occurs when an employee has only a single punch (either IN without OUT, or OUT w
 ### Overtime (OT / `overtime_minutes`)
 Worked duration performed beyond scheduled shift hours:
 $$\text{Overtime Minutes} = \max(0, \; \text{Total Worked Minutes} - \text{Total Scheduled Minutes})$$
-Requires explicit supervisor authorization under `BR-OTC-01` before payroll payout.
+Requires explicit supervisor authorization under `BR-OTC-01` before payroll payout, unless the admin has turned overtime auto-approval on. The extra-hours rate, the auto-approval threshold, and the daily and quarterly caps stay blank until the admin sets them on the shift policy.
 
 ### Unauthorized Extra Time (`UNAUTHORIZED_EXTRA_TIME`, Confirmed N20)
 Extra minutes worked beyond scheduled shift hours that have not received supervisor approval. Tracked for audit and productivity analysis but excluded from payable payroll wage lines.
@@ -312,7 +312,7 @@ Unpaid absence days deducted from monthly salary when an employee is `ABSENT` wi
 A policy control preventing leave balance from dropping below zero unless advance leave is explicitly configured for that leave category. Uncredited days automatically convert to LOP.
 
 ### Compensatory Off (Comp-Off)
-A leave credit for time worked on a weekly off or a holiday. No redemption window is confirmed. Hours and approval are tracked separately from wage multiplication, which is payroll and stays out of the attendance engine.
+A leave credit for time worked on a weekly off or a holiday. No redemption window is confirmed. One comp-off day equals `comp_off_minutes_per_day` on the shift policy, and conversion is refused until the admin sets that value. Hours and approval are tracked separately from wage multiplication, which is payroll and stays out of the attendance engine.
 
 ---
 

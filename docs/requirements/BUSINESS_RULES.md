@@ -133,7 +133,7 @@ Tenant policy bands map ratio $R$ to daily attendance status:
 - The work-from-home auto-approval quota is blank until the admin sets it. Auto-approval does not run without both the switch and a quota.
 
 ### BR-WFH-01: WFH Auto-Approval Quota (Confirmed Q6)
-- Tenants can configure a monthly Work-From-Home (WFH) quota (e.g., 4 days per calendar month).
+- Tenants configure a monthly Work-From-Home (WFH) quota on the shift policy. The quota is blank until the admin sets it, so a number such as 4 days is an example the admin may enter, not a system default.
 - WFH applications submitted within the remaining quota balance are **auto-approved immediately** only when the admin has enabled work-from-home auto-approval. Until that switch is on, every request stays pending.
 - WFH applications exceeding the monthly quota require explicit manager approval.
 

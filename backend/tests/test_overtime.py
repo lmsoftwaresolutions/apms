@@ -18,6 +18,7 @@ from app.models.iam import Role, Tenant, User, UserRole
 from app.models.leave import LeaveTransaction, LeaveType
 from app.models.overtime import OvertimeRecord
 from app.models.policy import PolicyMaster
+from app.models.punch import PunchEvent, RawEnvelope
 from app.models.roster import DatedShiftInstance
 from app.models.shift import ShiftTemplate
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
@@ -640,7 +641,7 @@ async def test_overtime_convert_to_compoff_double_entry(seeded_tenants: tuple[Te
 
 @pytest.mark.asyncio
 async def test_statutory_quarterly_cap_enforcement(seeded_tenants: tuple[Tenant, Tenant]):
-    """Invariant 5: Statutory quarterly OT cap (125 hours = 7500 minutes) parameterization.
+    """A quarterly cap applies only when the shift policy sets one.
 
     Approving OT that causes total quarterly approved OT to exceed the policy cap raises 422.
     """
@@ -812,6 +813,19 @@ async def test_overtime_rest_api_and_ess():
         await session.flush()
 
         d_api = date(2026, 11, 12)
+        api_policy = await create_policy(
+            session,
+            tenant_a.id,
+            PolicyCreate(
+                code=f"API_{uuid4().hex[:6].upper()}",
+                name="API overtime policy",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                quarterly_ot_cap_minutes=7500,
+                comp_off_minutes_per_day=480,
+            ),
+        )
+        await _link_policy(session, tenant_a.id, emp.id, api_policy.id, d_api)
         att_api = await _create_attendance_record(session, tenant_a.id, emp.id, d_api)
         ot_rec = OvertimeRecord(
             id=uuid4(),
