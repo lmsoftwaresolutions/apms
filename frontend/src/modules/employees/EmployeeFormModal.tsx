@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
-import { User, Building2, Shield, Calendar, CreditCard, AlertCircle } from "lucide-react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { User, Building2, Shield, Calendar, CreditCard, AlertCircle, AlertTriangle } from "lucide-react";
 import { api, Branch, Department, Designation, Employee, EmployeeCreateInput, EmployeeUpdateInput } from "../../api";
 import { Modal } from "../../components/common/Modal";
 import { Button } from "../../components/common/Button";
@@ -104,18 +104,57 @@ export function EmployeeFormModal({
     setFormError("");
   }, [initialEmployee, isOpen]);
 
-  // Cascading filters: departments under selected branch
-  const availableDepartments = departments.filter((d) => (branchId ? d.branch_id === branchId : true));
-  // Cascading filters: designations under selected department
-  const availableDesignations = designations.filter((des) =>
-    departmentId ? des.department_id === departmentId : true,
-  );
+  // Available branches: active branches + the employee's currently assigned branch if editing
+  const availableBranches = useMemo(() => {
+    return branches.filter((b) => b.is_active || b.id === initialEmployee?.branch_id);
+  }, [branches, initialEmployee]);
+
+  const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
+
+  // Cascading filters: departments under selected branch (active + currently assigned if editing)
+  const availableDepartments = useMemo(() => {
+    if (!branchId) return [];
+    return departments.filter(
+      (d) => d.branch_id === branchId && (d.is_active || d.id === initialEmployee?.department_id)
+    );
+  }, [departments, branchId, initialEmployee]);
+
+  // Cascading filters: designations under selected department (active + currently assigned if editing)
+  const availableDesignations = useMemo(() => {
+    if (!departmentId) return [];
+    return designations.filter(
+      (des) => des.department_id === departmentId && (des.is_active || des.id === initialEmployee?.designation_id)
+    );
+  }, [designations, departmentId, initialEmployee]);
 
   function validate(): string | null {
     if (!fullName.trim()) return "Full name is required.";
     if (!employeeCode.trim()) return "Employee code is required.";
     if (!branchId) return "Branch selection is required.";
     if (!dateOfJoining) return "Date of joining is required.";
+
+    // Guard: Prevent assigning newly created or reassigned employees to deactivated branches
+    const chosenBranch = branches.find((b) => b.id === branchId);
+    if (!isEdit && chosenBranch && !chosenBranch.is_active) {
+      return "Cannot assign a new employee to a deactivated branch. Please select an active branch.";
+    }
+    if (isEdit && initialEmployee && branchId !== initialEmployee.branch_id) {
+      if (chosenBranch && !chosenBranch.is_active) {
+        return "Cannot reassign employee to a deactivated branch. Please select an active branch.";
+      }
+    }
+
+    if (departmentId) {
+      const chosenDept = departments.find((d) => d.id === departmentId);
+      if (!isEdit && chosenDept && !chosenDept.is_active) {
+        return "Cannot assign an employee to a deactivated department. Please select an active department.";
+      }
+      if (isEdit && initialEmployee && departmentId !== initialEmployee.department_id) {
+        if (chosenDept && !chosenDept.is_active) {
+          return "Cannot reassign employee to a deactivated department. Please select an active department.";
+        }
+      }
+    }
 
     const panClean = pan.trim().toUpperCase();
     if (panClean && !PAN_REGEX.test(panClean)) {
@@ -357,15 +396,16 @@ export function EmployeeFormModal({
                     setBranchId(e.target.value);
                     setDepartmentId(""); // Reset cascaded dept
                     setDesignationId("");
+                    setCustomDesignation(""); // Reset custom designation
                   }}
                   required
                 >
                   <option value="" disabled>
                     Select Branch
                   </option>
-                  {branches.map((b) => (
+                  {availableBranches.map((b) => (
                     <option key={b.id} value={b.id}>
-                      {b.name} ({b.code})
+                      {b.name} ({b.code}){!b.is_active ? " — (Deactivated)" : ""}
                     </option>
                   ))}
                 </select>
@@ -377,16 +417,42 @@ export function EmployeeFormModal({
                   onChange={(e) => {
                     setDepartmentId(e.target.value);
                     setDesignationId(""); // Reset cascaded designation
+                    setCustomDesignation(""); // Reset custom designation
                   }}
                 >
                   <option value="">No Department (Unassigned)</option>
                   {availableDepartments.map((d) => (
                     <option key={d.id} value={d.id}>
-                      {d.name} ({d.code})
+                      {d.name} ({d.code}){!d.is_active ? " — (Inactive)" : ""}
                     </option>
                   ))}
                 </select>
               </Field>
+
+              {/* Warning when employee belongs to a deactivated branch */}
+              {selectedBranch && !selectedBranch.is_active && (
+                <div
+                  style={{
+                    gridColumn: "span 2",
+                    padding: "0.625rem 0.875rem",
+                    borderRadius: "0.375rem",
+                    fontSize: "0.8125rem",
+                    backgroundColor: "rgba(245, 158, 11, 0.1)",
+                    border: "1px solid rgba(245, 158, 11, 0.3)",
+                    color: "var(--color-warning-fg, #f59e0b)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "0.5rem",
+                  }}
+                >
+                  <AlertTriangle size={16} style={{ flexShrink: 0 }} />
+                  <span>
+                    <strong>Branch Deactivated:</strong> This employee belongs to a deactivated branch (
+                    {selectedBranch.name}). Reassign to an active branch to ensure proper organizational placement.
+                  </span>
+                </div>
+              )}
+
               <Field label="Designation (Master)">
                 <select
                   className="select"
@@ -396,7 +462,7 @@ export function EmployeeFormModal({
                   <option value="">Select Predefined Designation</option>
                   {availableDesignations.map((des) => (
                     <option key={des.id} value={des.id}>
-                      {des.name} ({des.code})
+                      {des.name} ({des.code}){!des.is_active ? " — (Inactive)" : ""}
                     </option>
                   ))}
                 </select>

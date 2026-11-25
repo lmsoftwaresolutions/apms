@@ -283,14 +283,24 @@ export function Employee360Modal({
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1.25rem" }}>
                 <div>
                   <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Branch Location</span>
-                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
-                    {branch ? `${branch.name} (${branch.code})` : "Unassigned"}
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <span>{branch ? `${branch.name} (${branch.code})` : "Unassigned"}</span>
+                    {branch && !branch.is_active && (
+                      <Badge variant="neutral" size="sm">
+                        Deactivated Branch
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div>
                   <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Department</span>
-                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
-                    {department ? `${department.name} (${department.code})` : "Unassigned"}
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                    <span>{department ? `${department.name} (${department.code})` : "Unassigned"}</span>
+                    {department && !department.is_active && (
+                      <Badge variant="neutral" size="sm">
+                        Inactive Dept
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div>

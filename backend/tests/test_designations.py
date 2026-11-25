@@ -6,6 +6,7 @@ from sqlalchemy import select, text
 
 from app.core.database import MigrateSession, SessionLocal, set_tenant
 from app.core.errors import ProblemError
+from app.models.branch import Branch
 from app.models.department import Department
 from app.models.designation import Designation
 from app.models.iam import Tenant
@@ -153,6 +154,12 @@ async def test_designation_employee_linkage_and_cross_validation(seeded_tenants:
         depts = list((await session.scalars(select(Department).where(Department.tenant_id == tenant_a.id))).all())
         assert len(depts) >= 2
         dept_1, dept_2 = depts[0], depts[1]
+
+        # Ensure branch is active for employee creation test
+        branch_1 = await session.get(Branch, dept_1.branch_id)
+        if branch_1 and not branch_1.is_active:
+            branch_1.is_active = True
+            await session.flush()
 
         # Create designation in dept_1
         code_1 = f"DES-{uuid4().hex[:4].upper()}"

@@ -170,7 +170,7 @@ export function DesignationsPage() {
               >
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.name} ({b.code})
+                    {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
                   </option>
                 ))}
               </select>
@@ -186,7 +186,7 @@ export function DesignationsPage() {
             >
               {departments.map((d) => (
                 <option key={d.id} value={d.id}>
-                  {d.name} ({d.code})
+                  {d.name} ({d.code}){!d.is_active ? " (Inactive)" : ""}
                 </option>
               ))}
             </select>

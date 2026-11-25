@@ -133,7 +133,7 @@ export function DepartmentsPage() {
               >
                 {branches.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.name} ({b.code})
+                    {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
                   </option>
                 ))}
               </select>
@@ -145,10 +145,12 @@ export function DepartmentsPage() {
               variant="primary"
               icon={<Plus size={16} />}
               onClick={() => {
-                setModalBranchId(selectedBranchId || branches[0]?.id || "");
+                const activeBranch = branches.find((b) => b.id === selectedBranchId && b.is_active);
+                const firstActive = branches.find((b) => b.is_active);
+                setModalBranchId(activeBranch ? activeBranch.id : firstActive?.id || "");
                 setIsCreateOpen(true);
               }}
-              disabled={branches.length === 0}
+              disabled={branches.filter((b) => b.is_active).length === 0}
             >
               Add Department
             </Button>
@@ -316,7 +318,7 @@ export function DepartmentsPage() {
                 onChange={(e) => setModalBranchId(e.target.value)}
                 required
               >
-                {branches.map((b) => (
+                {branches.filter((b) => b.is_active).map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.code})
                   </option>

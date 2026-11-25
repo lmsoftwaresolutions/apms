@@ -65,8 +65,11 @@ def employee_to_out(emp: Employee) -> EmployeeOut:
 
 
 async def _require_branch(session: AsyncSession, tenant_id: UUID, branch_id: UUID) -> None:
-    if await branch_repo.get_branch_by_id(session, tenant_id, branch_id) is None:
+    branch = await branch_repo.get_branch_by_id(session, tenant_id, branch_id)
+    if branch is None:
         raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
+    if not branch.is_active:
+        raise ProblemError(400, "Inactive branch", "Cannot assign employee to a deactivated branch.")
 
 
 async def _require_department_in_branch(
@@ -80,6 +83,8 @@ async def _require_department_in_branch(
         raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
     if dept.branch_id != branch_id:
         raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
+    if not dept.is_active:
+        raise ProblemError(400, "Inactive department", "Cannot assign employee to a deactivated department.")
 
 
 async def _require_designation_in_department(
@@ -236,7 +241,12 @@ async def update_employee(
     else:
         new_department_id = emp.department_id
     if new_department_id is not None:
-        await _require_department_in_branch(session, tenant_id, new_department_id, target_branch_id)
+        if new_department_id != original_department_id or payload.branch_id is not None:
+            await _require_department_in_branch(session, tenant_id, new_department_id, target_branch_id)
+        else:
+            dept = await dept_repo.get_department_by_id(session, tenant_id, new_department_id)
+            if dept is None or dept.branch_id != target_branch_id:
+                raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
 
     if "user_id" in payload.model_fields_set and payload.user_id is not None:
         await _require_user(session, tenant_id, payload.user_id)

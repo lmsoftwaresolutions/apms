@@ -430,7 +430,7 @@ export function EmployeesPage() {
               <option value="">All Branches</option>
               {branches.map((b) => (
                 <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
+                  {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
                 </option>
               ))}
             </select>
@@ -447,7 +447,7 @@ export function EmployeesPage() {
             <option value="">All Departments</option>
             {filterAvailableDepartments.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} ({d.code})
+                {d.name} ({d.code}){!d.is_active ? " (Inactive)" : ""}
               </option>
             ))}
           </select>
@@ -664,8 +664,23 @@ export function EmployeesPage() {
                           <div style={{ fontSize: "0.8125rem", fontWeight: 600, color: "var(--text-primary)" }}>
                             {desig?.name || emp.designation || "Staff"}
                           </div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                            {dept ? dept.name : "No Department"} • {branch ? branch.name : "Branch"}
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+                            <span>{dept ? dept.name : "No Department"} • {branch ? branch.name : "Branch"}</span>
+                            {branch && !branch.is_active && (
+                              <span
+                                style={{
+                                  fontSize: "0.6875rem",
+                                  color: "var(--color-warning-fg, #f59e0b)",
+                                  backgroundColor: "rgba(245, 158, 11, 0.1)",
+                                  padding: "0.05rem 0.3rem",
+                                  borderRadius: "0.25rem",
+                                  fontWeight: 600,
+                                }}
+                                title="Branch is deactivated"
+                              >
+                                Inactive Branch
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>
