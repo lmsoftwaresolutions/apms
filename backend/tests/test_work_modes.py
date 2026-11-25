@@ -11,6 +11,7 @@ from app.core.database import MigrateSession, SessionLocal, set_tenant
 from app.core.errors import ProblemError
 from app.core.security import hash_password
 from app.main import app
+from app.models.leave import LeaveTransaction, LeaveType
 from app.models.branch import Branch
 from app.models.employee import Employee
 from app.models.iam import Role, Tenant, User, UserRole
@@ -19,7 +20,11 @@ from app.models.roster import DatedShiftInstance
 from app.models.shift import ShiftTemplate
 from app.models.work_mode import WorkModeRequest
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
+from app.modules.attendance.engine.pairing import pair_punches_for_shift
+from app.modules.attendance.engine.rollup import evaluate_daily_rollup
 from app.modules.attendance.service import calculate_and_save_daily_attendance
+from app.modules.leave.ledger import balance
+from app.modules.leave.repository import insert_transaction, list_transactions
 from app.modules.policies.schemas import PolicyCreate
 from app.modules.policies.service import create_policy
 from app.modules.work_modes.schemas import WorkModeApply
@@ -686,3 +691,157 @@ async def test_ess_and_admin_api_endpoints():
         admin_reqs = await client.get("/api/v1/work-modes/requests", headers=sup_headers)
         assert admin_reqs.status_code == 200
         assert any(r["id"] == req_id for r in admin_reqs.json())
+
+
+def test_half_day_on_duty_waives_one_session_only():
+    cal_date = date(2026, 11, 20)
+    shift = ShiftInstanceContract(
+        calendar_date=cal_date,
+        shift_type="SPLIT",
+        sessions=[
+            SessionWindow(1, time(9, 0), time(13, 0), 30, 30, 0.5, 0),
+            SessionWindow(2, time(14, 0), time(18, 0), 30, 30, 0.5, 0),
+        ],
+    )
+    decision = evaluate_daily_rollup(
+        pair_punches_for_shift(shift, []),
+        work_mode="ON_DUTY",
+        session_target="FIRST_HALF",
+    )
+    assert decision.worked_minutes == 240
+    assert decision.status == "HALF_DAY"
+
+
+def test_single_session_half_does_not_credit_a_full_day():
+    cal_date = date(2026, 11, 20)
+    shift = ShiftInstanceContract(
+        calendar_date=cal_date,
+        shift_type="FIXED",
+        sessions=[SessionWindow(1, time(9, 0), time(18, 0), 60, 120, 0.5, 0)],
+    )
+    decision = evaluate_daily_rollup(
+        pair_punches_for_shift(shift, []),
+        work_mode="WFH",
+        session_target="FIRST_HALF",
+    )
+    assert decision.worked_minutes == 270
+    assert decision.status == "HALF_DAY"
+    assert decision.overtime_minutes == 0
+
+
+@pytest.mark.asyncio
+async def test_late_penalty_posts_one_leave_ledger_row(seeded_tenants: tuple[Tenant, Tenant]):
+    tenant, _ = seeded_tenants
+    async with SessionLocal() as session:
+        await set_tenant(session, tenant.id)
+        emp = await _create_test_employee(session, tenant.id)
+        now = datetime.now(UTC)
+        leave_type = LeaveType(
+            id=uuid4(),
+            tenant_id=tenant.id,
+            code=f"LP_{uuid4().hex[:6].upper()}",
+            name="Penalty leave",
+            allow_negative_balance=False,
+            sandwich_enabled=False,
+        )
+        session.add(leave_type)
+        await session.flush()
+        await insert_transaction(
+            session,
+            LeaveTransaction(
+                id=uuid4(),
+                tenant_id=tenant.id,
+                employee_id=emp.id,
+                leave_type_id=leave_type.id,
+                calendar_date=None,
+                entry_type="ACCRUAL",
+                days=Decimal("1.0"),
+                created_at=now,
+            ),
+        )
+        policy = await create_policy(
+            session,
+            tenant.id,
+            PolicyCreate(
+                code=f"PEN_{uuid4().hex[:6].upper()}",
+                name="Late penalty",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                max_free_lates_per_month=0,
+                late_penalty_action="DEDUCT_LEAVE_HALF_DAY",
+                late_penalty_leave_type_id=leave_type.id,
+            ),
+        )
+        env = RawEnvelope(
+            id=uuid4(),
+            tenant_id=tenant.id,
+            source="TEST",
+            raw_payload={},
+            payload_hash=f"hash_{uuid4().hex[:8]}",
+            received_at=now,
+        )
+        session.add(env)
+        await session.flush()
+        day = date(2026, 11, 18)
+        session.add(PunchEvent(id=uuid4(), tenant_id=tenant.id, raw_envelope_id=env.id, employee_id=emp.id, punch_time=datetime(2026, 11, 18, 3, 45, tzinfo=UTC), source="TEST", status="ACTIVE", created_at=now))
+        session.add(PunchEvent(id=uuid4(), tenant_id=tenant.id, raw_envelope_id=env.id, employee_id=emp.id, punch_time=datetime(2026, 11, 18, 12, 30, tzinfo=UTC), source="TEST", status="ACTIVE", created_at=now))
+        await session.commit()
+        await set_tenant(session, tenant.id)
+
+        shift = ShiftInstanceContract(
+            calendar_date=day,
+            shift_type="FIXED",
+            sessions=[SessionWindow(1, time(9, 0), time(18, 0), 60, 120, 0.5, 0)],
+            policy=policy,
+        )
+        await calculate_and_save_daily_attendance(session, tenant.id, emp.id, day, shift_contract=shift)
+        await calculate_and_save_daily_attendance(session, tenant.id, emp.id, day, shift_contract=shift)
+        await session.commit()
+        await set_tenant(session, tenant.id)
+
+        rows = [
+            row
+            for row in await list_transactions(session, tenant.id, emp.id)
+            if row.session_target == "LATE_PENALTY"
+        ]
+        assert len(rows) == 1
+        assert rows[0].entry_type == "DEBIT"
+        assert rows[0].days == Decimal("0.5")
+        current = balance(
+            [
+                (row.entry_type, Decimal(row.days))
+                for row in await list_transactions(session, tenant.id, emp.id)
+                if row.leave_type_id == leave_type.id
+            ]
+        )
+        assert current == Decimal("0.5")
+
+        policy.late_penalty_action = "LOSS_OF_PAY"
+        await session.flush()
+        next_day = date(2026, 11, 19)
+        session.add(PunchEvent(id=uuid4(), tenant_id=tenant.id, raw_envelope_id=env.id, employee_id=emp.id, punch_time=datetime(2026, 11, 19, 3, 50, tzinfo=UTC), source="TEST", status="ACTIVE", created_at=now))
+        session.add(PunchEvent(id=uuid4(), tenant_id=tenant.id, raw_envelope_id=env.id, employee_id=emp.id, punch_time=datetime(2026, 11, 19, 12, 30, tzinfo=UTC), source="TEST", status="ACTIVE", created_at=now))
+        shift_next = ShiftInstanceContract(
+            calendar_date=next_day,
+            shift_type="FIXED",
+            sessions=[SessionWindow(1, time(9, 0), time(18, 0), 60, 120, 0.5, 0)],
+            policy=policy,
+        )
+        await calculate_and_save_daily_attendance(session, tenant.id, emp.id, next_day, shift_contract=shift_next)
+        await session.commit()
+        await set_tenant(session, tenant.id)
+        penalty_rows = [
+            row
+            for row in await list_transactions(session, tenant.id, emp.id)
+            if row.session_target == "LATE_PENALTY" and row.calendar_date == next_day
+        ]
+        assert len(penalty_rows) == 1
+        assert penalty_rows[0].entry_type == "LOP"
+        still = balance(
+            [
+                (row.entry_type, Decimal(row.days))
+                for row in await list_transactions(session, tenant.id, emp.id)
+                if row.leave_type_id == leave_type.id
+            ]
+        )
+        assert still == Decimal("0.5")

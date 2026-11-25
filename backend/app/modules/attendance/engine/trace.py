@@ -12,6 +12,7 @@ def build_explanation_trace(
     theta_half_day: float = 0.50,
     policy: object | None = None,
     work_mode: str | None = None,
+    session_target: str | None = None,
     late_penalty: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generates immutable JSON audit trace payload per Invariant 4 and ATT-09."""
@@ -64,6 +65,7 @@ def build_explanation_trace(
         "evaluated_at": datetime.now(UTC).isoformat(),
         "calendar_date": pairing.calendar_date,
         "work_mode": work_mode,
+        "session_target": session_target,
         "is_on_duty_waived": work_mode == "ON_DUTY",
         "wfh_ot_suppressed": work_mode == "WFH",
         "late_penalty": late_penalty,

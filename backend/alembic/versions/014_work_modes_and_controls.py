@@ -74,7 +74,10 @@ STATEMENTS = [
       ADD COLUMN max_free_lates_per_month integer NOT NULL DEFAULT 3,
       ADD COLUMN late_penalty_action varchar(30) NOT NULL DEFAULT 'WARNING',
       ADD CONSTRAINT ck_policy_ot_approval_mode CHECK (ot_approval_mode IN ('ALWAYS_REQUIRE_APPROVAL')),
-      ADD CONSTRAINT ck_policy_late_penalty_action CHECK (late_penalty_action IN ('WARNING', 'DEDUCT_LEAVE_HALF_DAY', 'LOSS_OF_PAY'))
+      ADD CONSTRAINT ck_policy_late_penalty_action CHECK (late_penalty_action IN ('WARNING', 'DEDUCT_LEAVE_HALF_DAY', 'LOSS_OF_PAY')),
+      ADD COLUMN late_penalty_leave_type_id uuid,
+      ADD CONSTRAINT fk_policy_late_penalty_leave FOREIGN KEY (tenant_id, late_penalty_leave_type_id)
+        REFERENCES leave_types (tenant_id, id) ON DELETE RESTRICT
     """,
     *_tenant_table(
         "work_mode_requests",
@@ -170,6 +173,8 @@ def downgrade() -> None:
         ALTER TABLE policy_master
           DROP CONSTRAINT IF EXISTS ck_policy_late_penalty_action,
           DROP CONSTRAINT IF EXISTS ck_policy_ot_approval_mode,
+          DROP CONSTRAINT IF EXISTS fk_policy_late_penalty_leave,
+          DROP COLUMN IF EXISTS late_penalty_leave_type_id,
           DROP COLUMN IF EXISTS late_penalty_action,
           DROP COLUMN IF EXISTS max_free_lates_per_month,
           DROP COLUMN IF EXISTS ot_approval_mode,

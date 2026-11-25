@@ -17,6 +17,20 @@ from app.modules.work_modes.repository import (
 from app.modules.work_modes.schemas import WorkModeApply
 
 
+def work_mode_coverage(rows: list[WorkModeRequest]) -> tuple[str | None, str | None]:
+    """Return the mode and how much of the day it covers: FULL, FIRST_HALF, SECOND_HALF, or BOTH."""
+    if not rows:
+        return None, None
+    full = next((row for row in rows if row.session_target == "FULL"), None)
+    if full is not None:
+        return full.work_mode, "FULL"
+    targets = {row.session_target for row in rows}
+    mode = "WFH" if any(row.work_mode == "WFH" for row in rows) else rows[0].work_mode
+    if {"FIRST_HALF", "SECOND_HALF"} <= targets:
+        return mode, "BOTH"
+    return mode, rows[0].session_target
+
+
 async def _recalculate_day(
     session: AsyncSession,
     tenant_id: UUID,

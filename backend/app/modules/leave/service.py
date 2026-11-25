@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -130,6 +130,91 @@ async def employee_balances(session: AsyncSession, tenant_id: UUID, employee_id:
         {"leave_type_id": str(leave_type_id), "balance_days": str(balance(entries))}
         for leave_type_id, entries in grouped.items()
     ]
+
+
+LATE_PENALTY_MARKER = "LATE_PENALTY"
+
+
+async def post_late_penalty(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_id: UUID,
+    leave_type_id: UUID | None,
+    calendar_date: date,
+    action: str,
+) -> str:
+    """Post one half-day ledger row for a late penalty. A second run for the same day does nothing."""
+    if action not in {"DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"}:
+        return "skipped"
+    if leave_type_id is None:
+        return "missing_leave_type"
+    leave_type = await get_leave_type(session, tenant_id, leave_type_id)
+    if leave_type is None:
+        return "missing_leave_type"
+    existing = [
+        row
+        for row in await list_transactions(session, tenant_id, employee_id)
+        if row.calendar_date == calendar_date and row.session_target == LATE_PENALTY_MARKER
+    ]
+    if existing:
+        return "already_posted"
+    now = datetime.now(UTC)
+    requested = Decimal("0.5")
+    if action == "LOSS_OF_PAY":
+        await insert_transaction(
+            session,
+            LeaveTransaction(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                employee_id=employee_id,
+                leave_type_id=leave_type_id,
+                calendar_date=calendar_date,
+                entry_type="LOP",
+                days=requested,
+                session_target=LATE_PENALTY_MARKER,
+                created_at=now,
+            ),
+        )
+        return "lop"
+    current = balance(
+        [
+            (item.entry_type, Decimal(item.days))
+            for item in await list_transactions(session, tenant_id, employee_id)
+            if item.leave_type_id == leave_type_id
+        ]
+    )
+    debit_days, lop_days = split_shortfall(current, requested, leave_type.allow_negative_balance)
+    if debit_days > 0:
+        await insert_transaction(
+            session,
+            LeaveTransaction(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                employee_id=employee_id,
+                leave_type_id=leave_type_id,
+                calendar_date=calendar_date,
+                entry_type="DEBIT",
+                days=debit_days,
+                session_target=LATE_PENALTY_MARKER,
+                created_at=now,
+            ),
+        )
+    if lop_days > 0:
+        await insert_transaction(
+            session,
+            LeaveTransaction(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                employee_id=employee_id,
+                leave_type_id=leave_type_id,
+                calendar_date=calendar_date,
+                entry_type="LOP",
+                days=lop_days,
+                session_target=LATE_PENALTY_MARKER,
+                created_at=now,
+            ),
+        )
+    return "debited" if debit_days > 0 else "lop"
 
 
 async def review_leave_request(

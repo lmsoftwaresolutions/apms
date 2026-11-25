@@ -91,12 +91,12 @@ async def count_approved_wfh_days_in_month(
     return res.scalar_one() or 0
 
 
-async def find_approved_work_mode(
+async def list_approved_work_modes(
     session: AsyncSession,
     tenant_id: UUID,
     employee_id: UUID,
     calendar_date: date,
-) -> WorkModeRequest | None:
+) -> list[WorkModeRequest]:
     stmt = (
         select(WorkModeRequest)
         .where(
@@ -104,10 +104,8 @@ async def find_approved_work_mode(
             WorkModeRequest.employee_id == employee_id,
             WorkModeRequest.calendar_date == calendar_date,
             WorkModeRequest.status == "APPROVED",
-            WorkModeRequest.session_target == "FULL",
         )
         .order_by(WorkModeRequest.created_at.desc())
-        .limit(1)
     )
     res = await session.execute(stmt)
-    return res.scalar_one_or_none()
+    return list(res.scalars().all())

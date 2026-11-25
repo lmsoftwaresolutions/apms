@@ -112,9 +112,11 @@ async def calculate_and_save_daily_attendance(
             shift_contract.policy = policy
 
     # 0.1 Check approved work mode (WFH / ON_DUTY)
-    from app.modules.work_modes.repository import find_approved_work_mode
-    work_mode_req = await find_approved_work_mode(session, tenant_id, employee_id, calendar_date)
-    work_mode_code = work_mode_req.work_mode if work_mode_req else None
+    from app.modules.work_modes.repository import list_approved_work_modes
+    from app.modules.work_modes.service import work_mode_coverage
+
+    approved_modes = await list_approved_work_modes(session, tenant_id, employee_id, calendar_date)
+    work_mode_code, session_target = work_mode_coverage(approved_modes)
 
     # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin
     start_search, end_search = punch_search_window(calendar_date)
@@ -134,12 +136,18 @@ async def calculate_and_save_daily_attendance(
 
     # 3. Rollup decisions (N66a, N66b, Q4, BR-ATT-17, BR-OTC-01)
     decision = evaluate_daily_rollup(
-        pairing, theta_present, theta_half_day, policy=policy, work_mode=work_mode_code
+        pairing,
+        theta_present,
+        theta_half_day,
+        policy=policy,
+        work_mode=work_mode_code,
+        session_target=session_target,
     )
 
     # 3.1 Monthly Late Count & Penalty Action (BR-ATT-18 / Issue #39)
     late_penalty_info = None
-    if decision.late_minutes > 0 and work_mode_code != "ON_DUTY" and policy is not None:
+    full_day_on_duty = work_mode_code == "ON_DUTY" and session_target in {None, "FULL", "BOTH"}
+    if decision.late_minutes > 0 and not full_day_on_duty and policy is not None:
         from app.modules.attendance.repository import count_prior_late_days_in_month
 
         prior_late_count = await count_prior_late_days_in_month(
@@ -158,6 +166,17 @@ async def calculate_and_save_daily_attendance(
         if exceeded:
             if decision.anomaly_code is None:
                 decision.anomaly_code = f"LATE_PENALTY_{penalty_action}"
+            from app.modules.leave.service import post_late_penalty
+
+            ledger_result = await post_late_penalty(
+                session,
+                tenant_id,
+                employee_id,
+                policy.late_penalty_leave_type_id,
+                calendar_date,
+                penalty_action,
+            )
+            late_penalty_info["ledger_result"] = ledger_result
             decision.explanation += (
                 f" Late arrival exceeded monthly allowance ({prior_late_count}/{max_free}). Action: {penalty_action}."
             )
@@ -170,6 +189,7 @@ async def calculate_and_save_daily_attendance(
         theta_half_day,
         policy=policy,
         work_mode=work_mode_code,
+        session_target=session_target,
         late_penalty=late_penalty_info,
     )
 

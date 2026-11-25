@@ -38,6 +38,7 @@ class PolicyBase(BaseModel):
     ot_approval_mode: Literal["ALWAYS_REQUIRE_APPROVAL"] = "ALWAYS_REQUIRE_APPROVAL"
     max_free_lates_per_month: int = Field(default=3, ge=0)
     late_penalty_action: Literal["WARNING", "DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"] = "WARNING"
+    late_penalty_leave_type_id: UUID | None = None
 
 
 class PolicyCreate(PolicyBase):
@@ -80,6 +81,7 @@ class PolicyUpdate(BaseModel):
     ot_approval_mode: Literal["ALWAYS_REQUIRE_APPROVAL"] | None = None
     max_free_lates_per_month: int | None = Field(default=None, ge=0)
     late_penalty_action: Literal["WARNING", "DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"] | None = None
+    late_penalty_leave_type_id: UUID | None = None
 
 
 class PolicyOut(PolicyBase):

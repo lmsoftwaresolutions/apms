@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from app.modules.attendance.engine.pairing import DailyPairingResult
+from app.modules.attendance.engine.pairing import DailyPairingResult, apply_session_waiver
 
 
 @dataclass
@@ -23,6 +23,7 @@ def evaluate_daily_rollup(
     theta_half_day: float = 0.50,
     policy: object | None = None,
     work_mode: str | None = None,
+    session_target: str | None = None,
 ) -> DailyRollupDecision:
     # 1. Employer-cancelled session (N66d / ROS-10)
     if pairing.is_cancelled_paid:
@@ -54,8 +55,12 @@ def evaluate_daily_rollup(
             explanation="Scheduled rest day",
         )
 
+    waived = session_target in {"FIRST_HALF", "SECOND_HALF", "BOTH"}
+    if waived:
+        apply_session_waiver(pairing, session_target or "")
+
     # Approved full-day on-duty credits the scheduled day. It does not invent an 8-hour day.
-    if work_mode == "ON_DUTY":
+    if work_mode == "ON_DUTY" and session_target in {None, "FULL"}:
         sched = pairing.total_scheduled_minutes
         return DailyRollupDecision(
             status="PRESENT",
@@ -85,8 +90,8 @@ def evaluate_daily_rollup(
             explanation="Single or unpaired punch recorded for shift session. Defaults to NEEDS_REVIEW per Q4.",
         )
 
-    # 4. Zero punches matched
-    if pairing.total_punches_matched == 0 or pairing.total_worked_minutes == 0:
+    # 4. Zero punches matched. A waived session can credit time with no punches.
+    if pairing.total_worked_minutes == 0 and (pairing.total_punches_matched == 0 or not waived):
         return DailyRollupDecision(
             status="ABSENT",
             worked_ratio=0.0,
