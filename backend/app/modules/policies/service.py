@@ -50,6 +50,8 @@ async def create_policy(session: AsyncSession, tenant_id: UUID, data: PolicyCrea
         absent_late_cutoff_minutes=data.absent_late_cutoff_minutes,
         ot_minimum_minutes=data.ot_minimum_minutes,
         ot_multiplier=data.ot_multiplier,
+        extra_hours_amount=data.extra_hours_amount,
+        extra_hours_amount_unit=data.extra_hours_amount_unit,
         max_ot_minutes_per_day=data.max_ot_minutes_per_day,
         in_out_rule=data.in_out_rule,
         allow_wfh=data.allow_wfh,
@@ -112,6 +114,18 @@ async def update_policy(
             422,
             "Invalid cutoffs",
             "half_day_late_cutoff_minutes must be strictly less than absent_late_cutoff_minutes.",
+        )
+
+    amount = updates.get("extra_hours_amount", policy.extra_hours_amount)
+    unit = updates.get("extra_hours_amount_unit", policy.extra_hours_amount_unit)
+    if amount is None or amount == 0:
+        unit = None
+        updates["extra_hours_amount_unit"] = None
+    elif unit is None:
+        raise ProblemError(
+            422,
+            "Extra-hours unit required",
+            "Set the extra-hours unit (minute, hour, or day) when an amount is entered.",
         )
 
     for field, val in updates.items():

@@ -46,7 +46,9 @@ class PolicyMaster(Base):
 
     # Overtime Controls
     ot_minimum_minutes: Mapped[int] = mapped_column(Integer, default=30)
-    ot_multiplier: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("1.50"))
+    ot_multiplier: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), default=None)
+    extra_hours_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), default=None)
+    extra_hours_amount_unit: Mapped[str | None] = mapped_column(String(10), default=None)
     max_ot_minutes_per_day: Mapped[int | None] = mapped_column(Integer, default=None)
 
     # Punch Rules

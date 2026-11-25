@@ -269,10 +269,16 @@ async def calculate_and_save_daily_attendance(
     raw_ot_mins = candidate_ot_mins
 
     if raw_ot_mins > 0:
+        from app.modules.policies.extra_hours_pay import resolve_extra_hours_pay
+
+        pay = resolve_extra_hours_pay(effective_policy)
         ot_approval_mode = getattr(effective_policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL")
         ot_threshold = getattr(effective_policy, "ot_auto_approve_threshold_minutes", 0) or 0
 
-        if wfh_needs_supervisor:
+        if pay.basis == "NONE":
+            ot_status = "UNREVIEWED"
+            approved_mins = 0
+        elif wfh_needs_supervisor:
             ot_status = "UNREVIEWED"
             approved_mins = 0
         elif ot_approval_mode == "AUTO_APPROVE_ALL":
@@ -285,13 +291,21 @@ async def calculate_and_save_daily_attendance(
             ot_status = "UNREVIEWED"
             approved_mins = 0
 
-        multiplier = getattr(effective_policy, "ot_multiplier", None)
-        rate_multiplier = Decimal("1.50") if multiplier is None else Decimal(str(multiplier))
-
-        if existing_ot is not None:
+        if pay.basis == "NONE":
+            if existing_ot is not None and existing_ot.status == "UNREVIEWED":
+                existing_ot.raw_overtime_minutes = raw_ot_mins
+                existing_ot.approved_overtime_minutes = 0
+                existing_ot.rate_multiplier = None
+                existing_ot.extra_hours_amount = None
+                existing_ot.extra_hours_amount_unit = None
+                existing_ot.updated_at = now
+        elif existing_ot is not None:
             if existing_ot.status == "UNREVIEWED":
                 existing_ot.raw_overtime_minutes = raw_ot_mins
                 existing_ot.approved_overtime_minutes = approved_mins
+                existing_ot.rate_multiplier = pay.multiplier
+                existing_ot.extra_hours_amount = pay.amount
+                existing_ot.extra_hours_amount_unit = pay.unit
                 existing_ot.status = ot_status
                 existing_ot.updated_at = now
         else:
@@ -303,7 +317,9 @@ async def calculate_and_save_daily_attendance(
                 overtime_date=calendar_date,
                 raw_overtime_minutes=raw_ot_mins,
                 approved_overtime_minutes=approved_mins,
-                rate_multiplier=rate_multiplier,
+                rate_multiplier=pay.multiplier,
+                extra_hours_amount=pay.amount,
+                extra_hours_amount_unit=pay.unit,
                 status=ot_status,
                 comp_off_leave_transaction_id=None,
                 supervisor_id=None,

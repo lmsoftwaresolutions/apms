@@ -104,6 +104,24 @@ STATEMENTS = [
       )
     )
     """,
+    """
+    ALTER TABLE policy_master
+      ALTER COLUMN ot_multiplier DROP DEFAULT,
+      ALTER COLUMN ot_multiplier DROP NOT NULL,
+      ADD COLUMN extra_hours_amount numeric(12, 2),
+      ADD COLUMN extra_hours_amount_unit varchar(10),
+      ADD CONSTRAINT ck_policy_extra_hours_unit CHECK (
+        extra_hours_amount_unit IS NULL OR extra_hours_amount_unit IN ('MINUTE', 'HOUR', 'DAY')
+      ),
+      ADD CONSTRAINT ck_policy_extra_hours_amount CHECK (
+        extra_hours_amount IS NULL OR extra_hours_amount >= 0
+      ),
+      ADD CONSTRAINT ck_policy_extra_hours_pair CHECK (
+        extra_hours_amount IS NULL
+        OR extra_hours_amount = 0
+        OR extra_hours_amount_unit IS NOT NULL
+      )
+    """,
     *_tenant_table(
         "policy_scope_overrides",
         """
@@ -171,7 +189,9 @@ STATEMENTS = [
           overtime_date date NOT NULL,
           raw_overtime_minutes integer NOT NULL DEFAULT 0,
           approved_overtime_minutes integer NOT NULL DEFAULT 0,
-          rate_multiplier numeric(3, 2) NOT NULL DEFAULT 1.50,
+          rate_multiplier numeric(3, 2),
+          extra_hours_amount numeric(12, 2),
+          extra_hours_amount_unit varchar(10),
           status varchar(30) NOT NULL DEFAULT 'UNREVIEWED',
           comp_off_leave_transaction_id uuid REFERENCES leave_transactions(id) ON DELETE SET NULL,
           supervisor_id uuid REFERENCES users(id) ON DELETE SET NULL,
@@ -187,6 +207,12 @@ STATEMENTS = [
             REFERENCES employees (tenant_id, id) ON DELETE RESTRICT,
           CONSTRAINT ck_overtime_records_status CHECK (
             status IN ('UNREVIEWED', 'APPROVED_FOR_PAY', 'CONVERTED_TO_COMPOFF', 'REJECTED')
+          ),
+          CONSTRAINT ck_overtime_extra_hours_unit CHECK (
+            extra_hours_amount_unit IS NULL OR extra_hours_amount_unit IN ('MINUTE', 'HOUR', 'DAY')
+          ),
+          CONSTRAINT ck_overtime_extra_hours_amount CHECK (
+            extra_hours_amount IS NULL OR extra_hours_amount >= 0
           )
         )
         """,
@@ -265,6 +291,21 @@ def downgrade() -> None:
         )
     )
     conn.execute(text("ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_ot_approval_mode"))
+    conn.execute(text("ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_extra_hours_unit"))
+    conn.execute(text("ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_extra_hours_amount"))
+    conn.execute(text("ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_extra_hours_pair"))
+    conn.execute(
+        text(
+            """
+            ALTER TABLE policy_master
+              DROP COLUMN IF EXISTS extra_hours_amount_unit,
+              DROP COLUMN IF EXISTS extra_hours_amount
+            """
+        )
+    )
+    conn.execute(text("UPDATE policy_master SET ot_multiplier = 1.50 WHERE ot_multiplier IS NULL"))
+    conn.execute(text("ALTER TABLE policy_master ALTER COLUMN ot_multiplier SET DEFAULT 1.50"))
+    conn.execute(text("ALTER TABLE policy_master ALTER COLUMN ot_multiplier SET NOT NULL"))
     conn.execute(
         text(
             """

@@ -66,7 +66,9 @@ class OvertimeRecord(Base):
     overtime_date: Mapped[date] = mapped_column(Date)
     raw_overtime_minutes: Mapped[int] = mapped_column(Integer, default=0)
     approved_overtime_minutes: Mapped[int] = mapped_column(Integer, default=0)
-    rate_multiplier: Mapped[Decimal] = mapped_column(Numeric(3, 2), default=Decimal("1.50"))
+    rate_multiplier: Mapped[Decimal | None] = mapped_column(Numeric(3, 2), default=None)
+    extra_hours_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), default=None)
+    extra_hours_amount_unit: Mapped[str | None] = mapped_column(String(10), default=None)
     status: Mapped[str] = mapped_column(String(30), default="UNREVIEWED")
     comp_off_leave_transaction_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("leave_transactions.id", ondelete="SET NULL"), default=None

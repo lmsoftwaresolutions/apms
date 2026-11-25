@@ -28,7 +28,9 @@ class OvertimeRecordOut(BaseModel):
     overtime_date: date
     raw_overtime_minutes: int
     approved_overtime_minutes: int
-    rate_multiplier: Decimal
+    rate_multiplier: Decimal | None = None
+    extra_hours_amount: Decimal | None = None
+    extra_hours_amount_unit: str | None = None
     status: str
     comp_off_leave_transaction_id: UUID | None = None
     supervisor_id: UUID | None = None

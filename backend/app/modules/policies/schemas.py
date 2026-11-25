@@ -6,6 +6,13 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+def _validate_extra_hours_amount(amount: Decimal | None, unit: str | None) -> None:
+    if amount is not None and amount > 0 and unit is None:
+        raise ValueError("Set the extra-hours unit (minute, hour, or day) when an amount is entered.")
+    if unit is not None and (amount is None or amount == 0):
+        raise ValueError("An extra-hours unit applies only when the amount is greater than zero.")
+
+
 class PolicyBase(BaseModel):
     code: str = Field(min_length=2, max_length=30)
     name: str = Field(min_length=2, max_length=120)
@@ -24,9 +31,11 @@ class PolicyBase(BaseModel):
     half_day_late_cutoff_minutes: int | None = Field(default=None, ge=0)
     absent_late_cutoff_minutes: int | None = Field(default=None, ge=0)
 
-    # Overtime Controls
+    # Overtime Controls. Rates stay empty until an admin sets them.
     ot_minimum_minutes: int = Field(default=30, ge=0)
-    ot_multiplier: Decimal = Field(default=Decimal("1.50"), ge=Decimal("1.00"), le=Decimal("5.00"))
+    ot_multiplier: Decimal | None = Field(default=None, ge=0)
+    extra_hours_amount: Decimal | None = Field(default=None, ge=0)
+    extra_hours_amount_unit: Literal["MINUTE", "HOUR", "DAY"] | None = None
     max_ot_minutes_per_day: int | None = Field(default=None, ge=0)
 
     # Punch Rules
@@ -63,6 +72,7 @@ class PolicyCreate(PolicyBase):
             and self.half_day_late_cutoff_minutes >= self.absent_late_cutoff_minutes
         ):
             raise ValueError("half_day_late_cutoff_minutes must be strictly less than absent_late_cutoff_minutes")
+        _validate_extra_hours_amount(self.extra_hours_amount, self.extra_hours_amount_unit)
         return self
 
 
@@ -82,7 +92,9 @@ class PolicyUpdate(BaseModel):
     absent_late_cutoff_minutes: int | None = Field(default=None, ge=0)
 
     ot_minimum_minutes: int | None = Field(default=None, ge=0)
-    ot_multiplier: Decimal | None = Field(default=None, ge=Decimal("1.00"), le=Decimal("5.00"))
+    ot_multiplier: Decimal | None = Field(default=None, ge=0)
+    extra_hours_amount: Decimal | None = Field(default=None, ge=0)
+    extra_hours_amount_unit: Literal["MINUTE", "HOUR", "DAY"] | None = None
     max_ot_minutes_per_day: int | None = Field(default=None, ge=0)
 
     in_out_rule: Literal["FIRST_IN_LAST_OUT", "ALL_IN_OUT"] | None = None

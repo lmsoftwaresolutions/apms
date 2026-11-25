@@ -124,6 +124,9 @@ Tenant policy bands map ratio $R$ to daily attendance status:
 - Worked duration beyond scheduled shift hours does **NOT** automatically convert to payable overtime.
 - All overtime hours require explicit manager/supervisor authorization before payroll credit.
 - Unapproved extra hours are logged as `UNAUTHORIZED_EXTRA_TIME` and excluded from payroll calculations.
+- The extra-hours rate is blank until an admin sets it. The system does not assume 1.5× or any other rate.
+- An extra-hours amount greater than zero is the pay rate for that unit: per minute, per hour, or per day.
+- When the amount is zero or omitted, a multiplier greater than zero is the rate instead. When both are omitted, extra hours are recorded and are not paid.
 
 ### BR-WFH-01: WFH Auto-Approval Quota (Confirmed Q6)
 - Tenants can configure a monthly Work-From-Home (WFH) quota (e.g., 4 days per calendar month).
