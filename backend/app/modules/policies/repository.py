@@ -3,7 +3,7 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.policy import PolicyMaster
+from app.models.policy import PolicyMaster, PolicyScopeOverride
 from app.models.shift import ShiftTemplate
 
 
@@ -47,3 +47,50 @@ async def count_shifts_using_policy(session: AsyncSession, tenant_id: UUID, poli
     )
     result = await session.scalar(stmt)
     return result or 0
+
+
+async def insert_override(session: AsyncSession, row: PolicyScopeOverride) -> PolicyScopeOverride:
+    session.add(row)
+    await session.flush()
+    return row
+
+
+async def get_override(
+    session: AsyncSession, tenant_id: UUID, override_id: UUID
+) -> PolicyScopeOverride | None:
+    stmt = select(PolicyScopeOverride).where(
+        PolicyScopeOverride.tenant_id == tenant_id, PolicyScopeOverride.id == override_id
+    )
+    return await session.scalar(stmt)
+
+
+async def get_override_by_scope(
+    session: AsyncSession, tenant_id: UUID, scope_type: str, scope_id: UUID
+) -> PolicyScopeOverride | None:
+    stmt = select(PolicyScopeOverride).where(
+        PolicyScopeOverride.tenant_id == tenant_id,
+        PolicyScopeOverride.scope_type == scope_type,
+        PolicyScopeOverride.scope_id == scope_id,
+    )
+    return await session.scalar(stmt)
+
+
+async def list_overrides(
+    session: AsyncSession,
+    tenant_id: UUID,
+    scope_type: str | None = None,
+    scope_id: UUID | None = None,
+) -> list[PolicyScopeOverride]:
+    stmt = select(PolicyScopeOverride).where(PolicyScopeOverride.tenant_id == tenant_id)
+    if scope_type:
+        stmt = stmt.where(PolicyScopeOverride.scope_type == scope_type)
+    if scope_id:
+        stmt = stmt.where(PolicyScopeOverride.scope_id == scope_id)
+    stmt = stmt.order_by(PolicyScopeOverride.created_at.desc())
+    return list((await session.scalars(stmt)).all())
+
+
+async def delete_override(session: AsyncSession, row: PolicyScopeOverride) -> None:
+    await session.delete(row)
+    await session.flush()
+

@@ -7,11 +7,12 @@ from app.models.department import Department
 from app.models.designation import Designation
 from app.models.employee import Employee
 from app.models.leave import Holiday, LeaveRequest, LeaveTransaction, LeaveType
-from app.models.policy import PolicyMaster
+from app.models.policy import PolicyMaster, PolicyScopeOverride
 from app.models.punch import PunchEvent, RawEnvelope
 from app.models.roster import DatedShiftInstance, RosterPattern
 from app.models.shift import ShiftSession, ShiftTemplate
 from app.models.work_mode import WorkModeRequest
+from app.models.overtime import OvertimeRecord, StatutoryOTCap
 from app.models.iam import (
     IdempotencyKey,
     Permission,
@@ -38,12 +39,15 @@ __all__ = [
     "LeaveRequest",
     "LeaveTransaction",
     "LeaveType",
+    "OvertimeRecord",
     "PolicyMaster",
+    "PolicyScopeOverride",
     "PunchEvent",
     "RawEnvelope",
     "RosterPattern",
     "ShiftSession",
     "ShiftTemplate",
+    "StatutoryOTCap",
     "WorkModeRequest",
     "IdempotencyKey",
     "Permission",

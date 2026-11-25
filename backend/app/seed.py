@@ -74,6 +74,14 @@ async def seed() -> None:
                 "policy.master.read",
                 "work_mode.request.read",
                 "work_mode.request.review",
+                "policy_override:read",
+                "overtime_record:create",
+                "overtime_record:read",
+                "overtime_record:update",
+                "policy.override.read",
+                "overtime.record.create",
+                "overtime.record.read",
+                "overtime.record.update",
             ],
             "EMPLOYEE": [
                 "org.branch.read",
@@ -86,6 +94,8 @@ async def seed() -> None:
                 "leave.request.read",
                 "work_mode.request.create",
                 "work_mode.request.read",
+                "overtime_record:read",
+                "overtime.record.read",
             ],
         }
 

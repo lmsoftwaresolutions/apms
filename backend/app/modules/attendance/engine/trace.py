@@ -5,6 +5,12 @@ from app.modules.attendance.engine.pairing import DailyPairingResult
 from app.modules.attendance.engine.rollup import DailyRollupDecision
 
 
+def _trace_number(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(str(value))
+
+
 def build_explanation_trace(
     pairing: DailyPairingResult,
     decision: DailyRollupDecision,
@@ -52,9 +58,15 @@ def build_explanation_trace(
             "half_day_late_cutoff_minutes": getattr(policy, "half_day_late_cutoff_minutes", None),
             "absent_late_cutoff_minutes": getattr(policy, "absent_late_cutoff_minutes", None),
             "ot_minimum_minutes": getattr(policy, "ot_minimum_minutes", 30),
-            "ot_multiplier": float(getattr(policy, "ot_multiplier", 1.50)),
-            "wfh_monthly_auto_quota": getattr(policy, "wfh_monthly_auto_quota", 4),
+            "ot_multiplier": _trace_number(getattr(policy, "ot_multiplier", None)),
+            "extra_hours_amount": _trace_number(getattr(policy, "extra_hours_amount", None)),
+            "extra_hours_amount_unit": getattr(policy, "extra_hours_amount_unit", None),
+            "wfh_monthly_auto_quota": getattr(policy, "wfh_monthly_auto_quota", None),
+            "quarterly_ot_cap_minutes": getattr(policy, "quarterly_ot_cap_minutes", None),
+            "comp_off_minutes_per_day": getattr(policy, "comp_off_minutes_per_day", None),
             "allow_wfh_overtime": getattr(policy, "allow_wfh_overtime", False),
+            "wfh_auto_approval_enabled": bool(getattr(policy, "wfh_auto_approval_enabled", False)),
+            "overtime_auto_approval_enabled": bool(getattr(policy, "overtime_auto_approval_enabled", False)),
             "ot_approval_mode": getattr(policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL"),
             "max_free_lates_per_month": getattr(policy, "max_free_lates_per_month", 3),
             "late_penalty_action": getattr(policy, "late_penalty_action", "WARNING"),

@@ -63,8 +63,8 @@ async def _create_test_employee(session, tenant_id) -> Employee:
 async def test_wfh_auto_approval_quota(seeded_tenants: tuple[Tenant, Tenant]):
     """BR-WFH-01 / Confirmed Q6: WFH Auto-Approval Quota.
 
-    If approved WFH days in current month < quota, auto-approve.
-    When quota is reached, request enters PENDING status for supervisor review.
+    If approved WFH days in the current month are below the quota, and the admin has enabled WFH auto-approval, auto-approve.
+    When the switch is off, or the quota is reached, the request stays pending for a supervisor.
     """
     tenant, _ = seeded_tenants
 
@@ -81,6 +81,7 @@ async def test_wfh_auto_approval_quota(seeded_tenants: tuple[Tenant, Tenant]):
                 half_day_work_duration_minutes=240,
                 full_day_work_duration_minutes=540,
                 wfh_monthly_auto_quota=2,
+                wfh_auto_approval_enabled=True,
             ),
         )
         tight = await create_policy(
@@ -141,7 +142,8 @@ async def test_wfh_auto_approval_quota(seeded_tenants: tuple[Tenant, Tenant]):
         )
         await session.commit()
         await set_tenant(session, tenant.id)
-        assert outside.status == "APPROVED"
+        assert outside.status == "PENDING"
+        assert outside.is_auto_approved is False
 
         # 1st WFH request -> auto-approved (0 used < 2)
         req1 = await apply_work_mode(
