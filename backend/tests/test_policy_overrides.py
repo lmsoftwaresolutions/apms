@@ -206,14 +206,25 @@ async def test_wfh_department_disabled_blocks_application(seeded_tenants: tuple[
 
 @pytest.mark.asyncio
 async def test_wfh_additive_quota_increases_allowance(seeded_tenants: tuple[Tenant, Tenant]):
-    """Test adding additive days (+4 days) gives 8 total auto-approved WFH days."""
+    """An additive override stacks on the quota the admin set on the base policy."""
     tenant, _ = seeded_tenants
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant.id)
         _, _, _, emp = await _create_org_structure(session, tenant.id)
+        base_pol = await create_policy(
+            session,
+            tenant.id,
+            PolicyCreate(
+                code=f"ADD_{uuid4().hex[:6].upper()}",
+                name="Quota Four",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                wfh_monthly_auto_quota=4,
+            ),
+        )
 
-        # Employee override: ADDITIVE +4 WFH days (Base is 4 -> Effective is 8)
+        # Employee override: ADDITIVE +4 WFH days (configured base 4 -> effective 8)
         await create_override(
             session,
             tenant.id,
@@ -227,7 +238,7 @@ async def test_wfh_additive_quota_increases_allowance(seeded_tenants: tuple[Tena
         await session.commit()
         await set_tenant(session, tenant.id)
 
-        eff = await resolve_effective_policy(session, tenant.id, emp.id)
+        eff = await resolve_effective_policy(session, tenant.id, emp.id, base_policy=base_pol)
         assert eff.wfh_monthly_auto_quota == 8
         assert "EMPLOYEE(+4)" in eff.sources["wfh_monthly_quota"]
 
