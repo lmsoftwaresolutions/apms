@@ -84,7 +84,8 @@ export function EmployeeFormModal({
     } else {
       setEmployeeCode("");
       setFullName("");
-      setBranchId(branches[0]?.id || "");
+      const firstActiveBranch = branches.find((b) => b.is_active) || branches[0];
+      setBranchId(firstActiveBranch?.id || "");
       setDepartmentId("");
       setDesignationId("");
       setCustomDesignation("");

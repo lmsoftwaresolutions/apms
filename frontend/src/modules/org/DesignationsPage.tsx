@@ -43,21 +43,25 @@ export function DesignationsPage() {
     try {
       const branchList = await api.branches();
       setBranches(branchList);
-      const defaultBranch = branchList.find((b) => b.is_active) || branchList[0];
+      const activeBranches = branchList.filter((b) => b.is_active);
+      const defaultBranch = activeBranches[0] || branchList[0];
       const activeBranchId =
-        targetBranchId !== undefined
+        targetBranchId !== undefined && activeBranches.some((b) => b.id === targetBranchId)
           ? targetBranchId
-          : selectedBranchId || defaultBranch?.id || "";
+          : selectedBranchId && activeBranches.some((b) => b.id === selectedBranchId)
+            ? selectedBranchId
+            : defaultBranch?.id || "";
       setSelectedBranchId(activeBranchId);
 
       const deptList = await api.departments(activeBranchId || undefined);
       setDepartments(deptList);
 
-      const defaultDept = deptList.find((d) => d.is_active) || deptList[0];
+      const activeDepts = deptList.filter((d) => d.is_active);
+      const defaultDept = activeDepts[0] || deptList[0];
       const activeDeptId =
-        targetDeptId !== undefined && targetDeptId !== ""
+        targetDeptId !== undefined && targetDeptId !== "" && activeDepts.some((d) => d.id === targetDeptId)
           ? targetDeptId
-          : selectedDeptId && deptList.some((d) => d.id === selectedDeptId)
+          : selectedDeptId && activeDepts.some((d) => d.id === selectedDeptId)
             ? selectedDeptId
             : defaultDept?.id || "";
       setSelectedDeptId(activeDeptId);
@@ -224,7 +228,7 @@ export function DesignationsPage() {
 
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
           {/* Branch & Dept Filters */}
-          {branches.length > 1 ? (
+          {branches.filter((b) => b.is_active).length > 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Filter size={16} color="var(--text-muted)" />
               <select
@@ -233,27 +237,31 @@ export function DesignationsPage() {
                 value={selectedBranchId}
                 onChange={(e) => void handleBranchChange(e.target.value)}
               >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
-                  </option>
-                ))}
+                {branches
+                  .filter((b) => b.is_active)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
               </select>
             </div>
           ) : null}
 
-          {departments.length > 0 ? (
+          {departments.filter((d) => d.is_active).length > 0 ? (
             <select
               className="select"
               style={{ width: "auto", minWidth: "160px", padding: "0.45rem 0.75rem" }}
               value={selectedDeptId}
               onChange={(e) => void handleDeptChange(e.target.value)}
             >
-              {departments.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.code}){!d.is_active ? " (Inactive)" : ""}
-                </option>
-              ))}
+              {departments
+                .filter((d) => d.is_active)
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name} ({d.code})
+                  </option>
+                ))}
             </select>
           ) : null}
 

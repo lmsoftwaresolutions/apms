@@ -40,11 +40,14 @@ export function DepartmentsPage() {
       const [branchList, allDeptList] = await Promise.all([api.branches(), api.departments()]);
       setBranches(branchList);
       setAllDepartments(allDeptList);
-      const defaultBranch = branchList.find((b) => b.is_active) || branchList[0];
+      const activeBranches = branchList.filter((b) => b.is_active);
+      const defaultBranch = activeBranches[0] || branchList[0];
       const activeBranchId =
-        targetBranchId !== undefined
+        targetBranchId !== undefined && activeBranches.some((b) => b.id === targetBranchId)
           ? targetBranchId
-          : selectedBranchId || defaultBranch?.id || "";
+          : selectedBranchId && activeBranches.some((b) => b.id === selectedBranchId)
+            ? selectedBranchId
+            : defaultBranch?.id || "";
       setSelectedBranchId(activeBranchId);
       if (!modalBranchId && activeBranchId) {
         const activeModalBranch = branchList.find((b) => b.id === activeBranchId && b.is_active) || branchList.find((b) => b.is_active);
@@ -210,7 +213,7 @@ export function DepartmentsPage() {
           </p>
         </div>
         <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          {branches.length > 1 ? (
+          {branches.filter((b) => b.is_active).length > 1 ? (
             <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
               <Filter size={16} color="var(--text-muted)" />
               <select
@@ -219,11 +222,13 @@ export function DepartmentsPage() {
                 value={selectedBranchId}
                 onChange={(e) => setSelectedBranchId(e.target.value)}
               >
-                {branches.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
-                  </option>
-                ))}
+                {branches
+                  .filter((b) => b.is_active)
+                  .map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
               </select>
             </div>
           ) : null}

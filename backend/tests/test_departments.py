@@ -98,6 +98,9 @@ async def test_department_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) ->
         row = await session_a.get(Department, dept_a.id)
         assert row is not None
         assert row.name == "Tenant A Secret Dept"
+        # Clean up test department to prevent dev database pollution
+        await session_a.delete(row)
+        await session_a.commit()
 
 
 @pytest.mark.asyncio
