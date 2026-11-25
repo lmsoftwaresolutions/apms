@@ -62,11 +62,12 @@ def _clamped_minutes(
     early_ignore: int,
     late_ignore: int,
 ) -> int:
-    """Snap punches that fall inside the ignore windows back to the scheduled boundary.
+    """Duration inside the early-arrival and late-departure ignore windows.
 
-    A zero ignore window leaves the punch time unchanged, so extra minutes still
-    flow into duration and overtime. A punch inside the window is treated as
-    having occurred on the scheduled boundary and does not add duration.
+    The punch timestamps themselves stay at the recorded times. A deviation of
+    ignore minutes or less is left out of duration and overtime. A larger
+    deviation counts in full: the ignore allowance is not subtracted from it.
+    A zero ignore window leaves every early or late minute in the duration.
     """
     effective_start = start
     if start < scheduled_start and (scheduled_start - start) <= timedelta(minutes=early_ignore):

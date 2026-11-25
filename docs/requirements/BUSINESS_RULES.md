@@ -28,6 +28,12 @@ This document serves as the **single source of truth** for all business logic, m
   - First punch in window $\rightarrow \text{Session In}$.
   - Last punch in window $\rightarrow \text{Session Out}$.
   - Intermediate punches $\rightarrow$ evaluated against intra-session break thresholds or marked informational.
+- `early_arrival_ignore_minutes` and `late_departure_ignore_minutes` apply only when calculating duration and overtime. They do not rewrite `punch_event.punch_time`, the session in punch, or the session out punch.
+- A deviation of at most the ignore window is excluded from worked duration, so it does not become overtime. A larger deviation counts in full. The ignore minutes are not subtracted from that total.
+- Worked examples for a 09:00–18:00 shift, `early_arrival_ignore_minutes = 10`, `late_departure_ignore_minutes = 30`, and an overtime minimum of 30 minutes:
+  1. In at 08:50 and out at 18:30. Both deviations sit inside the windows. Duration is 09:00–18:00 (540 minutes) and overtime is 0. The stored punches remain 08:50 and 18:30.
+  2. In at 08:20 and out at 18:00. The 40-minute early arrival is larger than 10, so all 40 minutes count. Overtime is 40. The in punch remains 08:20.
+  3. In at 09:00 and out at 18:45. The 45-minute late stay is larger than 30, so all 45 minutes count. Overtime is 45. The out punch remains 18:45.
 
 ### BR-ATT-02: Mid-Shift Gap Handling (Confirmed N65)
 - In multi-session shifts (e.g., Morning Session 08:00–12:00, Evening Session 16:00–20:00), the interval between sessions:
