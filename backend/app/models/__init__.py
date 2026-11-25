@@ -13,6 +13,7 @@ from app.models.roster import DatedShiftInstance, RosterPattern
 from app.models.shift import ShiftSession, ShiftTemplate
 from app.models.work_mode import WorkModeRequest
 from app.models.overtime import OvertimeRecord, StatutoryOTCap
+from app.models.pending_action import PendingAction
 from app.models.iam import (
     IdempotencyKey,
     Permission,
@@ -40,6 +41,7 @@ __all__ = [
     "LeaveTransaction",
     "LeaveType",
     "OvertimeRecord",
+    "PendingAction",
     "PolicyMaster",
     "PolicyScopeOverride",
     "PunchEvent",

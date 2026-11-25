@@ -690,9 +690,27 @@ export function EmployeesPage() {
                       {/* Terms */}
                       <td style={{ padding: "0.875rem 1rem" }}>
                         <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem" }}>
-                          <Badge variant="neutral" size="sm" style={{ width: "fit-content", fontWeight: 550 }}>
-                            {emp.employment_type.replace(/_/g, " ")}
-                          </Badge>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.35rem", flexWrap: "wrap" }}>
+                            <Badge
+                              variant={emp.employment_type === "PROBATION" ? "warning" : "neutral"}
+                              size="sm"
+                              style={{ width: "fit-content", fontWeight: 550 }}
+                            >
+                              {emp.employment_type.replace(/_/g, " ")}
+                            </Badge>
+                            {emp.employment_type === "PROBATION" && emp.probation_end_date ? (
+                              <span
+                                style={{
+                                  fontSize: "0.6875rem",
+                                  color: "var(--color-warning-fg)",
+                                  fontWeight: 550,
+                                }}
+                                title={`Probation expires on ${emp.probation_end_date}`}
+                              >
+                                Exp: {emp.probation_end_date}
+                              </span>
+                            ) : null}
+                          </div>
                           <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
                             Joined: {emp.date_of_joining}
                           </span>

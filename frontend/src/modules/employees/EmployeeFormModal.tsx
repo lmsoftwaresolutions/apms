@@ -134,6 +134,15 @@ export function EmployeeFormModal({
     );
   }, [designations, departmentId, initialEmployee]);
 
+  function handleSetProbationDays(days: number) {
+    const baseDateStr = dateOfJoining || new Date().toISOString().slice(0, 10);
+    const base = new Date(baseDateStr);
+    if (!isNaN(base.getTime())) {
+      const target = new Date(base.getTime() + days * 24 * 60 * 60 * 1000);
+      setProbationEndDate(target.toISOString().slice(0, 10));
+    }
+  }
+
   function validate(): string | null {
     if (!fullName.trim()) return "Full name is required.";
     if (!employeeCode.trim()) return "Employee code is required.";
@@ -365,14 +374,39 @@ export function EmployeeFormModal({
                   <option value="PROBATION">Probation</option>
                 </select>
               </Field>
-              <Field label="Probation End Date">
-                <input
-                  type="date"
-                  className="input"
-                  value={probationEndDate}
-                  onChange={(e) => setProbationEndDate(e.target.value)}
-                />
-              </Field>
+              {employmentType === "PROBATION" && (
+                <div>
+                  <Field label="Probation End Date" help="Date when probation expires and confirmation review is triggered">
+                    <input
+                      type="date"
+                      className="input"
+                      value={probationEndDate}
+                      onChange={(e) => setProbationEndDate(e.target.value)}
+                    />
+                  </Field>
+                  <div style={{ marginTop: "0.35rem", display: "flex", gap: "0.35rem", alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Presets from DOJ:</span>
+                    {[30, 44, 90, 180].map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => handleSetProbationDays(d)}
+                        style={{
+                          fontSize: "0.6875rem",
+                          padding: "0.15rem 0.45rem",
+                          borderRadius: "0.25rem",
+                          border: "1px solid var(--border-default)",
+                          backgroundColor: "var(--bg-subtle)",
+                          color: "var(--text-secondary)",
+                          cursor: "pointer",
+                        }}
+                      >
+                        +{d} days
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

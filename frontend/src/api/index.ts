@@ -117,6 +117,59 @@ export type Permission = { code: string; module: string; resource: string; actio
 
 export type DirectoryUser = { id: string; email: string; full_name: string; is_active: boolean; roles: string[] };
 
+export type PendingAction = {
+  id: string;
+  tenant_id: string;
+  action_type: string;
+  subject_type: string;
+  subject_id: string;
+  due_date: string;
+  status: "PENDING" | "RESOLVED" | "DISMISSED";
+  priority: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+  title: string;
+  description: string | null;
+  metadata: {
+    employee_id?: string;
+    employee_code?: string;
+    full_name?: string;
+    date_of_joining?: string;
+    probation_end_date?: string;
+    branch_id?: string;
+    department_id?: string;
+    designation_id?: string;
+    [key: string]: any;
+  };
+  resolution: {
+    action: "CONFIRM" | "EXTEND" | "DISMISS";
+    note?: string;
+    target_employment_type?: string;
+    target_department_id?: string;
+    target_designation_id?: string;
+    new_end_date?: string;
+    [key: string]: any;
+  } | null;
+  resolved_by: string | null;
+  resolved_at: string | null;
+  created_at: string;
+  updated_at: string;
+  days_remaining: number | null;
+};
+
+export type PendingActionCount = {
+  pending: number;
+  overdue: number;
+  due_soon: number;
+};
+
+export type ResolvePendingActionInput = {
+  action: "CONFIRM" | "EXTEND" | "DISMISS";
+  note?: string;
+  target_employment_type?: string;
+  target_department_id?: string;
+  target_designation_id?: string;
+  new_end_date?: string;
+};
+
 const TOKEN_KEY = "apms.token";
 
 export function loadToken(): string | null {
@@ -272,5 +325,22 @@ export const api = {
   unassignRole: (userId: string, roleId: string) =>
     request<void>(`/api/v1/users/${userId}/roles/${roleId}`, {
       method: "DELETE",
+    }),
+  pendingActions: (params?: { status?: string; action_type?: string }) => {
+    const search = new URLSearchParams();
+    if (params?.status) search.set("status", params.status);
+    if (params?.action_type) search.set("action_type", params.action_type);
+    const qs = search.toString();
+    return request<PendingAction[]>(`/api/v1/pending-actions${qs ? `?${qs}` : ""}`);
+  },
+  pendingActionsCount: () => request<PendingActionCount>("/api/v1/pending-actions/count"),
+  scanPendingActions: () =>
+    request<{ status: string; new_actions_created: number }>("/api/v1/pending-actions/scan", {
+      method: "POST",
+    }),
+  resolvePendingAction: (id: string, payload: ResolvePendingActionInput) =>
+    request<PendingAction>(`/api/v1/pending-actions/${id}/resolve`, {
+      method: "POST",
+      body: JSON.stringify(payload),
     }),
 };

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { api } from "../../api";
 import {
   CalendarCheck,
   Zap,
@@ -78,6 +79,7 @@ const NAV_GROUPS: NavGroup[] = [
     group: "People",
     icon: Users,
     items: [
+      { label: "Action Center", to: "/admin/pending-actions", icon: AlertTriangle, permission: "pending_action:read" },
       { label: "Employees", to: "/employees", icon: Users },
       { label: "Departments", to: "/org/departments", icon: Network, permission: "org.department.read" },
       { label: "Designations", to: "/org/designations", icon: Briefcase, permission: "org.designation.read" },
@@ -105,6 +107,21 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
   const { me, can, logout } = useAuth();
   const initial = me?.tenant.display_name?.slice(0, 1).toUpperCase() || "A";
   const location = useLocation();
+
+  const [pendingCount, setPendingCount] = useState<number>(0);
+
+  useEffect(() => {
+    let mounted = true;
+    void api
+      .pendingActionsCount()
+      .then((res) => {
+        if (mounted) setPendingCount(res.pending);
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, [location.pathname]);
 
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
     try {
@@ -400,7 +417,11 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
                     marginBottom: collapsed ? "0.35rem" : 0,
                   }}
                 >
-                  {visibleItems.map((item) => {
+                  {visibleItems.map((rawItem) => {
+                    const item =
+                      rawItem.to === "/admin/pending-actions" && pendingCount > 0
+                        ? { ...rawItem, badge: String(pendingCount), badgeType: "count" as const }
+                        : rawItem;
                     const Icon = item.icon;
                     return (
                       <NavLink
@@ -438,8 +459,18 @@ export function Sidebar({ collapsed, onToggleCollapse, mobileOpen, onCloseMobile
                                   fontWeight: 700,
                                   padding: "0.1rem 0.45rem",
                                   borderRadius: "9999px",
-                                  backgroundColor: item.badgeType === "live" ? "rgba(16, 185, 129, 0.15)" : "var(--bg-subtle)",
-                                  color: item.badgeType === "live" ? "#10b981" : "var(--text-muted)",
+                                  backgroundColor:
+                                    item.badgeType === "live"
+                                      ? "rgba(16, 185, 129, 0.15)"
+                                      : item.badgeType === "count"
+                                        ? "var(--color-danger-bg)"
+                                        : "var(--bg-subtle)",
+                                  color:
+                                    item.badgeType === "live"
+                                      ? "#10b981"
+                                      : item.badgeType === "count"
+                                        ? "var(--color-danger-fg)"
+                                        : "var(--text-muted)",
                                   display: "inline-flex",
                                   alignItems: "center",
                                   gap: "0.25rem",
