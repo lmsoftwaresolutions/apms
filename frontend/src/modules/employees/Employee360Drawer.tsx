@@ -104,13 +104,14 @@ export function Employee360Drawer({
     setAutoHideTimer(null);
   }
 
-  const initials = employee.full_name
-    .split(" ")
-    .map((n) => n[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+  const initials =
+    employee.full_name
+      .split(" ")
+      .map((n) => n[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
 
   return (
     <>

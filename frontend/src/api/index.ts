@@ -234,7 +234,7 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   deleteEmployee: (id: string) =>
-    request<{ ok: boolean; id: string }>(`/api/v1/employees/${id}`, { method: "DELETE" }),
+    request<{ id: string; deleted: boolean }>(`/api/v1/employees/${id}`, { method: "DELETE" }),
   unmaskPii: (id: string, fields: string[]) =>
     request<UnmaskPiiResult>(`/api/v1/employees/${id}/unmask`, {
       method: "POST",

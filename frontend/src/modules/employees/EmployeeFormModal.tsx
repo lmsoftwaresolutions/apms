@@ -102,7 +102,7 @@ export function EmployeeFormModal({
       setBiometricConsent(false);
     }
     setFormError("");
-  }, [initialEmployee, isOpen, branches]);
+  }, [initialEmployee, isOpen]);
 
   // Cascading filters: departments under selected branch
   const availableDepartments = departments.filter((d) => (branchId ? d.branch_id === branchId : true));
@@ -437,69 +437,103 @@ export function EmployeeFormModal({
                 : "Entered values are AES-256-GCM encrypted immediately upon submission and masked in all standard views."}
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.875rem" }}>
-              <Field label="Income Tax PAN" help="Format: 5 letters, 4 numbers, 1 letter">
+              <Field
+                label="Income Tax PAN"
+                help={
+                  isEdit && initialEmployee?.pan_masked
+                    ? `On file: ${initialEmployee.pan_masked} (leave blank to keep)`
+                    : "Format: 5 letters, 4 numbers, 1 letter"
+                }
+              >
                 <input
                   type="text"
                   className="input"
-                  placeholder={isEdit && initialEmployee?.pan_masked ? initialEmployee.pan_masked : "ABCDE1234F"}
+                  placeholder="ABCDE1234F"
                   value={pan}
                   onChange={(e) => setPan(e.target.value.toUpperCase())}
                   maxLength={10}
                 />
               </Field>
-              <Field label="Aadhaar Number (UIDAI)" help="Format: 12 digits">
+              <Field
+                label="Aadhaar Number (UIDAI)"
+                help={
+                  isEdit && initialEmployee?.aadhaar_masked
+                    ? `On file: ${initialEmployee.aadhaar_masked} (leave blank to keep)`
+                    : "Format: 12 digits"
+                }
+              >
                 <input
                   type="text"
                   className="input"
-                  placeholder={
-                    isEdit && initialEmployee?.aadhaar_masked ? initialEmployee.aadhaar_masked : "123456789012"
-                  }
+                  placeholder="123456789012"
                   value={aadhaar}
                   onChange={(e) => setAadhaar(e.target.value.replace(/\D/g, ""))}
                   maxLength={12}
                 />
               </Field>
-              <Field label="EPF UAN" help="Format: 12 digits">
+              <Field
+                label="EPF UAN"
+                help={
+                  isEdit && initialEmployee?.epf_uan_masked
+                    ? `On file: ${initialEmployee.epf_uan_masked} (leave blank to keep)`
+                    : "Format: 12 digits"
+                }
+              >
                 <input
                   type="text"
                   className="input"
-                  placeholder={isEdit && initialEmployee?.epf_uan_masked ? initialEmployee.epf_uan_masked : "100000000000"}
+                  placeholder="100000000000"
                   value={epfUan}
                   onChange={(e) => setEpfUan(e.target.value.replace(/\D/g, ""))}
                   maxLength={12}
                 />
               </Field>
-              <Field label="ESIC Insurance Number" help="Format: 10 or 17 digits">
+              <Field
+                label="ESIC Insurance Number"
+                help={
+                  isEdit && initialEmployee?.esic_number_masked
+                    ? `On file: ${initialEmployee.esic_number_masked} (leave blank to keep)`
+                    : "Format: 10 or 17 digits"
+                }
+              >
                 <input
                   type="text"
                   className="input"
-                  placeholder={
-                    isEdit && initialEmployee?.esic_number_masked ? initialEmployee.esic_number_masked : "31000000000000001"
-                  }
+                  placeholder="31000000000000001"
                   value={esicNumber}
                   onChange={(e) => setEsicNumber(e.target.value.replace(/\D/g, ""))}
                   maxLength={17}
                 />
               </Field>
-              <Field label="Bank Account Number" help="Format: 9 to 18 digits">
+              <Field
+                label="Bank Account Number"
+                help={
+                  isEdit && initialEmployee?.bank_account_masked
+                    ? `On file: ${initialEmployee.bank_account_masked} (leave blank to keep)`
+                    : "Format: 9 to 18 digits"
+                }
+              >
                 <input
                   type="text"
                   className="input"
-                  placeholder={
-                    isEdit && initialEmployee?.bank_account_masked ? initialEmployee.bank_account_masked : "987654321012"
-                  }
+                  placeholder="987654321012"
                   value={bankAccount}
                   onChange={(e) => setBankAccount(e.target.value.replace(/\D/g, ""))}
                   maxLength={18}
                 />
               </Field>
-              <Field label="Bank IFSC Code" help="Format: 4 letters, 0, 6 chars">
+              <Field
+                label="Bank IFSC Code"
+                help={
+                  isEdit && initialEmployee?.bank_ifsc_masked
+                    ? `On file: ${initialEmployee.bank_ifsc_masked} (leave blank to keep)`
+                    : "Format: 4 letters, 0, 6 chars"
+                }
+              >
                 <input
                   type="text"
                   className="input"
-                  placeholder={
-                    isEdit && initialEmployee?.bank_ifsc_masked ? initialEmployee.bank_ifsc_masked : "HDFC0001234"
-                  }
+                  placeholder="HDFC0001234"
                   value={bankIfsc}
                   onChange={(e) => setBankIfsc(e.target.value.toUpperCase())}
                   maxLength={11}

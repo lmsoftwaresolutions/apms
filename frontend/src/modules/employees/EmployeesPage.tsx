@@ -407,6 +407,7 @@ export function EmployeesPage() {
             <input
               type="text"
               className="input"
+              aria-label="Search employees by name or code"
               placeholder="Search by name or code..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -418,6 +419,7 @@ export function EmployeesPage() {
           {branches.length > 1 && (
             <select
               className="select"
+              aria-label="Filter by branch"
               value={branchFilter}
               onChange={(e) => {
                 setBranchFilter(e.target.value);
@@ -437,6 +439,7 @@ export function EmployeesPage() {
           {/* Department Filter */}
           <select
             className="select"
+            aria-label="Filter by department"
             value={deptFilter}
             onChange={(e) => setDeptFilter(e.target.value)}
             style={{ width: "auto", minWidth: "160px", height: "36px", fontSize: "0.8125rem" }}
@@ -452,6 +455,7 @@ export function EmployeesPage() {
           {/* Employment Type */}
           <select
             className="select"
+            aria-label="Filter by employment type"
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value)}
             style={{ width: "auto", minWidth: "140px", height: "36px", fontSize: "0.8125rem" }}
@@ -467,6 +471,7 @@ export function EmployeesPage() {
           {/* Status Filter */}
           <select
             className="select"
+            aria-label="Filter by employee status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as "ALL" | "ACTIVE" | "INACTIVE")}
             style={{ width: "auto", minWidth: "120px", height: "36px", fontSize: "0.8125rem" }}
@@ -588,13 +593,14 @@ export function EmployeesPage() {
                   const dept = emp.department_id ? deptById.get(emp.department_id) : null;
                   const desig = emp.designation_id ? desigById.get(emp.designation_id) : null;
 
-                  const initials = emp.full_name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .filter(Boolean)
-                    .slice(0, 2)
-                    .join("")
-                    .toUpperCase();
+                  const initials =
+                    emp.full_name
+                      .split(" ")
+                      .map((n) => n[0])
+                      .filter(Boolean)
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase() || "?";
 
                   return (
                     <tr
@@ -814,6 +820,7 @@ export function EmployeesPage() {
                   <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Rows per page:</span>
                   <select
                     className="select"
+                    aria-label="Rows per page"
                     value={pageSize}
                     onChange={(e) => {
                       setPageSize(Number(e.target.value));
