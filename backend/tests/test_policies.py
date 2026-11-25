@@ -702,3 +702,73 @@ def test_all_in_out_excludes_the_gap_between_pairs():
     ]
     pairing = pair_punches_for_shift(_nine_to_six(cal_date), punches, policy=policy)
     assert pairing.total_worked_minutes == 480
+
+
+def test_all_in_out_does_not_subtract_a_punched_lunch_break_again():
+    """09:00–13:00 and 14:00–18:00 already exclude the 60-minute lunch."""
+    cal_date = date(2026, 11, 20)
+    shift = ShiftInstanceContract(
+        calendar_date=cal_date,
+        shift_type="FIXED",
+        sessions=[
+            SessionWindow(
+                session_order=1,
+                start_time=time(9, 0),
+                end_time=time(18, 0),
+                pre_window_minutes=60,
+                post_window_minutes=120,
+                break_duration_minutes=60,
+            )
+        ],
+    )
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_LUNCH",
+        name="Punched lunch",
+        in_out_rule="ALL_IN_OUT",
+        full_day_work_duration_minutes=480,
+        half_day_work_duration_minutes=240,
+    )
+    punches = [
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 3, 30, tzinfo=UTC)),  # 09:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 7, 30, tzinfo=UTC)),  # 13:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 8, 30, tzinfo=UTC)),  # 14:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 12, 30, tzinfo=UTC)),  # 18:00
+    ]
+    pairing = pair_punches_for_shift(shift, punches, policy=policy)
+    assert pairing.total_worked_minutes == 480
+
+
+def test_all_in_out_still_subtracts_an_unpunched_break():
+    """A single 09:00–18:00 pair still contains the 60-minute scheduled break."""
+    cal_date = date(2026, 11, 20)
+    shift = ShiftInstanceContract(
+        calendar_date=cal_date,
+        shift_type="FIXED",
+        sessions=[
+            SessionWindow(
+                session_order=1,
+                start_time=time(9, 0),
+                end_time=time(18, 0),
+                pre_window_minutes=60,
+                post_window_minutes=120,
+                break_duration_minutes=60,
+            )
+        ],
+    )
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_UNPUNCHED",
+        name="Unpunched break",
+        in_out_rule="ALL_IN_OUT",
+        full_day_work_duration_minutes=480,
+        half_day_work_duration_minutes=240,
+    )
+    punches = [
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 3, 30, tzinfo=UTC)),
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 12, 30, tzinfo=UTC)),
+    ]
+    pairing = pair_punches_for_shift(shift, punches, policy=policy)
+    assert pairing.total_worked_minutes == 480

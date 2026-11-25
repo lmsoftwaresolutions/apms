@@ -180,15 +180,27 @@ def pair_punches_for_shift(
             session_res.out_punch = last_p
             if in_out_rule == "ALL_IN_OUT":
                 raw_duration = 0
+                pairs: list[tuple[datetime, datetime]] = []
                 for pair_index in range(0, len(matched) - 1, 2):
+                    pair_start = matched[pair_index]
+                    pair_end = matched[pair_index + 1]
+                    pairs.append((pair_start, pair_end))
                     raw_duration += _clamped_minutes(
-                        matched[pair_index],
-                        matched[pair_index + 1],
+                        pair_start,
+                        pair_end,
                         sched_start_utc,
                         sched_end_utc,
                         early_ignore,
                         late_ignore,
                     )
+                # Gaps between pairs are already out of raw_duration. Subtract only
+                # the scheduled break those gaps have not already covered.
+                punched_gap = 0
+                for previous, following in zip(pairs, pairs[1:], strict=False):
+                    gap_seconds = (following[0] - previous[1]).total_seconds()
+                    if gap_seconds > 0:
+                        punched_gap += int(gap_seconds / 60)
+                unpaid_break = max(0, s.break_duration_minutes - punched_gap)
             else:
                 raw_duration = _clamped_minutes(
                     first_p,
@@ -198,7 +210,8 @@ def pair_punches_for_shift(
                     early_ignore,
                     late_ignore,
                 )
-            net_worked = max(0, raw_duration - s.break_duration_minutes)
+                unpaid_break = s.break_duration_minutes
+            net_worked = max(0, raw_duration - unpaid_break)
             session_res.worked_minutes = net_worked
 
             # Late calculation
