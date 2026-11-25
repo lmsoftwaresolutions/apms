@@ -63,6 +63,8 @@ def build_explanation_trace(
             "extra_hours_amount_unit": getattr(policy, "extra_hours_amount_unit", None),
             "wfh_monthly_auto_quota": getattr(policy, "wfh_monthly_auto_quota", 4),
             "allow_wfh_overtime": getattr(policy, "allow_wfh_overtime", False),
+            "wfh_auto_approval_enabled": bool(getattr(policy, "wfh_auto_approval_enabled", False)),
+            "overtime_auto_approval_enabled": bool(getattr(policy, "overtime_auto_approval_enabled", False)),
             "ot_approval_mode": getattr(policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL"),
             "max_free_lates_per_month": getattr(policy, "max_free_lates_per_month", 3),
             "late_penalty_action": getattr(policy, "late_penalty_action", "WARNING"),

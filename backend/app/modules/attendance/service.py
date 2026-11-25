@@ -275,7 +275,8 @@ async def calculate_and_save_daily_attendance(
         ot_approval_mode = getattr(effective_policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL")
         ot_threshold = getattr(effective_policy, "ot_auto_approve_threshold_minutes", 0) or 0
 
-        if pay.basis == "NONE":
+        ot_auto_enabled = getattr(effective_policy, "overtime_auto_approval_enabled", False) is True
+        if pay.basis == "NONE" or not ot_auto_enabled:
             ot_status = "UNREVIEWED"
             approved_mins = 0
         elif wfh_needs_supervisor:

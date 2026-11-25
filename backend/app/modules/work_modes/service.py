@@ -103,7 +103,7 @@ async def apply_work_mode(
         used_days = await count_approved_wfh_days_in_month(
             session, tenant_id, employee_id, payload.calendar_date.year, payload.calendar_date.month
         )
-        if used_days < quota:
+        if effective_pol.wfh_auto_approval_enabled and used_days < quota:
             status = "APPROVED"
             is_auto_approved = True
             decision_reason = "Auto-approved within monthly policy quota"

@@ -43,8 +43,10 @@ class PolicyBase(BaseModel):
 
     # Work Modes & Mode-Gated Controls
     allow_wfh: bool = True
+    wfh_auto_approval_enabled: bool = False
     wfh_monthly_auto_quota: int = Field(default=4, ge=0)
     allow_overtime: bool = True
+    overtime_auto_approval_enabled: bool = False
     allow_wfh_overtime: bool = False
     wfh_ot_requires_approval: bool = True
     ot_approval_mode: Literal[
@@ -100,8 +102,10 @@ class PolicyUpdate(BaseModel):
     in_out_rule: Literal["FIRST_IN_LAST_OUT", "ALL_IN_OUT"] | None = None
 
     allow_wfh: bool | None = None
+    wfh_auto_approval_enabled: bool | None = None
     wfh_monthly_auto_quota: int | None = Field(default=None, ge=0)
     allow_overtime: bool | None = None
+    overtime_auto_approval_enabled: bool | None = None
     allow_wfh_overtime: bool | None = None
     wfh_ot_requires_approval: bool | None = None
     ot_approval_mode: Literal[
@@ -186,8 +190,10 @@ class PolicyOverrideOut(BaseModel):
 class EffectivePolicyConfig(BaseModel):
     employee_id: UUID
     effective_allow_wfh: bool
+    effective_wfh_auto_approval_enabled: bool
     effective_wfh_quota: int
     effective_allow_overtime: bool
+    effective_overtime_auto_approval_enabled: bool
     effective_ot_approval_mode: str
     effective_allow_wfh_overtime: bool
     effective_wfh_ot_requires_approval: bool

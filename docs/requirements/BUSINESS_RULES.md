@@ -122,7 +122,7 @@ Tenant policy bands map ratio $R$ to daily attendance status:
 
 ### BR-OTC-01: Overtime Authorization Requirement (Confirmed N20)
 - Worked duration beyond scheduled shift hours does **NOT** automatically convert to payable overtime.
-- All overtime hours require explicit manager/supervisor authorization before payroll credit.
+- All overtime hours require explicit manager/supervisor authorization before payroll credit, unless the admin has enabled overtime auto-approval on the policy.
 - Unapproved extra hours are logged as `UNAUTHORIZED_EXTRA_TIME` and excluded from payroll calculations.
 - The extra-hours rate is blank until an admin sets it. The system does not assume 1.5× or any other rate.
 - An extra-hours amount greater than zero is the pay rate for that unit: per minute, per hour, or per day.
@@ -130,7 +130,7 @@ Tenant policy bands map ratio $R$ to daily attendance status:
 
 ### BR-WFH-01: WFH Auto-Approval Quota (Confirmed Q6)
 - Tenants can configure a monthly Work-From-Home (WFH) quota (e.g., 4 days per calendar month).
-- WFH applications submitted within the remaining quota balance are **auto-approved immediately** by the system without blocking on manager review.
+- WFH applications submitted within the remaining quota balance are **auto-approved immediately** only when the admin has enabled work-from-home auto-approval. Until that switch is on, every request stays pending.
 - WFH applications exceeding the monthly quota require explicit manager approval.
 
 ---

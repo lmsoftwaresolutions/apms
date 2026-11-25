@@ -56,8 +56,10 @@ class PolicyMaster(Base):
 
     # Work Modes & Mode-Gated Controls
     allow_wfh: Mapped[bool] = mapped_column(Boolean, default=True)
+    wfh_auto_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     wfh_monthly_auto_quota: Mapped[int] = mapped_column(Integer, default=4)
     allow_overtime: Mapped[bool] = mapped_column(Boolean, default=True)
+    overtime_auto_approval_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     allow_wfh_overtime: Mapped[bool] = mapped_column(Boolean, default=False)
     wfh_ot_requires_approval: Mapped[bool] = mapped_column(Boolean, default=True)
     ot_approval_mode: Mapped[str] = mapped_column(String(30), default="ALWAYS_REQUIRE_APPROVAL")

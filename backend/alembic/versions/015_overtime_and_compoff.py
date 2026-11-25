@@ -110,6 +110,8 @@ STATEMENTS = [
       ALTER COLUMN ot_multiplier DROP NOT NULL,
       ADD COLUMN extra_hours_amount numeric(12, 2),
       ADD COLUMN extra_hours_amount_unit varchar(10),
+      ADD COLUMN wfh_auto_approval_enabled boolean NOT NULL DEFAULT false,
+      ADD COLUMN overtime_auto_approval_enabled boolean NOT NULL DEFAULT false,
       ADD CONSTRAINT ck_policy_extra_hours_unit CHECK (
         extra_hours_amount_unit IS NULL OR extra_hours_amount_unit IN ('MINUTE', 'HOUR', 'DAY')
       ),
@@ -299,7 +301,9 @@ def downgrade() -> None:
             """
             ALTER TABLE policy_master
               DROP COLUMN IF EXISTS extra_hours_amount_unit,
-              DROP COLUMN IF EXISTS extra_hours_amount
+              DROP COLUMN IF EXISTS extra_hours_amount,
+              DROP COLUMN IF EXISTS wfh_auto_approval_enabled,
+              DROP COLUMN IF EXISTS overtime_auto_approval_enabled
             """
         )
     )
