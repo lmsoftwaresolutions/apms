@@ -49,6 +49,36 @@ def _combine_date_time_utc(d, t: time, is_next_day: bool = False) -> datetime:
     return dt_local.astimezone(UTC)
 
 
+def _policy_int(policy: object | None, name: str) -> int:
+    value = getattr(policy, name, 0) if policy else 0
+    return 0 if value is None else int(value)
+
+
+def _clamped_minutes(
+    start: datetime,
+    end: datetime,
+    scheduled_start: datetime,
+    scheduled_end: datetime,
+    early_ignore: int,
+    late_ignore: int,
+) -> int:
+    """Snap punches that fall inside the ignore windows back to the scheduled boundary.
+
+    A zero ignore window leaves the punch time unchanged, so extra minutes still
+    flow into duration and overtime. A punch inside the window is treated as
+    having occurred on the scheduled boundary and does not add duration.
+    """
+    effective_start = start
+    if start < scheduled_start and (scheduled_start - start) <= timedelta(minutes=early_ignore):
+        effective_start = scheduled_start
+    effective_end = end
+    if end > scheduled_end and (end - scheduled_end) <= timedelta(minutes=late_ignore):
+        effective_end = scheduled_end
+    if effective_end <= effective_start:
+        return 0
+    return int((effective_end - effective_start).total_seconds() / 60)
+
+
 def pair_punches_for_shift(
     shift: ShiftInstanceContract,
     punches: list[PunchEvent],
@@ -65,12 +95,13 @@ def pair_punches_for_shift(
         return result
 
     pol = policy or getattr(shift, "policy", None)
-    late_grace = getattr(pol, "late_arrival_allow_minutes", 0) if pol else 0
-    if late_grace is None:
-        late_grace = 0
-    early_grace = getattr(pol, "early_departure_allow_minutes", 0) if pol else 0
-    if early_grace is None:
-        early_grace = 0
+    late_grace = _policy_int(pol, "late_arrival_allow_minutes")
+    early_grace = _policy_int(pol, "early_departure_allow_minutes")
+    early_ignore = _policy_int(pol, "early_arrival_ignore_minutes")
+    late_ignore = _policy_int(pol, "late_departure_ignore_minutes")
+    in_out_rule = getattr(pol, "in_out_rule", "FIRST_IN_LAST_OUT") if pol else "FIRST_IN_LAST_OUT"
+    if in_out_rule not in {"FIRST_IN_LAST_OUT", "ALL_IN_OUT"}:
+        in_out_rule = "FIRST_IN_LAST_OUT"
 
     # Sort punches chronologically
     active_punches = [p for p in punches if p.status == "ACTIVE"]
@@ -140,13 +171,32 @@ def pair_punches_for_shift(
             session_res.worked_minutes = 0
             session_res.status = "BELOW_MIN"
         else:
-            # Chronological pairing: first in window = IN, last = OUT (BR-ATT-01)
+            # FIRST_IN_LAST_OUT spans the first and last punch (BR-ATT-01).
+            # ALL_IN_OUT sums every in/out pair and drops the gaps between them.
             first_p = matched[0]
             last_p = matched[-1]
             session_res.in_punch = first_p
             session_res.out_punch = last_p
-
-            raw_duration = int((last_p - first_p).total_seconds() / 60)
+            if in_out_rule == "ALL_IN_OUT":
+                raw_duration = 0
+                for pair_index in range(0, len(matched) - 1, 2):
+                    raw_duration += _clamped_minutes(
+                        matched[pair_index],
+                        matched[pair_index + 1],
+                        sched_start_utc,
+                        sched_end_utc,
+                        early_ignore,
+                        late_ignore,
+                    )
+            else:
+                raw_duration = _clamped_minutes(
+                    first_p,
+                    last_p,
+                    sched_start_utc,
+                    sched_end_utc,
+                    early_ignore,
+                    late_ignore,
+                )
             net_worked = max(0, raw_duration - s.break_duration_minutes)
             session_res.worked_minutes = net_worked
 

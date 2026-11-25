@@ -547,3 +547,75 @@ async def test_policy_api_endpoints_and_rbac():
             json={"code": "SUP_FAIL", "name": "Fail"},
         )
         assert sup_create.status_code == 403
+
+
+def _nine_to_six(cal_date: date) -> ShiftInstanceContract:
+    return ShiftInstanceContract(
+        calendar_date=cal_date,
+        shift_type="FIXED",
+        sessions=[
+            SessionWindow(
+                session_order=1,
+                start_time=time(9, 0),
+                end_time=time(18, 0),
+                pre_window_minutes=120,
+                post_window_minutes=180,
+            )
+        ],
+    )
+
+
+def _punch(tenant_id, when: datetime) -> PunchEvent:
+    return PunchEvent(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        raw_envelope_id=uuid4(),
+        employee_id=uuid4(),
+        punch_time=when,
+        status="ACTIVE",
+    )
+
+
+def test_early_and_late_ignore_windows_clamp_duration_before_overtime():
+    cal_date = date(2026, 11, 20)
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_IGNORE",
+        name="Ignore windows",
+        early_arrival_ignore_minutes=15,
+        late_departure_ignore_minutes=30,
+        ot_minimum_minutes=30,
+        full_day_work_duration_minutes=480,
+        half_day_work_duration_minutes=240,
+    )
+    # 08:50 is inside the 15-minute early window; 18:20 is inside the 30-minute late window.
+    punches = [
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 3, 20, tzinfo=UTC)),
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 12, 50, tzinfo=UTC)),
+    ]
+    pairing = pair_punches_for_shift(_nine_to_six(cal_date), punches, policy=policy)
+    decision = evaluate_daily_rollup(pairing, policy=policy)
+    assert pairing.total_worked_minutes == 540
+    assert decision.overtime_minutes == 0
+
+
+def test_all_in_out_excludes_the_gap_between_pairs():
+    cal_date = date(2026, 11, 20)
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_ALL",
+        name="All in out",
+        in_out_rule="ALL_IN_OUT",
+        full_day_work_duration_minutes=480,
+        half_day_work_duration_minutes=240,
+    )
+    punches = [
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 3, 30, tzinfo=UTC)),  # 09:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 7, 30, tzinfo=UTC)),  # 13:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 8, 30, tzinfo=UTC)),  # 14:00
+        _punch(policy.tenant_id, datetime(2026, 11, 20, 12, 30, tzinfo=UTC)),  # 18:00
+    ]
+    pairing = pair_punches_for_shift(_nine_to_six(cal_date), punches, policy=policy)
+    assert pairing.total_worked_minutes == 480

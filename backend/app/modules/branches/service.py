@@ -63,4 +63,11 @@ async def delete_branch(session: AsyncSession, tenant_id: UUID, branch_id: UUID)
     branch = await branch_repo.get_branch_by_id(session, tenant_id, branch_id)
     if branch is None:
         raise ProblemError(404, "Branch not found", "No branch with that id exists in this tenant.")
-    await branch_repo.delete_branch_record(session, branch)
+    try:
+        await branch_repo.delete_branch_record(session, branch)
+    except IntegrityError as exc:
+        raise ProblemError(
+            409,
+            "Branch in use",
+            "This branch still has employees or other records. Deactivate it instead of deleting it.",
+        ) from exc

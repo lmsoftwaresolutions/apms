@@ -43,3 +43,4 @@ async def update_branch_fields(
 
 async def delete_branch_record(session: AsyncSession, branch: Branch) -> None:
     await session.delete(branch)
+    await session.flush()

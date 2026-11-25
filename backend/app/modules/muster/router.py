@@ -21,8 +21,16 @@ async def muster(
     start_date: Annotated[date, Query()],
     end_date: Annotated[date, Query()],
     branch_id: Annotated[UUID | None, Query()] = None,
+    department_id: Annotated[UUID | None, Query()] = None,
 ) -> list[dict[str, object]]:
-    return await export_muster(session, current.tenant_id, start_date, end_date, branch_id)
+    return await export_muster(
+        session,
+        current.tenant_id,
+        start_date,
+        end_date,
+        branch_id,
+        department_id=department_id,
+    )
 
 
 @router.get("/lines")
@@ -42,12 +50,24 @@ async def muster_lines(
         end_date = date(year, month, num_days)
 
     if start_date is not None and end_date is not None:
-        return await export_muster(session, current.tenant_id, start_date, end_date, branch_id)
+        return await export_muster(
+            session,
+            current.tenant_id,
+            start_date,
+            end_date,
+            branch_id,
+            department_id=department_id,
+        )
 
     today = date.today()
     num_days = calendar.monthrange(today.year, today.month)[1]
     return await export_muster(
-        session, current.tenant_id, date(today.year, today.month, 1), date(today.year, today.month, num_days), branch_id
+        session,
+        current.tenant_id,
+        date(today.year, today.month, 1),
+        date(today.year, today.month, num_days),
+        branch_id,
+        department_id=department_id,
     )
 
 

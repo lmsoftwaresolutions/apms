@@ -23,7 +23,7 @@ from app.models.leave import LeaveRequest, LeaveType
 from app.modules.muster.export.csv import stream_muster_csv
 from app.modules.muster.export.excel import generate_muster_xlsx
 from app.modules.muster.export.pdf import generate_muster_pdf
-from app.modules.muster.service import fetch_muster
+from app.modules.muster.service import classify_muster_cell, export_muster, fetch_muster
 
 
 @pytest.fixture
@@ -410,3 +410,92 @@ async def test_tenant_isolation_and_403_forbidden():
             a_codes = {e.employee_code for e in a_employees}
             for code in b_emp_codes:
                 assert code not in a_codes, f"Cross-tenant leak detected: {code}"
+
+
+def test_muster_marks_pre_joining_inactive_and_keeps_review_off_absent():
+    joined = date(2026, 11, 10)
+    mark, present, absent, leave = classify_muster_cell(
+        calendar_date=date(2026, 11, 1),
+        date_of_joining=joined,
+        attendance_status="ABSENT",
+        worked_minutes=0,
+        leave_code=None,
+        leave_days=None,
+        leave_portion=None,
+        is_holiday=False,
+        shift_is_rest=False,
+    )
+    assert (mark, present, absent, leave) == ("-", 0.0, 0.0, 0.0)
+
+    review = classify_muster_cell(
+        calendar_date=date(2026, 11, 12),
+        date_of_joining=joined,
+        attendance_status="NEEDS_REVIEW",
+        worked_minutes=0,
+        leave_code=None,
+        leave_days=None,
+        leave_portion=None,
+        is_holiday=False,
+        shift_is_rest=False,
+    )
+    assert review[0] == "NR"
+    assert review[2] == 0.0
+
+
+def test_muster_weekly_off_follows_the_shift_not_the_weekday():
+    sunday = date(2026, 11, 1)  # Sunday
+    working_sunday = classify_muster_cell(
+        calendar_date=sunday,
+        date_of_joining=date(2026, 1, 1),
+        attendance_status=None,
+        worked_minutes=0,
+        leave_code=None,
+        leave_days=None,
+        leave_portion=None,
+        is_holiday=False,
+        shift_is_rest=False,
+    )
+    assert working_sunday[0] == "A"
+    rest = classify_muster_cell(
+        calendar_date=date(2026, 11, 3),
+        date_of_joining=date(2026, 1, 1),
+        attendance_status=None,
+        worked_minutes=0,
+        leave_code=None,
+        leave_days=None,
+        leave_portion=None,
+        is_holiday=False,
+        shift_is_rest=True,
+    )
+    assert rest[0] == "WO"
+
+
+@pytest.mark.asyncio
+async def test_export_muster_forwards_department_filter(monkeypatch):
+    seen: dict[str, object] = {}
+
+    async def fake_list(session, tenant_id, branch_id=None, department_id=None, is_active=None):
+        seen["department_id"] = department_id
+        seen["branch_id"] = branch_id
+        return []
+
+    async def fake_attendance(*args, **kwargs):
+        return []
+
+    async def fake_leave(*args, **kwargs):
+        return []
+
+    monkeypatch.setattr("app.modules.muster.service.list_employees_by_tenant", fake_list)
+    monkeypatch.setattr("app.modules.muster.service.list_attendance_records", fake_attendance)
+    monkeypatch.setattr("app.modules.muster.service.approved_leave_marks", fake_leave)
+    department_id = uuid4()
+    rows = await export_muster(
+        None,
+        uuid4(),
+        date(2026, 11, 1),
+        date(2026, 11, 30),
+        None,
+        department_id=department_id,
+    )
+    assert rows == []
+    assert seen["department_id"] == department_id

@@ -21,6 +21,57 @@ from app.modules.leave.repository import approved_leave_marks
 from app.modules.muster.rows import muster_lines
 
 
+def classify_muster_cell(
+    *,
+    calendar_date: date,
+    date_of_joining: date | None,
+    attendance_status: str | None,
+    worked_minutes: int,
+    leave_code: str | None,
+    leave_days: Decimal | None,
+    leave_portion: str | None,
+    is_holiday: bool,
+    shift_is_rest: bool,
+) -> tuple[str, float, float, float]:
+    """Return the cell mark plus present, absent, and leave increments.
+
+    Dates before joining stay inactive ("-") and do not count as absent.
+    A lone punch stays NEEDS_REVIEW ("NR") instead of absent.
+    Weekly off comes only from the dated shift, not from the weekday.
+    """
+    if date_of_joining is not None and calendar_date < date_of_joining:
+        return "-", 0.0, 0.0, 0.0
+    if leave_code is not None and leave_portion == "FULL":
+        return leave_code, 0.0, 0.0, float(leave_days or 0)
+    if leave_code is not None:
+        present = 0.5 if attendance_status in {"PRESENT", "HALF_DAY"} or worked_minutes > 0 else 0.0
+        absent = 0.0 if present else 0.5
+        return "HD", present, absent, 0.5
+    if attendance_status == "PRESENT":
+        return "P", 1.0, 0.0, 0.0
+    if attendance_status == "HALF_DAY":
+        return "HD", 0.5, 0.5, 0.0
+    if attendance_status in {"REST_DAY", "WEEKLY_OFF"}:
+        return "WO", 0.0, 0.0, 0.0
+    if attendance_status in {"HOLIDAY", "H"}:
+        return "H", 0.0, 0.0, 0.0
+    if attendance_status == "ABSENT":
+        return "A", 0.0, 1.0, 0.0
+    if attendance_status == "NEEDS_REVIEW":
+        return "NR", 0.0, 0.0, 0.0
+    if attendance_status is not None:
+        if worked_minutes >= 240:
+            return "P", 1.0, 0.0, 0.0
+        if worked_minutes > 0:
+            return "HD", 0.5, 0.5, 0.0
+        return "A", 0.0, 1.0, 0.0
+    if is_holiday:
+        return "H", 0.0, 0.0, 0.0
+    if shift_is_rest:
+        return "WO", 0.0, 0.0, 0.0
+    return "A", 0.0, 1.0, 0.0
+
+
 def _leave_days(start: date, end: date, portion: str, window_start: date, window_end: date):
     if portion in {"FIRST_HALF", "SECOND_HALF"}:
         if window_start <= start <= window_end:
@@ -127,57 +178,26 @@ async def fetch_muster(
             shift = shifts_by_emp_date.get((emp_id, cal_date))
 
             worked_mins = att.worked_duration_minutes if att else 0
+            mark, present_delta, absent_delta, leave_delta = classify_muster_cell(
+                calendar_date=cal_date,
+                date_of_joining=emp.date_of_joining,
+                attendance_status=att.status if att else None,
+                worked_minutes=worked_mins,
+                leave_code=l_mark[0] if l_mark else None,
+                leave_days=l_mark[1] if l_mark else None,
+                leave_portion=l_mark[2] if l_mark else None,
+                is_holiday=is_holiday,
+                shift_is_rest=bool(shift and (shift.is_rest_day or shift.status == "REST_DAY")),
+            )
+            daily_status[day_num] = mark
+            if mark == "-":
+                continue
             ot_mins = att.overtime_minutes if att else 0
             total_worked_mins += worked_mins
             total_ot_mins += ot_mins
-
-            if l_mark:
-                code, days, portion = l_mark
-                if portion == "FULL":
-                    daily_status[day_num] = code
-                    total_leave += float(days)
-                else:
-                    daily_status[day_num] = "HD"
-                    total_leave += 0.5
-                    if att and (att.status in ("PRESENT", "HALF_DAY") or worked_mins > 0):
-                        total_present += 0.5
-                    else:
-                        total_absent += 0.5
-            elif att is not None:
-                if att.status == "PRESENT":
-                    daily_status[day_num] = "P"
-                    total_present += 1.0
-                elif att.status == "HALF_DAY":
-                    daily_status[day_num] = "HD"
-                    total_present += 0.5
-                    total_absent += 0.5
-                elif att.status in ("REST_DAY", "WEEKLY_OFF"):
-                    daily_status[day_num] = "WO"
-                elif att.status in ("HOLIDAY", "H"):
-                    daily_status[day_num] = "H"
-                elif att.status == "ABSENT":
-                    daily_status[day_num] = "A"
-                    total_absent += 1.0
-                else:
-                    if worked_mins >= 240:
-                        daily_status[day_num] = "P"
-                        total_present += 1.0
-                    elif worked_mins > 0:
-                        daily_status[day_num] = "HD"
-                        total_present += 0.5
-                        total_absent += 0.5
-                    else:
-                        daily_status[day_num] = "A"
-                        total_absent += 1.0
-            elif is_holiday:
-                daily_status[day_num] = "H"
-            elif shift and (shift.is_rest_day or shift.status == "REST_DAY"):
-                daily_status[day_num] = "WO"
-            elif cal_date.weekday() == 6:  # Sunday default rest day
-                daily_status[day_num] = "WO"
-            else:
-                daily_status[day_num] = "A"
-                total_absent += 1.0
+            total_present += present_delta
+            total_absent += absent_delta
+            total_leave += leave_delta
 
         summary = {
             "total_days": num_days,
@@ -201,10 +221,18 @@ async def fetch_muster(
             }
         )
 
-    first_branch = "Main Branch"
-    if employees and employees[0].branch_id in branch_map:
-        first_branch = branch_map[employees[0].branch_id]
-    elif branch_map:
+    scoped_branch_ids = {emp.branch_id for emp in employees if emp.branch_id is not None}
+    registration_number = tenant.subdomain if tenant else ""
+    factory_name = tenant_name
+    if len(scoped_branch_ids) == 1:
+        only_branch = next(branch for branch in branches if branch.id in scoped_branch_ids)
+        registration_number = only_branch.code
+        factory_name = only_branch.name
+    elif employees and employees[0].branch_id in branch_map:
+        factory_name = branch_map[employees[0].branch_id]
+
+    first_branch = factory_name if employees else "Main Branch"
+    if not employees and branch_map:
         first_branch = next(iter(branch_map.values()))
 
     meta = {
@@ -217,8 +245,8 @@ async def fetch_muster(
         "total_days": num_days,
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC"),
         "department_id": str(department_id) if department_id else None,
-        "registration_number": "REG-FAC-1948",
-        "factory_name": tenant_name,
+        "registration_number": registration_number,
+        "factory_name": factory_name,
         "establishment_name": tenant_name,
         "contractor_name": "N/A - Direct Employment",
     }
@@ -236,12 +264,19 @@ async def export_muster(
     start_date: date,
     end_date: date,
     branch_id: UUID | None,
+    department_id: UUID | None = None,
 ) -> list[dict[str, object]]:
     if end_date < start_date:
         raise ProblemError(422, "Invalid muster range", "The end date is before the start date.")
     if (end_date - start_date).days > 62:
         raise ProblemError(422, "Muster range too long", "Export at most 63 days at a time.")
-    employees = await list_employees_by_tenant(session, tenant_id, branch_id=branch_id, is_active=True)
+    employees = await list_employees_by_tenant(
+        session,
+        tenant_id,
+        branch_id=branch_id,
+        department_id=department_id,
+        is_active=True,
+    )
     employee_ids = {row.id for row in employees}
     records = await list_attendance_records(session, tenant_id, start_date=start_date, end_date=end_date)
     marks = await approved_leave_marks(session, tenant_id, start_date, end_date)
