@@ -21,13 +21,13 @@ PERMISSIONS = (
     ("overtime_record:create", "overtime_record", "record", "create", "Create overtime records"),
     ("overtime_record:read", "overtime_record", "record", "read", "Read overtime records"),
     ("overtime_record:update", "overtime_record", "record", "update", "Review, approve, or convert overtime records"),
-    ("policy.override.create", "policy", "override", "create", "Create policy scope overrides"),
-    ("policy.override.read", "policy", "override", "read", "Read policy scope overrides"),
-    ("policy.override.update", "policy", "override", "update", "Update policy scope overrides"),
-    ("policy.override.delete", "policy", "override", "delete", "Delete policy scope overrides"),
-    ("overtime.record.create", "overtime", "record", "create", "Create overtime records"),
-    ("overtime.record.read", "overtime", "record", "read", "Read overtime records"),
-    ("overtime.record.update", "overtime", "record", "update", "Review, approve, or convert overtime records"),
+    ("policy.override.create", "policy", "override", "create", "Create policy scope overrides (dot alias)"),
+    ("policy.override.read", "policy", "override", "read", "Read policy scope overrides (dot alias)"),
+    ("policy.override.update", "policy", "override", "update", "Update policy scope overrides (dot alias)"),
+    ("policy.override.delete", "policy", "override", "delete", "Delete policy scope overrides (dot alias)"),
+    ("overtime.record.create", "overtime", "record", "create", "Create overtime records (dot alias)"),
+    ("overtime.record.read", "overtime", "record", "read", "Read overtime records (dot alias)"),
+    ("overtime.record.update", "overtime", "record", "update", "Review, approve, or convert overtime records (dot alias)"),
 )
 
 ROLE_GRANTS = (
