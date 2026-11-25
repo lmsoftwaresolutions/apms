@@ -28,6 +28,16 @@ This document serves as the **single source of truth** for all business logic, m
   - First punch in window $\rightarrow \text{Session In}$.
   - Last punch in window $\rightarrow \text{Session Out}$.
   - Intermediate punches $\rightarrow$ evaluated against intra-session break thresholds or marked informational.
+- `early_arrival_ignore_minutes` and `late_departure_ignore_minutes` apply only when calculating duration and overtime. They do not rewrite `punch_event.punch_time`, the session in punch, or the session out punch.
+- A deviation of at most the ignore window is excluded from worked duration, so it does not become overtime. A larger deviation counts in full. The ignore minutes are not subtracted from that total.
+- Worked examples for a 09:00–18:00 shift, `early_arrival_ignore_minutes = 10`, `late_departure_ignore_minutes = 30`, and an overtime minimum of 30 minutes:
+  1. In at 08:50 and out at 18:30. Both deviations sit inside the windows. Duration is 09:00–18:00 (540 minutes) and overtime is 0. The stored punches remain 08:50 and 18:30.
+  2. In at 08:20 and out at 18:00. The 40-minute early arrival is larger than 10, so all 40 minutes count. Overtime is 40. The in punch remains 08:20.
+  3. In at 09:00 and out at 18:45. The 45-minute late stay is larger than 30, so all 45 minutes count. Overtime is 45. The out punch remains 18:45.
+  4. In at 08:10 and out at 18:55. The arrival is 50 minutes early and the departure is 55 minutes late. Both are larger than their windows, so both count in full: 50 + 55 = 105 minutes of overtime. The punches remain 08:10 and 18:55.
+- `FIRST_IN_LAST_OUT` subtracts the session's scheduled break once from the first-to-last span, because that span still contains the break.
+- `ALL_IN_OUT` sums each in/out pair. Time between pairs is already excluded. The scheduled break is reduced by those punched gaps, and only the remainder is subtracted. A 09:00–13:00 and 14:00–18:00 day with a 60-minute scheduled break is 480 minutes. The same two punches at 09:00 and 18:00, with no punched gap, are 540 − 60 = 480 minutes.
+- An odd trailing punch under `ALL_IN_OUT` leaves a pair open. The day is `NEEDS_REVIEW` with overtime 0, including when earlier pairs already cover a full day.
 
 ### BR-ATT-02: Mid-Shift Gap Handling (Confirmed N65)
 - In multi-session shifts (e.g., Morning Session 08:00–12:00, Evening Session 16:00–20:00), the interval between sessions:
@@ -70,6 +80,7 @@ This document serves as the **single source of truth** for all business logic, m
 ### BR-ATT-18: Read-vs-Write Decoupling & Display Side-Effect Ban
 - Accessing or rendering attendance views, muster rolls, or payroll previews must execute strictly in read-only mode (`SELECT`).
 - No query or viewing operation may mutate persisted attendance records or explanation traces.
+- A muster cell shows the stored daily status. An unrecognized status stays `NR` and is not counted as present, half-day, or absent from worked minutes.
 
 ---
 

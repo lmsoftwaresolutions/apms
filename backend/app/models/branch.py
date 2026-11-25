@@ -18,5 +18,6 @@ class Branch(Base):
     tenant_id: Mapped[UUID] = mapped_column(ForeignKey("tenants.id"))
     name: Mapped[str]
     code: Mapped[str]
+    registration_number: Mapped[str | None] = mapped_column(default=None)
     is_active: Mapped[bool]
     created_at: Mapped[datetime]

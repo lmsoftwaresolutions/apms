@@ -217,6 +217,7 @@ The deterministic algorithm that sorts all `ACTIVE` punches within a session's i
 - **Session IN**: Earliest punch in the window.
 - **Session OUT**: Latest punch in the window.
 - If only 1 punch exists, it triggers a `LONE_PUNCH_ANOMALY`.
+- Early-arrival and late-departure ignore minutes follow [BR-ATT-01](requirements/BUSINESS_RULES.md#br-att-01-session-aware-chronological-pairing). A deviation inside the window is left out of duration and overtime. A larger deviation counts in full, and the recorded punch time stays unchanged.
 
 ### Session Pairing Result (`SessionPairingResult`)
 The intermediate calculation structure containing the matched IN/OUT timestamps, worked minutes, late minutes, early exit minutes, and session eligibility status (`COMPLETED` or `BELOW_MIN`) for a single session.

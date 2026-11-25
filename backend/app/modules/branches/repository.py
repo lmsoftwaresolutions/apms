@@ -30,6 +30,8 @@ async def update_branch_fields(
     name: str | None,
     code: str | None,
     is_active: bool | None,
+    registration_number: str | None = None,
+    update_registration: bool = False,
 ) -> Branch:
     if name is not None:
         branch.name = name
@@ -37,9 +39,12 @@ async def update_branch_fields(
         branch.code = code
     if is_active is not None:
         branch.is_active = is_active
+    if update_registration:
+        branch.registration_number = registration_number
     await session.flush()
     return branch
 
 
 async def delete_branch_record(session: AsyncSession, branch: Branch) -> None:
     await session.delete(branch)
+    await session.flush()

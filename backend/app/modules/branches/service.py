@@ -11,7 +11,13 @@ from app.modules.branches.schemas import BranchCreate, BranchOut, BranchUpdate
 
 
 def branch_to_out(branch: Branch) -> BranchOut:
-    return BranchOut(id=branch.id, name=branch.name, code=branch.code, is_active=branch.is_active)
+    return BranchOut(
+        id=branch.id,
+        name=branch.name,
+        code=branch.code,
+        registration_number=branch.registration_number,
+        is_active=branch.is_active,
+    )
 
 
 async def list_branches(session: AsyncSession, tenant_id: UUID) -> list[BranchOut]:
@@ -25,6 +31,7 @@ async def create_branch(session: AsyncSession, tenant_id: UUID, payload: BranchC
         tenant_id=tenant_id,
         name=payload.name,
         code=payload.code,
+        registration_number=payload.registration_number,
         is_active=True,
         created_at=datetime.now(UTC),
     )
@@ -52,6 +59,8 @@ async def update_branch(
             name=payload.name,
             code=payload.code,
             is_active=payload.is_active,
+            registration_number=payload.registration_number,
+            update_registration="registration_number" in payload.model_fields_set,
         )
     except IntegrityError as exc:
         raise ProblemError(409, "Branch already exists", "A branch with this code already exists.") from exc
@@ -63,4 +72,11 @@ async def delete_branch(session: AsyncSession, tenant_id: UUID, branch_id: UUID)
     branch = await branch_repo.get_branch_by_id(session, tenant_id, branch_id)
     if branch is None:
         raise ProblemError(404, "Branch not found", "No branch with that id exists in this tenant.")
-    await branch_repo.delete_branch_record(session, branch)
+    try:
+        await branch_repo.delete_branch_record(session, branch)
+    except IntegrityError as exc:
+        raise ProblemError(
+            409,
+            "Branch in use",
+            "This branch still has employees or other records. Deactivate it instead of deleting it.",
+        ) from exc
