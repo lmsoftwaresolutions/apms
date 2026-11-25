@@ -22,7 +22,7 @@ router = APIRouter(prefix="/pending-actions", tags=["pending-actions"])
 @router.get("", response_model=list[PendingActionOut])
 async def get_pending_actions(
     session: SessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("pending_action:read"))],
+    current: Annotated[CurrentUser, Depends(require_permission("pending_action:read", "pending.action.read"))],
     status_filter: str | None = Query(default=None, alias="status"),
     action_type: str | None = None,
     limit: int = 50,
@@ -42,7 +42,7 @@ async def get_pending_actions(
 @router.get("/count", response_model=PendingActionCountOut)
 async def get_pending_actions_count(
     session: SessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("pending_action:read"))],
+    current: Annotated[CurrentUser, Depends(require_permission("pending_action:read", "pending.action.read"))],
 ) -> PendingActionCountOut:
     """Get live pending, overdue, and due-soon action counts for sidebar/topbar badge."""
     res = await count_pending_actions(session, current.tenant_id)
@@ -52,7 +52,7 @@ async def get_pending_actions_count(
 @router.post("/scan", response_model=dict)
 async def scan_actions(
     session: SessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("pending_action:update"))],
+    current: Annotated[CurrentUser, Depends(require_permission("pending_action:update", "pending.action.update"))],
 ) -> dict:
     """Manually trigger background alert scan for probation expiries and milestones."""
     created = await scan_probation_expiries(session, current.tenant_id)
@@ -64,7 +64,7 @@ async def resolve_action(
     action_id: UUID,
     payload: PendingActionResolveInput,
     session: SessionDep,
-    current: Annotated[CurrentUser, Depends(require_permission("pending_action:update"))],
+    current: Annotated[CurrentUser, Depends(require_permission("pending_action:update", "pending.action.update"))],
 ) -> PendingActionOut:
     """Resolve a pending action (e.g. Confirm employee, Extend probation, or Dismiss warning)."""
     return await resolve_pending_action(

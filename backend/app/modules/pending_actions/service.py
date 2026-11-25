@@ -1,13 +1,17 @@
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
 from app.models.employee import Employee
 from app.models.pending_action import PendingAction
+from app.modules.departments.repository import get_department_by_id
+from app.modules.designations.repository import get_designation_by_id
 from app.modules.pending_actions.schemas import PendingActionOut, PendingActionResolveInput
+
+CONFIRM_EMPLOYMENT_TYPES = frozenset({"FULL_TIME", "CONTRACTOR"})
 
 
 async def scan_probation_expiries(session: AsyncSession, tenant_id: UUID) -> int:
@@ -38,20 +42,22 @@ async def scan_probation_expiries(session: AsyncSession, tenant_id: UUID) -> int
     created_count = 0
     for emp in probationers:
         assert emp.probation_end_date is not None
-        # Check if an active PENDING action already exists
         existing_stmt = select(PendingAction).where(
             and_(
                 PendingAction.tenant_id == tenant_id,
                 PendingAction.subject_id == emp.id,
                 PendingAction.action_type == "PROBATION_EXPIRY",
-                PendingAction.status == "PENDING",
+                PendingAction.status.in_(("PENDING", "DISMISSED")),
             )
         )
-        existing = (await session.execute(existing_stmt)).scalar_one_or_none()
-        if existing:
-            # Update due_date if probation_end_date changed
-            if existing.due_date != emp.probation_end_date:
-                existing.due_date = emp.probation_end_date
+        existing_rows = list((await session.execute(existing_stmt)).scalars().all())
+        pending = next((row for row in existing_rows if row.status == "PENDING"), None)
+        if pending is not None:
+            if pending.due_date != emp.probation_end_date:
+                pending.due_date = emp.probation_end_date
+                pending.priority = "HIGH" if emp.probation_end_date < today else "MEDIUM"
+            continue
+        if any(row.due_date == emp.probation_end_date for row in existing_rows):
             continue
 
         priority = "HIGH" if emp.probation_end_date < today else "MEDIUM"
@@ -157,6 +163,36 @@ async def count_pending_actions(session: AsyncSession, tenant_id: UUID) -> dict[
     }
 
 
+async def _require_active_department(
+    session: AsyncSession,
+    tenant_id: UUID,
+    department_id: UUID,
+    branch_id: UUID,
+) -> None:
+    dept = await get_department_by_id(session, tenant_id, department_id)
+    if dept is None:
+        raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
+    if dept.branch_id != branch_id:
+        raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
+    if not dept.is_active:
+        raise ProblemError(400, "Inactive department", "Cannot assign employee to a deactivated department.")
+
+
+async def _require_active_designation(
+    session: AsyncSession,
+    tenant_id: UUID,
+    designation_id: UUID,
+    department_id: UUID | None,
+) -> None:
+    desig = await get_designation_by_id(session, tenant_id, designation_id)
+    if desig is None:
+        raise ProblemError(400, "Invalid designation", "Designation does not exist in this tenant.")
+    if not desig.is_active:
+        raise ProblemError(400, "Inactive designation", "Cannot assign an inactive designation.")
+    if department_id is None or desig.department_id != department_id:
+        raise ProblemError(400, "Invalid designation", "Designation does not belong to the employee's department.")
+
+
 async def resolve_pending_action(
     session: AsyncSession,
     tenant_id: UUID,
@@ -188,7 +224,21 @@ async def resolve_pending_action(
         emp = (await session.execute(emp_stmt)).scalar_one_or_none()
         if emp:
             if act_verb == "CONFIRM":
-                emp.employment_type = payload.target_employment_type or "FULL_TIME"
+                target_type = payload.target_employment_type or "FULL_TIME"
+                if target_type not in CONFIRM_EMPLOYMENT_TYPES:
+                    raise ProblemError(
+                        400,
+                        "Invalid employment type",
+                        "Confirmation must set the employment type to full time or contractor.",
+                    )
+                department_id = payload.target_department_id or emp.department_id
+                if payload.target_department_id is not None:
+                    await _require_active_department(session, tenant_id, payload.target_department_id, emp.branch_id)
+                if payload.target_designation_id is not None:
+                    await _require_active_designation(
+                        session, tenant_id, payload.target_designation_id, department_id
+                    )
+                emp.employment_type = target_type
                 emp.confirmation_date = today
                 if payload.target_department_id:
                     emp.department_id = payload.target_department_id
