@@ -29,7 +29,7 @@ import { Badge } from "../../components/common/Badge";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ConfirmModal } from "../../components/common/ConfirmModal";
 import { Spinner } from "../../components/common/Spinner";
-import { Employee360Drawer } from "./Employee360Drawer";
+import { Employee360Modal } from "./Employee360Drawer";
 import { EmployeeFormModal } from "./EmployeeFormModal";
 
 export function EmployeesPage() {
@@ -882,9 +882,9 @@ export function EmployeesPage() {
         )}
       </div>
 
-      {/* Employee 360 Drawer */}
+      {/* Employee 360 Modal */}
       {drawerEmployee && (
-        <Employee360Drawer
+        <Employee360Modal
           employee={drawerEmployee}
           branches={branches}
           departments={departments}

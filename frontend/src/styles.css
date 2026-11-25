@@ -526,6 +526,7 @@ a {
 .modal-dialog-sm { max-width: 400px; }
 .modal-dialog-md { max-width: 560px; }
 .modal-dialog-lg { max-width: 760px; }
+.modal-dialog-xl { max-width: 860px; }
 
 .modal-header {
   padding: 1.25rem 1.5rem;

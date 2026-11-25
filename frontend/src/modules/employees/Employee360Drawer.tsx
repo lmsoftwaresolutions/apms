@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  X,
   Shield,
   ShieldAlert,
   Eye,
@@ -22,7 +21,7 @@ import { Button } from "../../components/common/Button";
 import { Badge } from "../../components/common/Badge";
 import { Modal } from "../../components/common/Modal";
 
-export interface Employee360DrawerProps {
+export interface Employee360ModalProps {
   employee: Employee | null;
   branches: Branch[];
   departments: Department[];
@@ -31,14 +30,14 @@ export interface Employee360DrawerProps {
   onEdit: (employee: Employee) => void;
 }
 
-export function Employee360Drawer({
+export function Employee360Modal({
   employee,
   branches,
   departments,
   designations,
   onClose,
   onEdit,
-}: Employee360DrawerProps) {
+}: Employee360ModalProps) {
   const { can } = useAuth();
   const [activeTab, setActiveTab] = useState<"overview" | "statutory">("overview");
 
@@ -63,7 +62,7 @@ export function Employee360Drawer({
     return () => clearInterval(interval);
   }, [autoHideTimer]);
 
-  // Reset when drawer closes or employee changes
+  // Reset when modal closes or employee changes
   useEffect(() => {
     setUnmaskedValues(null);
     setAutoHideTimer(null);
@@ -113,147 +112,117 @@ export function Employee360Drawer({
       .join("")
       .toUpperCase() || "?";
 
-  return (
-    <>
+  // Modal Title Node
+  const titleNode = (
+    <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
       <div
-        className="app-sidebar-backdrop"
-        style={{ display: "block", zIndex: 60 }}
-        onClick={onClose}
-      />
-      <aside
         style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: "100%",
-          maxWidth: "540px",
-          backgroundColor: "var(--bg-surface)",
-          borderLeft: "1px solid var(--border-default)",
-          boxShadow: "-4px 0 24px rgba(0, 0, 0, 0.4)",
-          zIndex: 65,
+          width: 44,
+          height: 44,
+          borderRadius: "50%",
+          backgroundColor: "var(--color-primary-bg)",
+          border: "2px solid var(--color-primary-border)",
+          color: "var(--color-primary)",
           display: "flex",
-          flexDirection: "column",
-          animation: "slideInRight 0.2s cubic-bezier(0.16, 1, 0.3, 1)",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: 700,
+          fontSize: "1.05rem",
+          flexShrink: 0,
         }}
       >
-        {/* Header */}
-        <div
-          style={{
-            padding: "1.25rem 1.5rem",
-            borderBottom: "1px solid var(--border-default)",
-            display: "flex",
-            alignItems: "flex-start",
-            justifyContent: "space-between",
-            gap: "1rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-            <div
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: "50%",
-                backgroundColor: "var(--color-primary-bg)",
-                border: "2px solid var(--color-primary-border)",
-                color: "var(--color-primary-fg)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontWeight: 700,
-                fontSize: "1.125rem",
-                flexShrink: 0,
-              }}
+        {initials}
+      </div>
+      <div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "1.125rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            {employee.full_name}
+          </span>
+          <Badge variant={employee.is_active ? "success" : "neutral"} size="sm">
+            {employee.is_active ? "Active" : "Inactive"}
+          </Badge>
+          {canEdit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Edit2 size={13} />}
+              onClick={() => onEdit(employee)}
+              title="Edit Profile"
+              style={{ height: "26px", padding: "0 0.5rem", fontSize: "0.75rem" }}
             >
-              {initials}
-            </div>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-                <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                  {employee.full_name}
-                </h3>
-                <Badge variant={employee.is_active ? "success" : "neutral"} size="sm">
-                  {employee.is_active ? "Active" : "Inactive"}
-                </Badge>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.25rem" }}>
-                <span
-                  style={{
-                    fontSize: "0.75rem",
-                    fontFamily: "monospace",
-                    padding: "0.15rem 0.4rem",
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-subtle)",
-                    borderRadius: "0.25rem",
-                    color: "var(--text-secondary)",
-                    fontWeight: 600,
-                  }}
-                >
-                  {employee.employee_code}
-                </span>
-                <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                  {designation?.name || employee.designation || "Staff"}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+              Edit
+            </Button>
+          )}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginTop: "0.2rem" }}>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              fontFamily: "monospace",
+              padding: "0.1rem 0.4rem",
+              backgroundColor: "var(--bg-subtle)",
+              border: "1px solid var(--border-default)",
+              borderRadius: "0.25rem",
+              color: "var(--text-secondary)",
+              fontWeight: 600,
+            }}
+          >
+            {employee.employee_code}
+          </span>
+          <span style={{ fontSize: "0.8125rem", color: "var(--text-muted)" }}>
+            {designation?.name || employee.designation || "Staff"} • {department?.name || "No Department"} •{" "}
+            {branch?.name || "Branch"}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <>
+      <Modal
+        isOpen={Boolean(employee)}
+        onClose={onClose}
+        title={titleNode}
+        size="xl"
+        footer={
+          <div style={{ display: "flex", justifyContent: "flex-end", width: "100%", gap: "0.75rem" }}>
             {canEdit && (
-              <Button
-                variant="ghost"
-                size="sm"
-                icon={<Edit2 size={15} />}
-                onClick={() => onEdit(employee)}
-                title="Edit Employee"
-              >
-                Edit
+              <Button variant="secondary" icon={<Edit2 size={14} />} onClick={() => onEdit(employee)}>
+                Edit Profile
               </Button>
             )}
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                background: "transparent",
-                border: "none",
-                color: "var(--text-muted)",
-                cursor: "pointer",
-                padding: "0.35rem",
-                borderRadius: "0.375rem",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              aria-label="Close drawer"
-            >
-              <X size={20} />
-            </button>
+            <Button variant="primary" onClick={onClose}>
+              Done
+            </Button>
           </div>
-        </div>
-
+        }
+      >
         {/* Tab Navigation */}
         <div
           style={{
             display: "flex",
             borderBottom: "1px solid var(--border-default)",
-            padding: "0 1.5rem",
-            backgroundColor: "var(--bg-canvas)",
+            marginBottom: "1.25rem",
+            gap: "0.5rem",
           }}
         >
           <button
             type="button"
             onClick={() => setActiveTab("overview")}
             style={{
-              padding: "0.75rem 1rem",
+              padding: "0.625rem 1rem",
               background: "transparent",
               border: "none",
               borderBottom: activeTab === "overview" ? "2px solid var(--color-primary)" : "2px solid transparent",
               color: activeTab === "overview" ? "var(--color-primary)" : "var(--text-secondary)",
-              fontWeight: 600,
+              fontWeight: 650,
               fontSize: "0.875rem",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
+              transition: "all 0.15s ease",
             }}
           >
             <Briefcase size={16} />
@@ -263,17 +232,18 @@ export function Employee360Drawer({
             type="button"
             onClick={() => setActiveTab("statutory")}
             style={{
-              padding: "0.75rem 1rem",
+              padding: "0.625rem 1rem",
               background: "transparent",
               border: "none",
               borderBottom: activeTab === "statutory" ? "2px solid var(--color-primary)" : "2px solid transparent",
               color: activeTab === "statutory" ? "var(--color-primary)" : "var(--text-secondary)",
-              fontWeight: 600,
+              fontWeight: 650,
               fontSize: "0.875rem",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               gap: "0.5rem",
+              transition: "all 0.15s ease",
             }}
           >
             <Shield size={16} />
@@ -281,492 +251,499 @@ export function Employee360Drawer({
           </button>
         </div>
 
-        {/* Drawer Content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "1.5rem" }}>
-          {activeTab === "overview" ? (
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-              {/* Organization Assignment Card */}
-              <div
+        {/* Modal Tab Content */}
+        {activeTab === "overview" ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            {/* Organization Assignment Card */}
+            <div
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-default)",
+                borderRadius: "0.625rem",
+                padding: "1.25rem",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              }}
+            >
+              <h4
                 style={{
-                  backgroundColor: "var(--bg-card)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "0.625rem",
-                  padding: "1.25rem",
+                  margin: "0 0 1rem",
+                  fontSize: "0.8125rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  color: "var(--text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
                 }}
               >
-                <h4
-                  style={{
-                    margin: "0 0 1rem",
-                    fontSize: "0.875rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "var(--text-muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <Building2 size={16} color="var(--color-primary)" />
-                  Organization Structure
-                </h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Branch</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {branch ? `${branch.name} (${branch.code})` : "Unassigned"}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Department</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {department ? `${department.name} (${department.code})` : "Unassigned"}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Designation</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {designation?.name || employee.designation || "Not specified"}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>User Account</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {employee.user_id ? "Linked to Portal" : "No Login Linked"}
-                    </div>
+                <Building2 size={16} color="var(--color-primary)" />
+                Organization Structure
+              </h4>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: "1.25rem" }}>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Branch Location</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {branch ? `${branch.name} (${branch.code})` : "Unassigned"}
                   </div>
                 </div>
-              </div>
-
-              {/* Employment Terms Card */}
-              <div
-                style={{
-                  backgroundColor: "var(--bg-card)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "0.625rem",
-                  padding: "1.25rem",
-                }}
-              >
-                <h4
-                  style={{
-                    margin: "0 0 1rem",
-                    fontSize: "0.875rem",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                    color: "var(--text-muted)",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                  }}
-                >
-                  <Calendar size={16} color="var(--color-primary)" />
-                  Employment Terms
-                </h4>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Employment Type</span>
-                    <div style={{ marginTop: "0.25rem" }}>
-                      <Badge variant="neutral" size="sm">
-                        {employee.employment_type.replace(/_/g, " ")}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Date of Joining (DOJ)</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {employee.date_of_joining || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Date of Birth (DOB)</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {employee.date_of_birth || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Probation End</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {employee.probation_end_date || "—"}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Confirmation Date</span>
-                    <div style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--text-primary)", marginTop: "0.15rem" }}>
-                      {employee.confirmation_date || "—"}
-                    </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Department</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {department ? `${department.name} (${department.code})` : "Unassigned"}
                   </div>
                 </div>
-              </div>
-
-              {/* DPDP Act Biometric Consent Status Card */}
-              <div
-                style={{
-                  backgroundColor: employee.biometric_consent_at ? "var(--color-success-bg)" : "var(--color-warning-bg)",
-                  border: `1px solid ${
-                    employee.biometric_consent_at ? "var(--color-success-border)" : "var(--color-warning-border)"
-                  }`,
-                  borderRadius: "0.625rem",
-                  padding: "1.25rem",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
-                  {employee.biometric_consent_at ? (
-                    <CheckCircle2 size={20} style={{ color: "var(--color-success-fg)", flexShrink: 0, marginTop: "0.1rem" }} />
-                  ) : (
-                    <AlertCircle size={20} style={{ color: "var(--color-warning-fg)", flexShrink: 0, marginTop: "0.1rem" }} />
-                  )}
-                  <div>
-                    <div
-                      style={{
-                        fontSize: "0.875rem",
-                        fontWeight: 700,
-                        color: employee.biometric_consent_at ? "var(--color-success-fg)" : "var(--color-warning-fg)",
-                      }}
-                    >
-                      {employee.biometric_consent_at ? "DPDP Biometric Consent Recorded" : "Biometric Consent Pending"}
-                    </div>
-                    <p
-                      style={{
-                        margin: "0.25rem 0 0.5rem",
-                        fontSize: "0.8125rem",
-                        color: "var(--text-secondary)",
-                        lineHeight: 1.4,
-                      }}
-                    >
-                      {employee.biometric_consent_at
-                        ? `Recorded on ${new Date(employee.biometric_consent_at).toLocaleDateString()}. Complies with DPDP Act 2023 consent standards.`
-                        : "Worker has not yet provided explicit informed consent for biometric attendance logging."}
-                    </p>
-                    <span
-                      style={{
-                        fontSize: "0.75rem",
-                        color: "var(--text-muted)",
-                        display: "inline-block",
-                      }}
-                    >
-                      Invariant: Biometric templates stay isolated on edge readers and are never uploaded to cloud storage.
-                    </span>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Designation (Role)</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {designation?.name || employee.designation || "Not specified"}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Portal User Account</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {employee.user_id ? "Linked to Portal" : "No Login Linked"}
                   </div>
                 </div>
               </div>
             </div>
-          ) : (
-            /* Statutory & PII Vault Tab */
-            <div style={{ display: "flex", flexDirection: "column", gap: "1.5rem" }}>
-              {/* Vault Security Header */}
-              <div
+
+            {/* Employment Terms Card */}
+            <div
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-default)",
+                borderRadius: "0.625rem",
+                padding: "1.25rem",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              }}
+            >
+              <h4
                 style={{
-                  backgroundColor: "var(--bg-card)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "0.625rem",
-                  padding: "1.25rem",
+                  margin: "0 0 1rem",
+                  fontSize: "0.8125rem",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.05em",
+                  color: "var(--text-muted)",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
                 }}
               >
-                <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "1rem" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <div
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: "0.375rem",
-                        backgroundColor: "var(--color-primary-bg)",
-                        border: "1px solid var(--color-primary-border)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        color: "var(--color-primary-fg)",
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Lock size={18} />
-                    </div>
-                    <div>
-                      <h4 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                        Envelope-Encrypted Statutory Vault
-                      </h4>
-                      <p style={{ margin: "0.2rem 0 0", fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        Protected under AES-256-GCM. Unmasking is strictly audited (SEC-03).
-                      </p>
-                    </div>
+                <Calendar size={16} color="var(--color-primary)" />
+                Employment Terms
+              </h4>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "1.25rem" }}>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Employment Type</span>
+                  <div style={{ marginTop: "0.25rem" }}>
+                    <Badge variant="neutral" size="sm" style={{ fontWeight: 600 }}>
+                      {employee.employment_type.replace(/_/g, " ")}
+                    </Badge>
                   </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Date of Joining (DOJ)</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {employee.date_of_joining || "—"}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Date of Birth (DOB)</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {employee.date_of_birth || "—"}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Probation End</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {employee.probation_end_date || "—"}
+                  </div>
+                </div>
+                <div>
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Confirmation Date</span>
+                  <div style={{ fontSize: "0.875rem", fontWeight: 650, color: "var(--text-primary)", marginTop: "0.2rem" }}>
+                    {employee.confirmation_date || "—"}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                  {/* Reveal / Hide Controls */}
-                  {canUnmask ? (
-                    unmaskedValues ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                        <span
-                          style={{
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: "0.25rem",
-                            fontSize: "0.75rem",
-                            fontWeight: 700,
-                            color: "var(--color-warning-fg)",
-                            backgroundColor: "var(--color-warning-bg)",
-                            border: "1px solid var(--color-warning-border)",
-                            padding: "0.2rem 0.5rem",
-                            borderRadius: "0.25rem",
-                          }}
-                        >
-                          <Clock size={12} />
-                          {autoHideTimer}s
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          icon={<EyeOff size={14} />}
-                          onClick={handleHidePii}
-                          style={{ fontSize: "0.75rem" }}
-                        >
-                          Hide
-                        </Button>
-                      </div>
-                    ) : (
+            {/* DPDP Act Biometric Consent Status Card */}
+            <div
+              style={{
+                backgroundColor: employee.biometric_consent_at ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+                border: `1px solid ${
+                  employee.biometric_consent_at ? "var(--color-success-border)" : "var(--color-warning-border)"
+                }`,
+                borderRadius: "0.625rem",
+                padding: "1.25rem",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "0.75rem" }}>
+                {employee.biometric_consent_at ? (
+                  <CheckCircle2 size={20} style={{ color: "var(--color-success-fg)", flexShrink: 0, marginTop: "0.1rem" }} />
+                ) : (
+                  <AlertCircle size={20} style={{ color: "var(--color-warning-fg)", flexShrink: 0, marginTop: "0.1rem" }} />
+                )}
+                <div>
+                  <div
+                    style={{
+                      fontSize: "0.875rem",
+                      fontWeight: 700,
+                      color: employee.biometric_consent_at ? "var(--color-success-fg)" : "var(--color-warning-fg)",
+                    }}
+                  >
+                    {employee.biometric_consent_at ? "DPDP Biometric Consent Recorded" : "Biometric Consent Pending"}
+                  </div>
+                  <p
+                    style={{
+                      margin: "0.25rem 0 0.5rem",
+                      fontSize: "0.8125rem",
+                      color: "var(--text-secondary)",
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {employee.biometric_consent_at
+                      ? `Recorded on ${new Date(employee.biometric_consent_at).toLocaleDateString()}. Complies with DPDP Act 2023 consent standards.`
+                      : "Worker has not yet provided explicit informed consent for biometric attendance logging."}
+                  </p>
+                  <span
+                    style={{
+                      fontSize: "0.75rem",
+                      color: "var(--text-muted)",
+                      display: "inline-block",
+                    }}
+                  >
+                    Invariant 10: Biometric templates stay isolated on edge readers and are never uploaded to cloud storage.
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Statutory & PII Vault Tab */
+          <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+            {/* Vault Security Header */}
+            <div
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border-default)",
+                borderRadius: "0.625rem",
+                padding: "1.25rem",
+                boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <div
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: "0.375rem",
+                      backgroundColor: "var(--color-primary-bg)",
+                      border: "1px solid var(--color-primary-border)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "var(--color-primary)",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Lock size={18} />
+                  </div>
+                  <div>
+                    <h4 style={{ margin: 0, fontSize: "0.9375rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                      Envelope-Encrypted Statutory Vault
+                    </h4>
+                    <p style={{ margin: "0.15rem 0 0", fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                      Protected under AES-256-GCM. Unmasking is strictly audited (SEC-03).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Reveal / Hide Controls */}
+                {canUnmask ? (
+                  unmaskedValues ? (
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "0.25rem",
+                          fontSize: "0.75rem",
+                          fontWeight: 700,
+                          color: "var(--color-warning-fg)",
+                          backgroundColor: "var(--color-warning-bg)",
+                          border: "1px solid var(--color-warning-border)",
+                          padding: "0.25rem 0.5rem",
+                          borderRadius: "0.25rem",
+                        }}
+                      >
+                        <Clock size={12} />
+                        Auto-hide in {autoHideTimer}s
+                      </span>
                       <Button
                         variant="secondary"
                         size="sm"
-                        icon={<Eye size={14} />}
-                        onClick={() => setShowConfirmModal(true)}
-                        style={{ fontSize: "0.75rem", whiteSpace: "nowrap" }}
+                        icon={<EyeOff size={14} />}
+                        onClick={handleHidePii}
+                        style={{ fontSize: "0.75rem" }}
                       >
-                        Reveal PII
+                        Hide Plaintext
                       </Button>
-                    )
+                    </div>
                   ) : (
-                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic" }}>
-                      Unmasking restricted
-                    </span>
-                  )}
-                </div>
-
-                {unmaskError && (
-                  <div
-                    style={{
-                      marginTop: "1rem",
-                      padding: "0.625rem",
-                      backgroundColor: "var(--color-danger-bg)",
-                      border: "1px solid var(--color-danger-border)",
-                      borderRadius: "0.375rem",
-                      color: "var(--color-danger-fg)",
-                      fontSize: "0.8125rem",
-                    }}
-                  >
-                    {unmaskError}
-                  </div>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      icon={<Eye size={14} />}
+                      onClick={() => setShowConfirmModal(true)}
+                      style={{ fontSize: "0.8125rem", whiteSpace: "nowrap" }}
+                    >
+                      Reveal Plaintext (Audited)
+                    </Button>
+                  )
+                ) : (
+                  <span style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontStyle: "italic" }}>
+                    PII unmasking restricted to authorized compliance officers.
+                  </span>
                 )}
               </div>
 
-              {/* Identifiers Grid */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "0.875rem" }}>
-                {/* PAN */}
+              {unmaskError && (
                 <div
                   style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "0.5rem",
-                    padding: "0.875rem 1rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
+                    marginTop: "1rem",
+                    padding: "0.625rem 0.875rem",
+                    backgroundColor: "var(--color-danger-bg)",
+                    border: "1px solid var(--color-danger-border)",
+                    borderRadius: "0.375rem",
+                    color: "var(--color-danger-fg)",
+                    fontSize: "0.8125rem",
                   }}
                 >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <FileText size={18} color="var(--text-muted)" />
-                    <div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Permanent Account Number (PAN)</div>
-                      <div
-                        style={{
-                          fontSize: "0.9375rem",
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: unmaskedValues?.pan ? "var(--color-primary-fg)" : "var(--text-primary)",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        {unmaskedValues ? unmaskedValues.pan || "Not provided" : employee.pan_masked || "—"}
-                      </div>
-                    </div>
-                  </div>
-                  <Badge variant={employee.pan_masked ? "neutral" : "warning"} size="sm">
-                    {employee.pan_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
-                  </Badge>
+                  {unmaskError}
                 </div>
+              )}
+            </div>
 
-                {/* Aadhaar */}
-                <div
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "0.5rem",
-                    padding: "0.875rem 1rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <Shield size={18} color="var(--text-muted)" />
-                    <div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Aadhaar Number (UIDAI)</div>
-                      <div
-                        style={{
-                          fontSize: "0.9375rem",
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: unmaskedValues?.aadhaar ? "var(--color-primary-fg)" : "var(--text-primary)",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        {unmaskedValues ? unmaskedValues.aadhaar || "Not provided" : employee.aadhaar_masked || "—"}
-                      </div>
+            {/* Identifiers 2-Column Grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "1rem" }}>
+              {/* PAN */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "0.5rem",
+                  padding: "0.875rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <FileText size={18} color="var(--text-muted)" />
+                  <div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Permanent Account Number (PAN)</div>
+                    <div
+                      style={{
+                        fontSize: "0.9375rem",
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        color: unmaskedValues?.pan ? "var(--color-primary)" : "var(--text-primary)",
+                        letterSpacing: "0.05em",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      {unmaskedValues ? unmaskedValues.pan || "Not provided" : employee.pan_masked || "—"}
                     </div>
                   </div>
-                  <Badge variant={employee.aadhaar_masked ? "neutral" : "warning"} size="sm">
-                    {employee.aadhaar_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
-                  </Badge>
                 </div>
+                <Badge variant={employee.pan_masked ? "neutral" : "warning"} size="sm">
+                  {employee.pan_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
+                </Badge>
+              </div>
 
-                {/* EPF UAN */}
-                <div
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "0.5rem",
-                    padding: "0.875rem 1rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <FileText size={18} color="var(--text-muted)" />
-                    <div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>EPF Universal Account Number (UAN)</div>
-                      <div
-                        style={{
-                          fontSize: "0.9375rem",
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: unmaskedValues?.epf_uan ? "var(--color-primary-fg)" : "var(--text-primary)",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        {unmaskedValues ? unmaskedValues.epf_uan || "Not provided" : employee.epf_uan_masked || "—"}
-                      </div>
+              {/* Aadhaar */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "0.5rem",
+                  padding: "0.875rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <Shield size={18} color="var(--text-muted)" />
+                  <div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Aadhaar Number (UIDAI)</div>
+                    <div
+                      style={{
+                        fontSize: "0.9375rem",
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        color: unmaskedValues?.aadhaar ? "var(--color-primary)" : "var(--text-primary)",
+                        letterSpacing: "0.05em",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      {unmaskedValues ? unmaskedValues.aadhaar || "Not provided" : employee.aadhaar_masked || "—"}
                     </div>
                   </div>
-                  <Badge variant={employee.epf_uan_masked ? "neutral" : "neutral"} size="sm">
-                    {employee.epf_uan_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Optional"}
-                  </Badge>
                 </div>
+                <Badge variant={employee.aadhaar_masked ? "neutral" : "warning"} size="sm">
+                  {employee.aadhaar_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
+                </Badge>
+              </div>
 
-                {/* ESIC */}
-                <div
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "0.5rem",
-                    padding: "0.875rem 1rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <FileText size={18} color="var(--text-muted)" />
-                    <div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ESIC Insurance Number</div>
-                      <div
-                        style={{
-                          fontSize: "0.9375rem",
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: unmaskedValues?.esic_number ? "var(--color-primary-fg)" : "var(--text-primary)",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        {unmaskedValues ? unmaskedValues.esic_number || "Not provided" : employee.esic_number_masked || "—"}
-                      </div>
+              {/* EPF UAN */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "0.5rem",
+                  padding: "0.875rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <FileText size={18} color="var(--text-muted)" />
+                  <div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>EPF Universal Account Number (UAN)</div>
+                    <div
+                      style={{
+                        fontSize: "0.9375rem",
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        color: unmaskedValues?.epf_uan ? "var(--color-primary)" : "var(--text-primary)",
+                        letterSpacing: "0.05em",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      {unmaskedValues ? unmaskedValues.epf_uan || "Not provided" : employee.epf_uan_masked || "—"}
                     </div>
                   </div>
-                  <Badge variant={employee.esic_number_masked ? "neutral" : "neutral"} size="sm">
-                    {employee.esic_number_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Optional"}
-                  </Badge>
                 </div>
+                <Badge variant={employee.epf_uan_masked ? "neutral" : "neutral"} size="sm">
+                  {employee.epf_uan_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Optional"}
+                </Badge>
+              </div>
 
-                {/* Bank Account */}
-                <div
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "0.5rem",
-                    padding: "0.875rem 1rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <CreditCard size={18} color="var(--text-muted)" />
-                    <div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Bank Account Number</div>
-                      <div
-                        style={{
-                          fontSize: "0.9375rem",
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: unmaskedValues?.bank_account ? "var(--color-primary-fg)" : "var(--text-primary)",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        {unmaskedValues ? unmaskedValues.bank_account || "Not provided" : employee.bank_account_masked || "—"}
-                      </div>
+              {/* ESIC */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "0.5rem",
+                  padding: "0.875rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <FileText size={18} color="var(--text-muted)" />
+                  <div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>ESIC Insurance Number</div>
+                    <div
+                      style={{
+                        fontSize: "0.9375rem",
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        color: unmaskedValues?.esic_number ? "var(--color-primary)" : "var(--text-primary)",
+                        letterSpacing: "0.05em",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      {unmaskedValues ? unmaskedValues.esic_number || "Not provided" : employee.esic_number_masked || "—"}
                     </div>
                   </div>
-                  <Badge variant={employee.bank_account_masked ? "neutral" : "warning"} size="sm">
-                    {employee.bank_account_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
-                  </Badge>
                 </div>
+                <Badge variant={employee.esic_number_masked ? "neutral" : "neutral"} size="sm">
+                  {employee.esic_number_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Optional"}
+                </Badge>
+              </div>
 
-                {/* Bank IFSC */}
-                <div
-                  style={{
-                    backgroundColor: "var(--bg-card)",
-                    border: "1px solid var(--border-default)",
-                    borderRadius: "0.5rem",
-                    padding: "0.875rem 1rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                  }}
-                >
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
-                    <CreditCard size={18} color="var(--text-muted)" />
-                    <div>
-                      <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Bank IFSC Code</div>
-                      <div
-                        style={{
-                          fontSize: "0.9375rem",
-                          fontWeight: 700,
-                          fontFamily: "monospace",
-                          color: unmaskedValues?.bank_ifsc ? "var(--color-primary-fg)" : "var(--text-primary)",
-                          letterSpacing: "0.05em",
-                        }}
-                      >
-                        {unmaskedValues ? unmaskedValues.bank_ifsc || "Not provided" : employee.bank_ifsc_masked || "—"}
-                      </div>
+              {/* Bank Account */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "0.5rem",
+                  padding: "0.875rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <CreditCard size={18} color="var(--text-muted)" />
+                  <div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Bank Account Number</div>
+                    <div
+                      style={{
+                        fontSize: "0.9375rem",
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        color: unmaskedValues?.bank_account ? "var(--color-primary)" : "var(--text-primary)",
+                        letterSpacing: "0.05em",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      {unmaskedValues ? unmaskedValues.bank_account || "Not provided" : employee.bank_account_masked || "—"}
                     </div>
                   </div>
-                  <Badge variant={employee.bank_ifsc_masked ? "neutral" : "warning"} size="sm">
-                    {employee.bank_ifsc_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
-                  </Badge>
                 </div>
+                <Badge variant={employee.bank_account_masked ? "neutral" : "warning"} size="sm">
+                  {employee.bank_account_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
+                </Badge>
+              </div>
+
+              {/* Bank IFSC */}
+              <div
+                style={{
+                  backgroundColor: "var(--bg-card)",
+                  border: "1px solid var(--border-default)",
+                  borderRadius: "0.5rem",
+                  padding: "0.875rem 1rem",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem" }}>
+                  <CreditCard size={18} color="var(--text-muted)" />
+                  <div>
+                    <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Bank IFSC Code</div>
+                    <div
+                      style={{
+                        fontSize: "0.9375rem",
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                        color: unmaskedValues?.bank_ifsc ? "var(--color-primary)" : "var(--text-primary)",
+                        letterSpacing: "0.05em",
+                        marginTop: "0.15rem",
+                      }}
+                    >
+                      {unmaskedValues ? unmaskedValues.bank_ifsc || "Not provided" : employee.bank_ifsc_masked || "—"}
+                    </div>
+                  </div>
+                </div>
+                <Badge variant={employee.bank_ifsc_masked ? "neutral" : "warning"} size="sm">
+                  {employee.bank_ifsc_masked ? (unmaskedValues ? "Audited Plaintext" : "Encrypted") : "Missing"}
+                </Badge>
               </div>
             </div>
-          )}
-        </div>
-      </aside>
+          </div>
+        )}
+      </Modal>
 
       {/* Security Confirmation Modal for PII Unmasking */}
       {showConfirmModal && (
@@ -775,6 +752,7 @@ export function Employee360Drawer({
           onClose={() => setShowConfirmModal(false)}
           title="DPDP Act Compliance Warning"
           size="md"
+          zIndex={120}
         >
           <div style={{ display: "flex", gap: "1rem", alignItems: "flex-start", marginBottom: "1.25rem" }}>
             <div
@@ -834,3 +812,7 @@ export function Employee360Drawer({
     </>
   );
 }
+
+// Export alias for backward compatibility
+export const Employee360Drawer = Employee360Modal;
+export type Employee360DrawerProps = Employee360ModalProps;
