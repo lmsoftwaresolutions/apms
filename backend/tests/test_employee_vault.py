@@ -38,7 +38,9 @@ async def test_employee_crypto_round_trip(seeded_tenants: tuple[Tenant, Tenant])
     async with SessionLocal() as session:
         await set_tenant(session, tenant.id)
 
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant.id, Branch.is_active.is_(True))
+        )
         assert branch is not None, "Branch missing"
 
         pan_suffix = uuid4().int % 9000 + 1000
@@ -103,7 +105,9 @@ async def test_negative_rls_cross_tenant_isolation(seeded_tenants: tuple[Tenant,
     # Step 1: Create an employee in Tenant A
     async with SessionLocal() as session_a:
         await set_tenant(session_a, tenant_a.id)
-        branch_a = await session_a.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch_a = await session_a.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch_a
 
         emp_a = await create_employee(
@@ -167,7 +171,9 @@ async def test_dpdp_biometric_consent_and_withdrawal(seeded_tenants: tuple[Tenan
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant.id)
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant.id, Branch.is_active.is_(True))
+        )
         assert branch
 
         # 1. Create with consent
@@ -203,7 +209,9 @@ async def test_composite_foreign_key_cross_tenant_branch_rejected(
 
     async with SessionLocal() as session_b:
         await set_tenant(session_b, tenant_b.id)
-        branch_b = await session_b.scalar(select(Branch).where(Branch.tenant_id == tenant_b.id))
+        branch_b = await session_b.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_b.id, Branch.is_active.is_(True))
+        )
         assert branch_b
 
     async with SessionLocal() as session_a:

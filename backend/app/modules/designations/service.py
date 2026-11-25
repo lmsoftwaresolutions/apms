@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import ProblemError
 from app.models.designation import Designation
+from app.modules.branches import repository as branch_repo
 from app.modules.departments import repository as dept_repo
 from app.modules.designations import repository as desig_repo
 from app.modules.employees import repository as emp_repo
@@ -38,14 +39,31 @@ async def list_designations(
     return [designation_to_out(row) for row in rows]
 
 
+async def _require_active_department_and_branch(
+    session: AsyncSession,
+    tenant_id: UUID,
+    department_id: UUID,
+) -> None:
+    dept = await dept_repo.get_department_by_id(session, tenant_id, department_id)
+    if dept is None:
+        raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
+    if not dept.is_active:
+        raise ProblemError(
+            400, "Inactive department", "Cannot create or activate a designation in a deactivated department."
+        )
+    branch = await branch_repo.get_branch_by_id(session, tenant_id, dept.branch_id)
+    if branch is not None and not branch.is_active:
+        raise ProblemError(
+            400, "Inactive branch", "Cannot create or activate a designation in a deactivated branch."
+        )
+
+
 async def create_designation(
     session: AsyncSession,
     tenant_id: UUID,
     payload: DesignationCreate,
 ) -> DesignationOut:
-    dept = await dept_repo.get_department_by_id(session, tenant_id, payload.department_id)
-    if dept is None:
-        raise ProblemError(400, "Invalid department", "Department does not exist in this tenant.")
+    await _require_active_department_and_branch(session, tenant_id, payload.department_id)
 
     code = payload.code.strip().upper()
     name = payload.name.strip()
@@ -100,6 +118,9 @@ async def update_designation(
     designation = await desig_repo.get_designation_by_id(session, tenant_id, designation_id)
     if designation is None:
         raise ProblemError(404, "Designation not found", "No designation with that id exists in this tenant.")
+
+    if payload.is_active is True and not designation.is_active:
+        await _require_active_department_and_branch(session, tenant_id, designation.department_id)
 
     if payload.code is not None:
         new_code = payload.code.strip().upper()

@@ -37,7 +37,9 @@ async def test_department_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) ->
     # Step 1: Create a department in Tenant A
     async with SessionLocal() as session_a:
         await set_tenant(session_a, tenant_a.id)
-        branch_a = await session_a.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch_a = await session_a.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch_a
 
         dept_code = f"DP-A-{uuid4().hex[:4].upper()}"
@@ -133,7 +135,9 @@ async def test_department_self_referential_hierarchy(seeded_tenants: tuple[Tenan
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch
 
         # 1. Create root department
@@ -195,7 +199,9 @@ async def test_department_cross_tenant_parent_rejected(seeded_tenants: tuple[Ten
 
     async with SessionLocal() as session_a:
         await set_tenant(session_a, tenant_a.id)
-        branch_a = await session_a.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch_a = await session_a.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch_a
 
         with pytest.raises(ProblemError) as exc_info:
@@ -219,7 +225,9 @@ async def test_department_cannot_delete_parent_with_children(seeded_tenants: tup
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch
 
         parent = await create_department(
@@ -260,7 +268,9 @@ async def test_department_cyclic_hierarchy_rejected(seeded_tenants: tuple[Tenant
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch
 
         d1 = await create_department(
@@ -311,7 +321,9 @@ async def test_department_parent_in_other_branch_rejected_400(seeded_tenants: tu
     tenant_a, _ = seeded_tenants
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        b1 = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        b1 = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert b1
         from app.modules.branches.schemas import BranchCreate
         from app.modules.branches.service import create_branch
@@ -411,7 +423,9 @@ async def test_clear_parent_department(seeded_tenants: tuple[Tenant, Tenant]) ->
     tenant_a, _ = seeded_tenants
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch
 
         parent = await create_department(
@@ -453,7 +467,9 @@ async def test_cannot_move_parent_department_with_children_to_new_branch(
     tenant_a, _ = seeded_tenants
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        b1 = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        b1 = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert b1
         from app.modules.branches.schemas import BranchCreate
         from app.modules.branches.service import create_branch

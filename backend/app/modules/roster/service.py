@@ -99,6 +99,12 @@ async def create_pattern(
                 "Shift template not found",
                 "A day in this pattern references a shift template that does not exist in this tenant.",
             )
+        if not template.is_active:
+            raise ProblemError(
+                400,
+                "Inactive shift template",
+                "Cannot include a deactivated shift template in a roster pattern.",
+            )
 
     existing = await get_roster_pattern_by_code(session, tenant_id, payload.code)
     if existing is not None:
@@ -189,6 +195,12 @@ async def materialize_roster(
                 "Shift template not found",
                 f"Shift template {payload.shift_template_id} not found in this tenant.",
             )
+        if not single_template.is_active:
+            raise ProblemError(
+                400,
+                "Inactive shift template",
+                "Cannot materialize roster using a deactivated shift template.",
+            )
         template_cache[single_template.id] = single_template
 
     # Pre-fetch pattern and its referenced templates
@@ -201,14 +213,31 @@ async def materialize_roster(
                 "Roster pattern not found",
                 f"Roster pattern {payload.roster_pattern_id} not found in this tenant.",
             )
+        if not pattern.is_active:
+            raise ProblemError(
+                400,
+                "Inactive roster pattern",
+                "Cannot materialize roster using a deactivated roster pattern.",
+            )
         for m in pattern.day_shift_mapping:
             tid = m.get("shift_template_id")
             if tid:
                 t_uuid = UUID(tid) if isinstance(tid, str) else tid
                 if t_uuid not in template_cache:
                     t = await get_shift_template_by_id(session, tenant_id, t_uuid)
-                    if t:
-                        template_cache[t_uuid] = t
+                    if t is None:
+                        raise ProblemError(
+                            422,
+                            "Shift template not found",
+                            "A shift template referenced by this roster pattern no longer exists.",
+                        )
+                    if not t.is_active:
+                        raise ProblemError(
+                            400,
+                            "Inactive shift template",
+                            "Cannot materialize roster using a pattern that references a deactivated shift template.",
+                        )
+                    template_cache[t_uuid] = t
 
     total_created = 0
     now = datetime.now(timezone.utc)
@@ -359,6 +388,12 @@ async def override_shift_instance(
                 404,
                 "Shift template not found",
                 f"Shift template {payload.shift_template_id} not found in this tenant.",
+            )
+        if not template.is_active:
+            raise ProblemError(
+                400,
+                "Inactive shift template",
+                "Cannot override a shift instance with a deactivated shift template.",
             )
         sessions_snapshot = _snapshot_template_sessions(template)
         instance.shift_template_id = template.id

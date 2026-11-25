@@ -27,6 +27,10 @@ export function BranchesPage() {
   const [deleteTarget, setDeleteTarget] = useState<Branch | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
 
+  // Deactivate Confirm State
+  const [deactivateTarget, setDeactivateTarget] = useState<Branch | null>(null);
+  const [deactivateSubmitting, setDeactivateSubmitting] = useState(false);
+
   async function loadBranches() {
     setLoading(true);
     try {
@@ -63,11 +67,29 @@ export function BranchesPage() {
   }
 
   async function handleToggleActive(branch: Branch) {
+    if (branch.is_active) {
+      setDeactivateTarget(branch);
+      return;
+    }
     try {
-      await api.updateBranch(branch.id, { is_active: !branch.is_active });
+      await api.updateBranch(branch.id, { is_active: true });
       await loadBranches();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update branch status");
+    }
+  }
+
+  async function handleDeactivateConfirm() {
+    if (!deactivateTarget) return;
+    setDeactivateSubmitting(true);
+    try {
+      await api.updateBranch(deactivateTarget.id, { is_active: false });
+      setDeactivateTarget(null);
+      await loadBranches();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to deactivate branch");
+    } finally {
+      setDeactivateSubmitting(false);
     }
   }
 
@@ -278,6 +300,22 @@ export function BranchesPage() {
         }
         confirmText="Delete Branch"
         loading={deleteSubmitting}
+      />
+
+      {/* Deactivate Branch Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deactivateTarget)}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={handleDeactivateConfirm}
+        title="Deactivate Branch"
+        message={
+          <>
+            Are you sure you want to deactivate <strong>{deactivateTarget?.name} ({deactivateTarget?.code})</strong>?
+            New employees, departments, designations, and holidays cannot be added to a deactivated branch, while existing records stay preserved.
+          </>
+        }
+        confirmText="Deactivate Branch"
+        loading={deactivateSubmitting}
       />
     </div>
   );

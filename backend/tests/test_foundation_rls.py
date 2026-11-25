@@ -29,7 +29,9 @@ async def test_foundation_tables_are_invisible_across_tenants(seeded_tenants: tu
     tenant_a, tenant_b = seeded_tenants
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        branch = await session.scalar(select(Branch).where(Branch.tenant_id == tenant_a.id))
+        branch = await session.scalar(
+            select(Branch).where(Branch.tenant_id == tenant_a.id, Branch.is_active.is_(True))
+        )
         assert branch is not None
         created = await create_employee(
             session,

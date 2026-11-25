@@ -111,13 +111,19 @@ export function EmployeeFormModal({
 
   const selectedBranch = useMemo(() => branches.find((b) => b.id === branchId), [branches, branchId]);
 
-  // Cascading filters: departments under selected branch (active + currently assigned if editing)
+  // Cascading filters: departments under selected branch (active + currently assigned if editing).
+  // When the selected branch itself is deactivated, don't offer new department assignments inside it.
   const availableDepartments = useMemo(() => {
     if (!branchId) return [];
+    if (selectedBranch && !selectedBranch.is_active) {
+      return initialEmployee?.department_id
+        ? departments.filter((d) => d.id === initialEmployee.department_id)
+        : [];
+    }
     return departments.filter(
       (d) => d.branch_id === branchId && (d.is_active || d.id === initialEmployee?.department_id)
     );
-  }, [departments, branchId, initialEmployee]);
+  }, [departments, branchId, selectedBranch, initialEmployee]);
 
   // Cascading filters: designations under selected department (active + currently assigned if editing)
   const availableDesignations = useMemo(() => {

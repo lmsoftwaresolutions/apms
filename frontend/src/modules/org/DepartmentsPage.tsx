@@ -13,7 +13,7 @@ import { LoadingRow } from "../../components/common/Spinner";
 export function DepartmentsPage() {
   const { can } = useAuth();
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [departments, setDepartments] = useState<Department[]>([]);
+  const [allDepartments, setAllDepartments] = useState<Department[]>([]);
   const [selectedBranchId, setSelectedBranchId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -27,26 +27,28 @@ export function DepartmentsPage() {
   const [createSubmitting, setCreateSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
 
-  // Delete Modal
+  // Delete & Deactivate Modals
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deactivateTarget, setDeactivateTarget] = useState<Department | null>(null);
+  const [deactivateSubmitting, setDeactivateSubmitting] = useState(false);
 
   async function loadData(targetBranchId?: string) {
     setLoading(true);
     try {
-      const branchList = await api.branches();
+      const [branchList, allDeptList] = await Promise.all([api.branches(), api.departments()]);
       setBranches(branchList);
+      setAllDepartments(allDeptList);
+      const defaultBranch = branchList.find((b) => b.is_active) || branchList[0];
       const activeBranchId =
         targetBranchId !== undefined
           ? targetBranchId
-          : selectedBranchId || branchList[0]?.id || "";
+          : selectedBranchId || defaultBranch?.id || "";
       setSelectedBranchId(activeBranchId);
       if (!modalBranchId && activeBranchId) {
-        setModalBranchId(activeBranchId);
+        const activeModalBranch = branchList.find((b) => b.id === activeBranchId && b.is_active) || branchList.find((b) => b.is_active);
+        setModalBranchId(activeModalBranch?.id || "");
       }
-
-      const deptList = await api.departments(activeBranchId || undefined);
-      setDepartments(deptList);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load departments");
@@ -59,9 +61,16 @@ export function DepartmentsPage() {
     void loadData(selectedBranchId || undefined);
   }, [selectedBranchId]);
 
+  const departments = allDepartments.filter((d) => !selectedBranchId || d.branch_id === selectedBranchId);
+  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
+  const effectiveModalBranchId = modalBranchId || branches.find((b) => b.is_active)?.id || "";
+  const modalParentCandidates = allDepartments.filter(
+    (d) => d.branch_id === effectiveModalBranchId && d.is_active
+  );
+
   async function handleCreate(e: FormEvent) {
     e.preventDefault();
-    const branchIdToUse = modalBranchId || selectedBranchId;
+    const branchIdToUse = effectiveModalBranchId;
     if (!branchIdToUse || !name || code.length < 2) return;
     setCreateSubmitting(true);
     setCreateError("");
@@ -80,11 +89,29 @@ export function DepartmentsPage() {
   }
 
   async function handleToggleActive(dept: Department) {
+    if (dept.is_active) {
+      setDeactivateTarget(dept);
+      return;
+    }
     try {
-      await api.updateDepartment(dept.id, { is_active: !dept.is_active });
+      await api.updateDepartment(dept.id, { is_active: true });
       await loadData(selectedBranchId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update department status");
+    }
+  }
+
+  async function handleDeactivateConfirm() {
+    if (!deactivateTarget) return;
+    setDeactivateSubmitting(true);
+    try {
+      await api.updateDepartment(deactivateTarget.id, { is_active: false });
+      setDeactivateTarget(null);
+      await loadData(selectedBranchId);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to deactivate department");
+    } finally {
+      setDeactivateSubmitting(false);
     }
   }
 
@@ -184,13 +211,20 @@ export function DepartmentsPage() {
         <EmptyState
           icon={<Network size={24} />}
           title="No departments found for this branch"
-          description="Add divisions or operational departments (e.g., Spinning, Weaving, Quality) to this branch."
+          description={
+            selectedBranch && !selectedBranch.is_active
+              ? "This branch is deactivated. Switch to an active branch or re-activate this location before adding departments."
+              : "Add divisions or operational departments (e.g., Spinning, Weaving, Quality) to this branch."
+          }
           action={
-            can("org.department.create")
+            can("org.department.create") && branches.some((b) => b.is_active)
               ? {
                   label: "Add Department",
                   onClick: () => {
-                    setModalBranchId(selectedBranchId);
+                    const activeSelected = branches.find((b) => b.id === selectedBranchId && b.is_active);
+                    const firstActive = branches.find((b) => b.is_active);
+                    setModalBranchId(activeSelected ? activeSelected.id : firstActive?.id || "");
+                    setParentId("");
                     setIsCreateOpen(true);
                   },
                   icon: <Plus size={16} />,
@@ -314,8 +348,11 @@ export function DepartmentsPage() {
             <Field label="Branch" required>
               <select
                 className="select"
-                value={modalBranchId}
-                onChange={(e) => setModalBranchId(e.target.value)}
+                value={effectiveModalBranchId}
+                onChange={(e) => {
+                  setModalBranchId(e.target.value);
+                  setParentId("");
+                }}
                 required
               >
                 {branches.filter((b) => b.is_active).map((b) => (
@@ -347,14 +384,14 @@ export function DepartmentsPage() {
             />
           </Field>
 
-          <Field label="Parent Department (Optional)" help="Select a parent unit to establish organizational hierarchy">
+          <Field label="Parent Department (Optional)" help="Select an active parent unit in the chosen branch">
             <select
               className="select"
               value={parentId}
               onChange={(e) => setParentId(e.target.value)}
             >
               <option value="">None (Top-level)</option>
-              {departments.map((dept) => (
+              {modalParentCandidates.map((dept) => (
                 <option key={dept.id} value={dept.id}>
                   {dept.name} ({dept.code})
                 </option>
@@ -378,6 +415,22 @@ export function DepartmentsPage() {
         }
         confirmText="Delete Department"
         loading={deleteSubmitting}
+      />
+
+      {/* Deactivate Confirmation Modal */}
+      <ConfirmModal
+        isOpen={Boolean(deactivateTarget)}
+        onClose={() => setDeactivateTarget(null)}
+        onConfirm={handleDeactivateConfirm}
+        title="Deactivate Department"
+        message={
+          <>
+            Are you sure you want to deactivate <strong>{deactivateTarget?.name} ({deactivateTarget?.code})</strong>?
+            New employees, designations, and sub-departments cannot be added to a deactivated department.
+          </>
+        }
+        confirmText="Deactivate Department"
+        loading={deactivateSubmitting}
       />
     </div>
   );

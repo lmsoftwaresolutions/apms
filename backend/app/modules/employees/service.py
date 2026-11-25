@@ -122,6 +122,8 @@ async def _require_user(session: AsyncSession, tenant_id: UUID, user_id: UUID) -
     user = await iam_repo.get_user_by_id(session, user_id)
     if user is None or user.tenant_id != tenant_id:
         raise ProblemError(400, "Invalid user", "User does not exist in this tenant.")
+    if not user.is_active:
+        raise ProblemError(400, "Inactive user", "Cannot link an employee to a deactivated user account.")
 
 
 async def create_employee(
@@ -232,16 +234,17 @@ async def update_employee(
     original_branch_id = emp.branch_id
     original_department_id = emp.department_id
     had_consent = emp.biometric_consent_at is not None
+    reactivating = payload.is_active is True and not emp.is_active
     target_branch_id = payload.branch_id if payload.branch_id is not None else original_branch_id
-    if payload.branch_id is not None and payload.branch_id != original_branch_id:
-        await _require_branch(session, tenant_id, payload.branch_id)
+    if (payload.branch_id is not None and payload.branch_id != original_branch_id) or reactivating:
+        await _require_branch(session, tenant_id, target_branch_id)
 
     if "department_id" in payload.model_fields_set:
         new_department_id = payload.department_id
     else:
         new_department_id = emp.department_id
     if new_department_id is not None:
-        if new_department_id != original_department_id or payload.branch_id is not None:
+        if new_department_id != original_department_id or payload.branch_id is not None or reactivating:
             await _require_department_in_branch(session, tenant_id, new_department_id, target_branch_id)
         else:
             dept = await dept_repo.get_department_by_id(session, tenant_id, new_department_id)
@@ -249,7 +252,10 @@ async def update_employee(
                 raise ProblemError(400, "Invalid department", "Department must belong to the employee's branch.")
 
     if "user_id" in payload.model_fields_set and payload.user_id is not None:
-        await _require_user(session, tenant_id, payload.user_id)
+        if payload.user_id != emp.user_id or reactivating:
+            await _require_user(session, tenant_id, payload.user_id)
+    elif reactivating and emp.user_id is not None:
+        await _require_user(session, tenant_id, emp.user_id)
 
     if "designation_id" not in payload.model_fields_set and original_department_id != new_department_id:
         if emp.designation_id is not None:
@@ -260,6 +266,8 @@ async def update_employee(
                     "Invalid designation",
                     "Existing employee designation does not belong to the new department. Reassign or clear designation first.",
                 )
+    elif "designation_id" not in payload.model_fields_set and reactivating and emp.designation_id is not None:
+        await _require_designation_in_department(session, tenant_id, emp.designation_id, new_department_id)
 
     if payload.branch_id is not None:
         emp.branch_id = payload.branch_id

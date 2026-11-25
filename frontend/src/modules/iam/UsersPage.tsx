@@ -935,12 +935,12 @@ export function UsersPage() {
                   borderRadius: "9999px",
                   fontSize: "0.6875rem",
                   fontWeight: 600,
-                  backgroundColor: "rgba(16, 185, 129, 0.12)",
-                  color: "#10b981",
+                  backgroundColor: activeUser.is_active ? "rgba(16, 185, 129, 0.12)" : "rgba(148, 163, 184, 0.12)",
+                  color: activeUser.is_active ? "#10b981" : "var(--text-muted)",
                   flexShrink: 0,
                 }}
               >
-                Active
+                {activeUser.is_active ? "Active" : "Inactive"}
               </span>
             </div>
 
@@ -956,6 +956,22 @@ export function UsersPage() {
                 }}
               >
                 ✓ {drawerSuccessMsg}
+              </div>
+            ) : null}
+
+            {!activeUser.is_active ? (
+              <div
+                style={{
+                  padding: "0.45rem 0.65rem",
+                  backgroundColor: "rgba(245, 158, 11, 0.12)",
+                  color: "#f59e0b",
+                  border: "1px solid rgba(245, 158, 11, 0.3)",
+                  borderRadius: "0.375rem",
+                  fontSize: "0.75rem",
+                  fontWeight: 500,
+                }}
+              >
+                This user account is deactivated. Role assignments cannot be added while inactive.
               </div>
             ) : null}
 
@@ -1090,6 +1106,8 @@ export function UsersPage() {
                             <button
                               type="button"
                               onClick={() => handleAddRole(r.code)}
+                              disabled={!activeUser.is_active}
+                              title={!activeUser.is_active ? "Cannot assign roles to an inactive user" : undefined}
                               style={{
                                 background: "none",
                                 border: "1px solid var(--border-strong)",
@@ -1098,7 +1116,8 @@ export function UsersPage() {
                                 padding: "0.2rem 0.6rem",
                                 fontSize: "0.75rem",
                                 fontWeight: 600,
-                                cursor: "pointer",
+                                cursor: activeUser.is_active ? "pointer" : "not-allowed",
+                                opacity: activeUser.is_active ? 1 : 0.45,
                               }}
                             >
                               Add

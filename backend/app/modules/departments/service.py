@@ -38,13 +38,27 @@ async def list_departments(
     return [department_to_out(row) for row in rows]
 
 
+async def _require_active_branch(
+    session: AsyncSession,
+    tenant_id: UUID,
+    branch_id: UUID,
+    action_detail: str = "Cannot assign department to a deactivated branch.",
+) -> None:
+    branch = await branch_repo.get_branch_by_id(session, tenant_id, branch_id)
+    if branch is None:
+        raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
+    if not branch.is_active:
+        raise ProblemError(400, "Inactive branch", action_detail)
+
+
 async def create_department(
     session: AsyncSession,
     tenant_id: UUID,
     payload: DepartmentCreate,
 ) -> DepartmentOut:
-    if await branch_repo.get_branch_by_id(session, tenant_id, payload.branch_id) is None:
-        raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
+    await _require_active_branch(
+        session, tenant_id, payload.branch_id, "Cannot create a department under a deactivated branch."
+    )
 
     if payload.parent_dept_id is not None:
         parent = await dept_repo.get_department_by_id(session, tenant_id, payload.parent_dept_id)
@@ -52,6 +66,8 @@ async def create_department(
             raise ProblemError(400, "Invalid parent department", "Parent department does not exist in this tenant.")
         if parent.branch_id != payload.branch_id:
             raise ProblemError(400, "Invalid parent department", "Parent department must belong to the same branch.")
+        if not parent.is_active:
+            raise ProblemError(400, "Inactive parent department", "Cannot assign a deactivated department as parent.")
 
     department = Department(
         id=uuid4(),
@@ -83,20 +99,35 @@ async def update_department(
         raise ProblemError(404, "Department not found", "No department with that id exists in this tenant.")
 
     target_branch_id = payload.branch_id if payload.branch_id is not None else department.branch_id
-    if payload.branch_id is not None:
+    branch_changed = payload.branch_id is not None and payload.branch_id != department.branch_id
+    reactivating = payload.is_active is True and not department.is_active
+
+    if branch_changed:
+        await _require_active_branch(
+            session, tenant_id, payload.branch_id, "Cannot move a department to a deactivated branch."
+        )
+        if await dept_repo.has_sub_departments(session, tenant_id, department_id):
+            raise ProblemError(
+                409,
+                "Department has sub-departments",
+                "Cannot move a department with sub-departments to a different branch. "
+                "Move or re-parent its children first.",
+            )
+    elif payload.branch_id is not None:
         if await branch_repo.get_branch_by_id(session, tenant_id, payload.branch_id) is None:
             raise ProblemError(400, "Invalid branch", "Branch does not exist in this tenant.")
-        if payload.branch_id != department.branch_id:
-            if await dept_repo.has_sub_departments(session, tenant_id, department_id):
-                raise ProblemError(
-                    409,
-                    "Department has sub-departments",
-                    "Cannot move a department with sub-departments to a different branch. "
-                    "Move or re-parent its children first.",
-                )
+
+    if reactivating:
+        await _require_active_branch(
+            session,
+            tenant_id,
+            target_branch_id,
+            "Cannot activate a department while its branch is deactivated.",
+        )
 
     update_parent = "parent_dept_id" in payload.model_fields_set
     new_parent_id = payload.parent_dept_id if update_parent else department.parent_dept_id
+    parent_changed = update_parent and new_parent_id != department.parent_dept_id
 
     if update_parent and payload.parent_dept_id is None:
         pass
@@ -106,6 +137,10 @@ async def update_department(
             raise ProblemError(400, "Invalid parent department", "Parent department does not exist in this tenant.")
         if parent.branch_id != target_branch_id:
             raise ProblemError(400, "Invalid parent department", "Parent department must belong to the same branch.")
+        if (parent_changed or branch_changed or reactivating) and not parent.is_active:
+            raise ProblemError(
+                400, "Inactive parent department", "Cannot assign or activate under a deactivated parent department."
+            )
 
         # Cycle detection: traverse parent hierarchy
         curr = parent

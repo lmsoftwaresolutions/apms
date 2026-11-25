@@ -8,6 +8,7 @@ from app.core.errors import ProblemError
 from app.models.rollup_failure import AttendanceRollupFailure
 from app.modules.attendance.repository import find_attendance_record, find_rollup_failure
 from app.modules.attendance.service import calculate_and_save_daily_attendance
+from app.modules.employees.repository import list_active_employee_ids
 from app.modules.punches.repository import newest_active_punch_created_at
 from app.modules.roster.repository import list_dated_shift_instances
 
@@ -87,8 +88,15 @@ async def run_cutoff_rollup(session: AsyncSession, tenant_id, now: datetime) -> 
     start = now.astimezone(IST).date() - timedelta(days=LOOKBACK_DAYS)
     end = now.astimezone(IST).date()
     instances = await list_dated_shift_instances(session, tenant_id, start_date=start, end_date=end)
+    if not instances:
+        return 0
+    active_employee_ids = await list_active_employee_ids(
+        session, tenant_id, list({inst.employee_id for inst in instances})
+    )
     evaluated = 0
     for instance in instances:
+        if instance.employee_id not in active_employee_ids:
+            continue
         if not is_due(instance.calendar_date, list(instance.sessions or []), now, instance.is_rest_day):
             continue
         existing = await find_attendance_record(

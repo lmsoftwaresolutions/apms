@@ -19,10 +19,12 @@ from app.modules.overtime.repository import list_overtime_records
 router = APIRouter(prefix="/ess", tags=["ess"])
 
 
-async def _own_employee(session, current: CurrentUser):
+async def _own_employee(session, current: CurrentUser, *, require_active: bool = False):
     emp = await emp_repo.get_employee_by_user_id(session, current.tenant_id, current.user.id)
     if emp is None:
         raise ProblemError(404, "Employee profile missing", "This sign-in is not linked to an employee.")
+    if require_active and not emp.is_active:
+        raise ProblemError(403, "Inactive employee", "Your employee profile has been deactivated.")
     return emp
 
 
@@ -112,7 +114,7 @@ async def ess_apply_work_mode(
     session: SessionDep,
     current: Annotated[CurrentUser, Depends(require_permission("work_mode.request.create"))],
 ) -> WorkModeOut:
-    emp = await _own_employee(session, current)
+    emp = await _own_employee(session, current, require_active=True)
     row = await apply_work_mode(session, current.tenant_id, emp.id, payload)
     return WorkModeOut.model_validate(row)
 

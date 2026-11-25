@@ -211,8 +211,11 @@ export const api = {
     body: Partial<Pick<Designation, "name" | "code" | "description" | "is_active">>,
   ) => request<Designation>(`/api/v1/designations/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteDesignation: (id: string) => request(`/api/v1/designations/${id}`, { method: "DELETE" }),
-  employees: (departmentId: string) =>
-    request<EmployeeRow[]>(`/api/v1/employees?department_id=${encodeURIComponent(departmentId)}`),
+  employees: (departmentId: string, isActive?: boolean) => {
+    const query = new URLSearchParams({ department_id: departmentId });
+    if (isActive !== undefined) query.set("is_active", String(isActive));
+    return request<EmployeeRow[]>(`/api/v1/employees?${query.toString()}`);
+  },
   employeesList: (params?: { branch_id?: string; department_id?: string; is_active?: boolean }) => {
     const query = new URLSearchParams();
     if (params?.branch_id) query.set("branch_id", params.branch_id);

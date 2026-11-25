@@ -51,8 +51,11 @@ async def create_request(
     required_punches(request_type, requested_in, requested_out)
     assert_inside_day(calendar_date, requested_in)
     assert_inside_day(calendar_date, requested_out)
-    if await emp_repo.get_employee_by_id(session, tenant_id, employee_id) is None:
+    emp = await emp_repo.get_employee_by_id(session, tenant_id, employee_id)
+    if emp is None:
         raise ProblemError(404, "Employee not found", "No employee with that id exists in this tenant.")
+    if not emp.is_active:
+        raise ProblemError(400, "Inactive employee", "Cannot submit attendance regularization for a deactivated employee.")
     now = datetime.now(UTC)
     row = AttendanceRegularization(
         id=uuid4(),

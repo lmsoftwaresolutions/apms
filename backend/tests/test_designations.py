@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import UTC, date, datetime
 from uuid import uuid4
 
 import pytest
@@ -10,6 +10,8 @@ from app.models.branch import Branch
 from app.models.department import Department
 from app.models.designation import Designation
 from app.models.iam import Tenant
+from app.modules.departments.schemas import DepartmentCreate
+from app.modules.departments.service import create_department, delete_department
 from app.modules.designations.schemas import DesignationCreate, DesignationUpdate
 from app.modules.designations.service import (
     create_designation,
@@ -30,15 +32,71 @@ async def seeded_tenants() -> tuple[Tenant, Tenant]:
         return tenant_a, tenant_b
 
 
+async def _active_branch_and_depts(session, tenant_id, min_depts: int = 2) -> list[Department]:
+    depts = list(
+        (
+            await session.scalars(
+                select(Department)
+                .join(Branch, (Branch.id == Department.branch_id) & (Branch.tenant_id == Department.tenant_id))
+                .where(
+                    Department.tenant_id == tenant_id,
+                    Department.is_active.is_(True),
+                    Branch.is_active.is_(True),
+                )
+            )
+        ).all()
+    )
+    if len(depts) >= min_depts:
+        return depts
+    branch = await session.scalar(
+        select(Branch).where(Branch.tenant_id == tenant_id, Branch.is_active.is_(True))
+    )
+    if branch is None:
+        branch = Branch(
+            id=uuid4(),
+            tenant_id=tenant_id,
+            name="Test Active Branch",
+            code=f"TB_{uuid4().hex[:4].upper()}",
+            is_active=True,
+            created_at=datetime.now(UTC),
+        )
+        session.add(branch)
+        await session.flush()
+    while len(depts) < min_depts:
+        code = f"TD-{uuid4().hex[:4].upper()}"
+        created = await create_department(
+            session,
+            tenant_id,
+            DepartmentCreate(branch_id=branch.id, name=f"Test Dept {code}", code=code),
+        )
+        row = await session.get(Department, created.id)
+        assert row is not None
+        depts.append(row)
+    return depts
+
+
 @pytest.mark.asyncio
 async def test_designation_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) -> None:
     """Verify that Tenant B cannot query, update, or delete Tenant A's designations under RLS."""
     tenant_a, tenant_b = seeded_tenants
 
     # Step 1: Create a department and designation in Tenant A
+    created_temp_dept = False
     async with SessionLocal() as session_a:
         await set_tenant(session_a, tenant_a.id)
-        dept_a = await session_a.scalar(select(Department).where(Department.tenant_id == tenant_a.id))
+        dept_a = await session_a.scalar(
+            select(Department)
+            .join(Branch, (Branch.id == Department.branch_id) & (Branch.tenant_id == Department.tenant_id))
+            .where(
+                Department.tenant_id == tenant_a.id,
+                Department.is_active.is_(True),
+                Branch.is_active.is_(True),
+            )
+        )
+        if dept_a is None:
+            depts = await _active_branch_and_depts(session_a, tenant_a.id, min_depts=1)
+            dept_a = depts[0]
+            created_temp_dept = True
         assert dept_a
 
         code_a = f"OPR-{uuid4().hex[:4].upper()}"
@@ -83,6 +141,14 @@ async def test_designation_negative_rls(seeded_tenants: tuple[Tenant, Tenant]) -
             await delete_designation(session_b, tenant_b.id, desig_a.id)
         assert exc_del.value.status == 404
 
+    # Cleanup
+    async with SessionLocal() as session_a:
+        await set_tenant(session_a, tenant_a.id)
+        await delete_designation(session_a, tenant_a.id, desig_a.id)
+        if created_temp_dept:
+            await delete_department(session_a, tenant_a.id, dept_a.id)
+        await session_a.commit()
+
 
 @pytest.mark.asyncio
 async def test_designation_department_scoping_and_uniqueness(seeded_tenants: tuple[Tenant, Tenant]) -> None:
@@ -91,8 +157,8 @@ async def test_designation_department_scoping_and_uniqueness(seeded_tenants: tup
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        depts = list((await session.scalars(select(Department).where(Department.tenant_id == tenant_a.id))).all())
-        assert len(depts) >= 2, "North Mill must have at least 2 departments for test"
+        depts = await _active_branch_and_depts(session, tenant_a.id, min_depts=2)
+        assert len(depts) >= 2, "North Mill must have at least 2 active departments for test"
         dept_1, dept_2 = depts[0], depts[1]
 
         code = f"DES-{uuid4().hex[:4].upper()}"
@@ -151,15 +217,9 @@ async def test_designation_employee_linkage_and_cross_validation(seeded_tenants:
 
     async with SessionLocal() as session:
         await set_tenant(session, tenant_a.id)
-        depts = list((await session.scalars(select(Department).where(Department.tenant_id == tenant_a.id))).all())
+        depts = await _active_branch_and_depts(session, tenant_a.id, min_depts=2)
         assert len(depts) >= 2
         dept_1, dept_2 = depts[0], depts[1]
-
-        # Ensure branch is active for employee creation test
-        branch_1 = await session.get(Branch, dept_1.branch_id)
-        if branch_1 and not branch_1.is_active:
-            branch_1.is_active = True
-            await session.flush()
 
         # Create designation in dept_1
         code_1 = f"DES-{uuid4().hex[:4].upper()}"
