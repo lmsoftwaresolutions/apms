@@ -442,6 +442,21 @@ def test_muster_marks_pre_joining_inactive_and_keeps_review_off_absent():
     assert review[2] == 0.0
 
 
+def test_unrecognized_muster_status_is_not_a_full_day_at_240_minutes():
+    mark, present, absent, leave = classify_muster_cell(
+        calendar_date=date(2026, 11, 12),
+        date_of_joining=date(2026, 1, 1),
+        attendance_status="ON_DUTY_PENDING",
+        worked_minutes=240,
+        leave_code=None,
+        leave_days=None,
+        leave_portion=None,
+        is_holiday=False,
+        shift_is_rest=False,
+    )
+    assert (mark, present, absent, leave) == ("NR", 0.0, 0.0, 0.0)
+
+
 def test_muster_weekly_off_follows_the_shift_not_the_weekday():
     sunday = date(2026, 11, 1)  # Sunday
     working_sunday = classify_muster_cell(

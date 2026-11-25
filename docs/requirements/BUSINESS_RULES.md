@@ -80,6 +80,7 @@ This document serves as the **single source of truth** for all business logic, m
 ### BR-ATT-18: Read-vs-Write Decoupling & Display Side-Effect Ban
 - Accessing or rendering attendance views, muster rolls, or payroll previews must execute strictly in read-only mode (`SELECT`).
 - No query or viewing operation may mutate persisted attendance records or explanation traces.
+- A muster cell shows the stored daily status. An unrecognized status stays `NR` and is not counted as present, half-day, or absent from worked minutes.
 
 ---
 

@@ -38,6 +38,7 @@ def classify_muster_cell(
     Dates before joining stay inactive ("-") and do not count as absent.
     A lone punch stays NEEDS_REVIEW ("NR") instead of absent.
     Weekly off comes only from the dated shift, not from the weekday.
+    An unrecognized status stays NR. Worked minutes do not promote it to present or half-day.
     """
     if date_of_joining is not None and calendar_date < date_of_joining:
         return "-", 0.0, 0.0, 0.0
@@ -57,14 +58,8 @@ def classify_muster_cell(
         return "H", 0.0, 0.0, 0.0
     if attendance_status == "ABSENT":
         return "A", 0.0, 1.0, 0.0
-    if attendance_status == "NEEDS_REVIEW":
-        return "NR", 0.0, 0.0, 0.0
     if attendance_status is not None:
-        if worked_minutes >= 240:
-            return "P", 1.0, 0.0, 0.0
-        if worked_minutes > 0:
-            return "HD", 0.5, 0.5, 0.0
-        return "A", 0.0, 1.0, 0.0
+        return "NR", 0.0, 0.0, 0.0
     if is_holiday:
         return "H", 0.0, 0.0, 0.0
     if shift_is_rest:
