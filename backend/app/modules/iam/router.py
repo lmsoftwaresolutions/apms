@@ -12,6 +12,7 @@ from app.modules.iam.schemas import (
     RoleCreate,
     RoleOut,
     RoleUpdate,
+    UserCreate,
     UserOut,
 )
 from app.services.idempotency import replay_or_reserve, store_response
@@ -25,6 +26,15 @@ async def users(
     current: Annotated[CurrentUser, Depends(require_permission("iam.assignment.read"))],
 ) -> list[UserOut]:
     return await iam_service.list_users(session, current.tenant_id)
+
+
+@router.post("/users", response_model=UserOut, status_code=201, summary="Invite or create a user")
+async def create_user_endpoint(
+    payload: UserCreate,
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("iam.assignment.create"))],
+) -> UserOut:
+    return await iam_service.create_user(session, current.tenant_id, payload)
 
 
 @router.post("/users/{user_id}/roles", response_model=UserOut, status_code=201, summary="Assign a role")
