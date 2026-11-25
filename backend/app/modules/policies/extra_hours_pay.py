@@ -19,6 +19,40 @@ def _decimal(value: Any) -> Decimal | None:
     return Decimal(str(value))
 
 
+def decide_overtime_status(
+    *,
+    auto_enabled: bool,
+    mode: str | None,
+    raw_minutes: int,
+    threshold_minutes: int | None,
+    work_mode: str | None,
+    wfh_requires_approval: bool,
+    has_pay_rate: bool,
+) -> tuple[str, int]:
+    """Return status and approved minutes. Nothing here is approved unless the admin turned auto-approval on and set the matching rule."""
+    unreviewed = ("UNREVIEWED", 0)
+    if not has_pay_rate or not auto_enabled or raw_minutes <= 0:
+        return unreviewed
+
+    if mode == "WFH_ONLY":
+        if work_mode == "WFH":
+            return ("APPROVED_FOR_PAY", raw_minutes)
+        return unreviewed
+
+    wfh_blocked = work_mode == "WFH" and wfh_requires_approval
+    if mode == "AUTO_APPROVE_ALL":
+        if wfh_blocked:
+            return unreviewed
+        return ("APPROVED_FOR_PAY", raw_minutes)
+
+    if mode in {"AUTO_APPROVE_BELOW_THRESHOLD", "THRESHOLD_BASED"}:
+        if wfh_blocked or threshold_minutes is None or raw_minutes > threshold_minutes:
+            return unreviewed
+        return ("APPROVED_FOR_PAY", raw_minutes)
+
+    return unreviewed
+
+
 def resolve_extra_hours_pay(policy: object | None) -> ExtraHoursPay:
     """A fixed amount above zero is the pay rate.
 

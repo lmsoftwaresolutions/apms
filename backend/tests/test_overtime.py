@@ -18,7 +18,8 @@ from app.models.iam import Role, Tenant, User, UserRole
 from app.models.leave import LeaveTransaction, LeaveType
 from app.models.overtime import OvertimeRecord
 from app.models.policy import PolicyMaster
-from app.models.punch import PunchEvent, RawEnvelope
+from app.models.roster import DatedShiftInstance
+from app.models.shift import ShiftTemplate
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
 from app.modules.attendance.service import calculate_and_save_daily_attendance
 from app.modules.overtime.repository import get_overtime_record, list_overtime_records
@@ -34,6 +35,38 @@ from app.modules.overtime.service import (
 )
 from app.modules.policies.schemas import PolicyCreate
 from app.modules.policies.service import create_policy
+
+
+async def _link_policy(session, tenant_id, employee_id, policy_id, *days: date) -> None:
+    now = datetime.now(UTC)
+    template = ShiftTemplate(
+        id=uuid4(),
+        tenant_id=tenant_id,
+        policy_id=policy_id,
+        code=f"OT_{uuid4().hex[:6].upper()}",
+        name="Overtime policy shift",
+        shift_type="FIXED",
+        created_at=now,
+        updated_at=now,
+    )
+    session.add(template)
+    await session.flush()
+    for day in days:
+        session.add(
+            DatedShiftInstance(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                employee_id=employee_id,
+                calendar_date=day,
+                shift_template_id=template.id,
+                status="SCHEDULED",
+                resolution_mode="DIRECT_ASSIGNMENT",
+                sessions=[],
+                created_at=now,
+                updated_at=now,
+            )
+        )
+    await session.flush()
 
 
 @pytest.fixture
@@ -504,6 +537,18 @@ async def test_overtime_convert_to_compoff_double_entry(seeded_tenants: tuple[Te
         emp = await _create_test_employee(session, tenant.id)
         admin_user = await session.scalar(select(User).where(User.tenant_id == tenant.id))
         assert admin_user is not None
+        comp_policy = await create_policy(
+            session,
+            tenant.id,
+            PolicyCreate(
+                code=f"COMP_{uuid4().hex[:6].upper()}",
+                name="Comp-off day length",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                comp_off_minutes_per_day=480,
+            ),
+        )
+        await _link_policy(session, tenant.id, emp.id, comp_policy.id, date(2026, 11, 15), date(2026, 11, 16))
 
         # 1. 480 mins (8 hours) -> 1.0 day comp-off
         d1 = date(2026, 11, 15)
@@ -597,7 +642,7 @@ async def test_overtime_convert_to_compoff_double_entry(seeded_tenants: tuple[Te
 async def test_statutory_quarterly_cap_enforcement(seeded_tenants: tuple[Tenant, Tenant]):
     """Invariant 5: Statutory quarterly OT cap (125 hours = 7500 minutes) parameterization.
 
-    Approving OT that causes total quarterly approved OT to exceed 7500 mins raises 422.
+    Approving OT that causes total quarterly approved OT to exceed the policy cap raises 422.
     """
     tenant, _ = seeded_tenants
 
@@ -606,6 +651,18 @@ async def test_statutory_quarterly_cap_enforcement(seeded_tenants: tuple[Tenant,
         emp = await _create_test_employee(session, tenant.id)
         admin_user = await session.scalar(select(User).where(User.tenant_id == tenant.id))
         assert admin_user is not None
+        cap_policy = await create_policy(
+            session,
+            tenant.id,
+            PolicyCreate(
+                code=f"CAP_{uuid4().hex[:6].upper()}",
+                name="Quarterly cap",
+                half_day_work_duration_minutes=240,
+                full_day_work_duration_minutes=540,
+                quarterly_ot_cap_minutes=7500,
+            ),
+        )
+        await _link_policy(session, tenant.id, emp.id, cap_policy.id, date(2026, 11, 1), date(2026, 11, 20))
 
         # Existing approved OT in Q4 (Nov 2026): 7440 mins (124 hours)
         d_base = date(2026, 11, 1)
@@ -656,7 +713,7 @@ async def test_statutory_quarterly_cap_enforcement(seeded_tenants: tuple[Tenant,
                 supervisor_id=admin_user.id,
             )
         assert exc_info.value.status == 422
-        assert "statutory quarterly overtime cap of 125 hours" in exc_info.value.detail
+        assert "quarterly overtime cap of 7500 minutes" in exc_info.value.detail
 
         # Approving 60 mins (7440 + 60 = 7500 == 125 hours) must succeed
         approved = await approve_overtime(

@@ -127,6 +127,10 @@ Tenant policy bands map ratio $R$ to daily attendance status:
 - The extra-hours rate is blank until an admin sets it. The system does not assume 1.5× or any other rate.
 - An extra-hours amount greater than zero is the pay rate for that unit: per minute, per hour, or per day.
 - When the amount is zero or omitted, a multiplier greater than zero is the rate instead. When both are omitted, extra hours are recorded and are not paid.
+- `WFH_ONLY` auto-approves overtime only on a work-from-home day, and only when overtime auto-approval is enabled. `THRESHOLD_BASED` and `AUTO_APPROVE_BELOW_THRESHOLD` auto-approve only up to the threshold the admin entered. A blank threshold does not auto-approve.
+- The daily overtime cap is `max_ot_minutes_per_day`. The quarterly cap is `quarterly_ot_cap_minutes`. Neither is filled in by the system. A blank cap is not enforced.
+- Comp-off conversion uses `comp_off_minutes_per_day` from the shift policy. Conversion is refused until the admin sets that value.
+- The work-from-home auto-approval quota is blank until the admin sets it. Auto-approval does not run without both the switch and a quota.
 
 ### BR-WFH-01: WFH Auto-Approval Quota (Confirmed Q6)
 - Tenants can configure a monthly Work-From-Home (WFH) quota (e.g., 4 days per calendar month).

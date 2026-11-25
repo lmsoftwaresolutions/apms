@@ -1,4 +1,4 @@
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID, uuid4
 
@@ -11,10 +11,15 @@ from app.models.overtime import OvertimeRecord
 from app.modules.overtime.repository import (
     get_overtime_record,
     get_quarterly_approved_ot_minutes,
-    get_statutory_ot_cap,
     insert_or_update_overtime_record,
     list_overtime_records,
 )
+
+
+async def _policy_for_day(session: AsyncSession, tenant_id: UUID, employee_id: UUID, day: date):
+    from app.modules.work_modes.service import resolve_employee_policy
+
+    return await resolve_employee_policy(session, tenant_id, employee_id, day)
 
 
 async def approve_overtime(
@@ -38,15 +43,20 @@ async def approve_overtime(
     used_minutes = await get_quarterly_approved_ot_minutes(
         session, tenant_id, rec.employee_id, rec.overtime_date.year, quarter, exclude_record_id=rec.id
     )
-    cap = await get_statutory_ot_cap(session, state_code="DEFAULT", as_of=rec.overtime_date)
-    quarterly_cap_hours = cap.quarterly_cap_hours if cap else 125
-    quarterly_cap_minutes = quarterly_cap_hours * 60
-
-    if (used_minutes + approved_minutes) > quarterly_cap_minutes:
+    policy = await _policy_for_day(session, tenant_id, rec.employee_id, rec.overtime_date)
+    daily_cap = getattr(policy, "max_ot_minutes_per_day", None) if policy is not None else None
+    if daily_cap is not None and approved_minutes > daily_cap:
         raise ProblemError(
             422,
-            "Statutory cap exceeded",
-            f"Approval exceeds statutory quarterly overtime cap of {quarterly_cap_hours} hours",
+            "Daily overtime cap exceeded",
+            f"Approval exceeds the daily overtime cap of {daily_cap} minutes configured on the policy.",
+        )
+    quarterly_cap = getattr(policy, "quarterly_ot_cap_minutes", None) if policy is not None else None
+    if quarterly_cap is not None and (used_minutes + approved_minutes) > quarterly_cap:
+        raise ProblemError(
+            422,
+            "Quarterly overtime cap exceeded",
+            f"Approval exceeds the quarterly overtime cap of {quarterly_cap} minutes configured on the policy.",
         )
 
     now = datetime.now(UTC)
@@ -79,8 +89,15 @@ async def convert_to_compoff(
     if ot_mins <= 0:
         raise ProblemError(422, "No overtime minutes", "Cannot convert zero overtime minutes to comp-off.")
 
-    # 1. Double-Entry Comp-off Days: Decimal(ot_mins) / Decimal(480) rounded to 1 decimal place (Invariant 3)
-    calculated_days = round(Decimal(str(ot_mins)) / Decimal("480"), 1)
+    policy = await _policy_for_day(session, tenant_id, rec.employee_id, rec.overtime_date)
+    minutes_per_day = getattr(policy, "comp_off_minutes_per_day", None) if policy is not None else None
+    if minutes_per_day is None or minutes_per_day <= 0:
+        raise ProblemError(
+            422,
+            "Comp-off day length is not configured",
+            "Set how many minutes equal one comp-off day on the shift policy before converting overtime.",
+        )
+    calculated_days = round(Decimal(str(ot_mins)) / Decimal(str(minutes_per_day)), 1)
     if calculated_days <= 0:
         raise ProblemError(422, "Comp-off too small", "These overtime minutes round to zero comp-off days.")
 

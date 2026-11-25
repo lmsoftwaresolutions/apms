@@ -10,7 +10,6 @@ from app.modules.employees.repository import get_employee_by_user_id
 from app.modules.overtime.repository import (
     get_overtime_record,
     get_quarterly_approved_ot_minutes,
-    get_statutory_ot_cap,
     list_overtime_records,
 )
 from app.modules.overtime.schemas import (
@@ -114,8 +113,10 @@ async def get_overtime_detail(
     used_mins = await get_quarterly_approved_ot_minutes(
         session, current.tenant_id, rec.employee_id, rec.overtime_date.year, quarter
     )
-    cap = await get_statutory_ot_cap(session, state_code="DEFAULT", as_of=rec.overtime_date)
-    cap_mins = (cap.quarterly_cap_hours * 60) if cap else 125 * 60
+    from app.modules.overtime.service import _policy_for_day
+
+    policy = await _policy_for_day(session, current.tenant_id, rec.employee_id, rec.overtime_date)
+    cap_mins = getattr(policy, "quarterly_ot_cap_minutes", None) if policy is not None else None
 
     out = OvertimeRecordOut.model_validate(rec)
     out.quarterly_ot_minutes_used = used_mins

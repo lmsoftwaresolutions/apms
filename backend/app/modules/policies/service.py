@@ -63,6 +63,8 @@ async def create_policy(session: AsyncSession, tenant_id: UUID, data: PolicyCrea
         wfh_ot_requires_approval=data.wfh_ot_requires_approval,
         ot_approval_mode=data.ot_approval_mode,
         ot_auto_approve_threshold_minutes=data.ot_auto_approve_threshold_minutes,
+        quarterly_ot_cap_minutes=data.quarterly_ot_cap_minutes,
+        comp_off_minutes_per_day=data.comp_off_minutes_per_day,
         max_free_lates_per_month=data.max_free_lates_per_month,
         late_penalty_action=data.late_penalty_action,
         late_penalty_leave_type_id=data.late_penalty_leave_type_id,

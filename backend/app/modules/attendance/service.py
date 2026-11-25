@@ -269,28 +269,18 @@ async def calculate_and_save_daily_attendance(
     raw_ot_mins = candidate_ot_mins
 
     if raw_ot_mins > 0:
-        from app.modules.policies.extra_hours_pay import resolve_extra_hours_pay
+        from app.modules.policies.extra_hours_pay import decide_overtime_status, resolve_extra_hours_pay
 
         pay = resolve_extra_hours_pay(effective_policy)
-        ot_approval_mode = getattr(effective_policy, "ot_approval_mode", "ALWAYS_REQUIRE_APPROVAL")
-        ot_threshold = getattr(effective_policy, "ot_auto_approve_threshold_minutes", 0) or 0
-
-        ot_auto_enabled = getattr(effective_policy, "overtime_auto_approval_enabled", False) is True
-        if pay.basis == "NONE" or not ot_auto_enabled:
-            ot_status = "UNREVIEWED"
-            approved_mins = 0
-        elif wfh_needs_supervisor:
-            ot_status = "UNREVIEWED"
-            approved_mins = 0
-        elif ot_approval_mode == "AUTO_APPROVE_ALL":
-            ot_status = "APPROVED_FOR_PAY"
-            approved_mins = raw_ot_mins
-        elif ot_approval_mode == "AUTO_APPROVE_BELOW_THRESHOLD" and raw_ot_mins <= ot_threshold:
-            ot_status = "APPROVED_FOR_PAY"
-            approved_mins = raw_ot_mins
-        else:
-            ot_status = "UNREVIEWED"
-            approved_mins = 0
+        ot_status, approved_mins = decide_overtime_status(
+            auto_enabled=getattr(effective_policy, "overtime_auto_approval_enabled", False) is True,
+            mode=getattr(effective_policy, "ot_approval_mode", None),
+            raw_minutes=raw_ot_mins,
+            threshold_minutes=getattr(effective_policy, "ot_auto_approve_threshold_minutes", None),
+            work_mode=work_mode_code,
+            wfh_requires_approval=wfh_needs_supervisor,
+            has_pay_rate=pay.basis != "NONE",
+        )
 
         if pay.basis == "NONE":
             if existing_ot is not None and existing_ot.status == "UNREVIEWED":

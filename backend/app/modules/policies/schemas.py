@@ -44,7 +44,7 @@ class PolicyBase(BaseModel):
     # Work Modes & Mode-Gated Controls
     allow_wfh: bool = True
     wfh_auto_approval_enabled: bool = False
-    wfh_monthly_auto_quota: int = Field(default=4, ge=0)
+    wfh_monthly_auto_quota: int | None = Field(default=None, ge=0)
     allow_overtime: bool = True
     overtime_auto_approval_enabled: bool = False
     allow_wfh_overtime: bool = False
@@ -57,7 +57,9 @@ class PolicyBase(BaseModel):
         "THRESHOLD_BASED",
         "DISABLED",
     ] = "ALWAYS_REQUIRE_APPROVAL"
-    ot_auto_approve_threshold_minutes: int = Field(default=0, ge=0)
+    ot_auto_approve_threshold_minutes: int | None = Field(default=None, ge=0)
+    quarterly_ot_cap_minutes: int | None = Field(default=None, ge=0)
+    comp_off_minutes_per_day: int | None = Field(default=None, gt=0)
     max_free_lates_per_month: int = Field(default=3, ge=0)
     late_penalty_action: Literal["WARNING", "DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"] = "WARNING"
     late_penalty_leave_type_id: UUID | None = None
@@ -117,6 +119,8 @@ class PolicyUpdate(BaseModel):
         "DISABLED",
     ] | None = None
     ot_auto_approve_threshold_minutes: int | None = Field(default=None, ge=0)
+    quarterly_ot_cap_minutes: int | None = Field(default=None, ge=0)
+    comp_off_minutes_per_day: int | None = Field(default=None, gt=0)
     max_free_lates_per_month: int | None = Field(default=None, ge=0)
     late_penalty_action: Literal["WARNING", "DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"] | None = None
     late_penalty_leave_type_id: UUID | None = None
@@ -143,6 +147,8 @@ class PolicyOverrideCreate(BaseModel):
         "ALWAYS_REQUIRE_APPROVAL",
         "AUTO_APPROVE_ALL",
         "AUTO_APPROVE_BELOW_THRESHOLD",
+        "WFH_ONLY",
+        "THRESHOLD_BASED",
         "DISABLED",
     ] | None = None
     allow_wfh_overtime: bool | None = None
@@ -160,6 +166,8 @@ class PolicyOverrideUpdate(BaseModel):
         "ALWAYS_REQUIRE_APPROVAL",
         "AUTO_APPROVE_ALL",
         "AUTO_APPROVE_BELOW_THRESHOLD",
+        "WFH_ONLY",
+        "THRESHOLD_BASED",
         "DISABLED",
     ] | None = None
     allow_wfh_overtime: bool | None = None
@@ -191,7 +199,7 @@ class EffectivePolicyConfig(BaseModel):
     employee_id: UUID
     effective_allow_wfh: bool
     effective_wfh_auto_approval_enabled: bool
-    effective_wfh_quota: int
+    effective_wfh_quota: int | None
     effective_allow_overtime: bool
     effective_overtime_auto_approval_enabled: bool
     effective_ot_approval_mode: str

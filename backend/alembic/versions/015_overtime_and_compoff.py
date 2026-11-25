@@ -87,7 +87,7 @@ STATEMENTS = [
       ADD COLUMN allow_wfh boolean NOT NULL DEFAULT true,
       ADD COLUMN allow_overtime boolean NOT NULL DEFAULT true,
       ADD COLUMN wfh_ot_requires_approval boolean NOT NULL DEFAULT true,
-      ADD COLUMN ot_auto_approve_threshold_minutes integer NOT NULL DEFAULT 0
+      ADD COLUMN ot_auto_approve_threshold_minutes integer,
     """,
     """
     ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_ot_approval_mode
@@ -112,6 +112,10 @@ STATEMENTS = [
       ADD COLUMN extra_hours_amount_unit varchar(10),
       ADD COLUMN wfh_auto_approval_enabled boolean NOT NULL DEFAULT false,
       ADD COLUMN overtime_auto_approval_enabled boolean NOT NULL DEFAULT false,
+      ADD COLUMN quarterly_ot_cap_minutes integer,
+      ADD COLUMN comp_off_minutes_per_day integer,
+      ALTER COLUMN wfh_monthly_auto_quota DROP DEFAULT,
+      ALTER COLUMN wfh_monthly_auto_quota DROP NOT NULL,
       ADD CONSTRAINT ck_policy_extra_hours_unit CHECK (
         extra_hours_amount_unit IS NULL OR extra_hours_amount_unit IN ('MINUTE', 'HOUR', 'DAY')
       ),
@@ -154,6 +158,8 @@ STATEMENTS = [
               'ALWAYS_REQUIRE_APPROVAL',
               'AUTO_APPROVE_ALL',
               'AUTO_APPROVE_BELOW_THRESHOLD',
+              'WFH_ONLY',
+              'THRESHOLD_BASED',
               'DISABLED'
             )
           )
@@ -166,8 +172,8 @@ STATEMENTS = [
     CREATE TABLE statutory_ot_caps (
       id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
       state_code varchar(10) NOT NULL,
-      quarterly_cap_hours integer NOT NULL DEFAULT 125,
-      daily_cap_hours integer DEFAULT 4,
+      quarterly_cap_hours integer,
+      daily_cap_hours integer,
       effective_from date NOT NULL,
       effective_to date,
       created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
@@ -175,11 +181,6 @@ STATEMENTS = [
     )
     """,
     "GRANT SELECT ON statutory_ot_caps TO apms_app",
-    """
-    INSERT INTO statutory_ot_caps (state_code, quarterly_cap_hours, daily_cap_hours, effective_from, effective_to)
-    VALUES ('DEFAULT', 125, 4, '2020-01-01', NULL)
-    ON CONFLICT (state_code, effective_from) DO NOTHING
-    """,
     *_tenant_table(
         "overtime_records",
         """
@@ -303,10 +304,15 @@ def downgrade() -> None:
               DROP COLUMN IF EXISTS extra_hours_amount_unit,
               DROP COLUMN IF EXISTS extra_hours_amount,
               DROP COLUMN IF EXISTS wfh_auto_approval_enabled,
-              DROP COLUMN IF EXISTS overtime_auto_approval_enabled
+              DROP COLUMN IF EXISTS overtime_auto_approval_enabled,
+              DROP COLUMN IF EXISTS quarterly_ot_cap_minutes,
+              DROP COLUMN IF EXISTS comp_off_minutes_per_day
             """
         )
     )
+    conn.execute(text("UPDATE policy_master SET wfh_monthly_auto_quota = 4 WHERE wfh_monthly_auto_quota IS NULL"))
+    conn.execute(text("ALTER TABLE policy_master ALTER COLUMN wfh_monthly_auto_quota SET DEFAULT 4"))
+    conn.execute(text("ALTER TABLE policy_master ALTER COLUMN wfh_monthly_auto_quota SET NOT NULL"))
     conn.execute(text("UPDATE policy_master SET ot_multiplier = 1.50 WHERE ot_multiplier IS NULL"))
     conn.execute(text("ALTER TABLE policy_master ALTER COLUMN ot_multiplier SET DEFAULT 1.50"))
     conn.execute(text("ALTER TABLE policy_master ALTER COLUMN ot_multiplier SET NOT NULL"))

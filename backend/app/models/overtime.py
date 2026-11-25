@@ -33,8 +33,8 @@ class StatutoryOTCap(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True)
     state_code: Mapped[str] = mapped_column(String(10))
-    quarterly_cap_hours: Mapped[int] = mapped_column(Integer, default=125)
-    daily_cap_hours: Mapped[int | None] = mapped_column(Integer, default=4)
+    quarterly_cap_hours: Mapped[int | None] = mapped_column(Integer, default=None)
+    daily_cap_hours: Mapped[int | None] = mapped_column(Integer, default=None)
     effective_from: Mapped[date] = mapped_column(Date)
     effective_to: Mapped[date | None] = mapped_column(Date, default=None)
     created_at: Mapped[datetime]
