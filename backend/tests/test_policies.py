@@ -656,6 +656,33 @@ def test_late_departure_beyond_ignore_counts_in_full():
     assert decision.overtime_minutes == 45
 
 
+def test_early_and_late_beyond_ignore_add_together():
+    """08:10 to 18:55 is 50 minutes early and 55 minutes late, so overtime is 105."""
+    cal_date = date(2026, 11, 20)
+    policy = PolicyMaster(
+        id=uuid4(),
+        tenant_id=uuid4(),
+        code="POL_BOTH",
+        name="Early and late beyond ignore",
+        early_arrival_ignore_minutes=10,
+        late_departure_ignore_minutes=30,
+        ot_minimum_minutes=30,
+        full_day_work_duration_minutes=480,
+        half_day_work_duration_minutes=240,
+    )
+    arrived = datetime(2026, 11, 20, 2, 40, tzinfo=UTC)  # 08:10 IST
+    left = datetime(2026, 11, 20, 13, 25, tzinfo=UTC)  # 18:55 IST
+    punches = [_punch(policy.tenant_id, arrived), _punch(policy.tenant_id, left)]
+    pairing = pair_punches_for_shift(_nine_to_six(cal_date), punches, policy=policy)
+    decision = evaluate_daily_rollup(pairing, policy=policy)
+    assert pairing.sessions[0].in_punch == arrived
+    assert pairing.sessions[0].out_punch == left
+    assert punches[0].punch_time == arrived
+    assert punches[1].punch_time == left
+    assert pairing.total_worked_minutes == 645
+    assert decision.overtime_minutes == 105
+
+
 def test_all_in_out_excludes_the_gap_between_pairs():
     cal_date = date(2026, 11, 20)
     policy = PolicyMaster(

@@ -34,6 +34,7 @@ This document serves as the **single source of truth** for all business logic, m
   1. In at 08:50 and out at 18:30. Both deviations sit inside the windows. Duration is 09:00–18:00 (540 minutes) and overtime is 0. The stored punches remain 08:50 and 18:30.
   2. In at 08:20 and out at 18:00. The 40-minute early arrival is larger than 10, so all 40 minutes count. Overtime is 40. The in punch remains 08:20.
   3. In at 09:00 and out at 18:45. The 45-minute late stay is larger than 30, so all 45 minutes count. Overtime is 45. The out punch remains 18:45.
+  4. In at 08:10 and out at 18:55. The arrival is 50 minutes early and the departure is 55 minutes late. Both are larger than their windows, so both count in full: 50 + 55 = 105 minutes of overtime. The punches remain 08:10 and 18:55.
 
 ### BR-ATT-02: Mid-Shift Gap Handling (Confirmed N65)
 - In multi-session shifts (e.g., Morning Session 08:00–12:00, Evening Session 16:00–20:00), the interval between sessions:
