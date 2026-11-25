@@ -171,8 +171,8 @@ export const api = {
       body: JSON.stringify({ email, password }),
     }),
   me: () => request<Me>("/api/v1/auth/me"),
-  updateTenant: (display_name: string) =>
-    request<Tenant>("/api/v1/auth/tenant", { method: "PATCH", body: JSON.stringify({ display_name }) }),
+  updateTenant: (payload: { display_name?: string | null; logo_url?: string | null }) =>
+    request<Tenant>("/api/v1/auth/tenant", { method: "PATCH", body: JSON.stringify(payload) }),
   branches: () => request<Branch[]>("/api/v1/branches"),
   createBranch: (name: string, code: string) =>
     request<Branch>("/api/v1/branches", {

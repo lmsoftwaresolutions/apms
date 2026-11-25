@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Plus, Network, Trash2, Power, Filter } from "lucide-react";
+import { Plus, Network, Trash2, Power, Filter, Pencil } from "lucide-react";
 import { api, Branch, Department } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -18,14 +18,15 @@ export function DepartmentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Add Department Modal
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Add / Edit Department Modal
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingDept, setEditingDept] = useState<Department | null>(null);
   const [modalBranchId, setModalBranchId] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [parentId, setParentId] = useState("");
-  const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [createError, setCreateError] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Delete & Deactivate Modals
   const [deleteTarget, setDeleteTarget] = useState<Department | null>(null);
@@ -64,27 +65,87 @@ export function DepartmentsPage() {
   const departments = allDepartments.filter((d) => !selectedBranchId || d.branch_id === selectedBranchId);
   const selectedBranch = branches.find((b) => b.id === selectedBranchId);
   const effectiveModalBranchId = modalBranchId || branches.find((b) => b.is_active)?.id || "";
+
+  const descendantIds = new Set<string>();
+  if (editingDept) {
+    const queue = [editingDept.id];
+    while (queue.length > 0) {
+      const currId = queue.shift()!;
+      for (const d of allDepartments) {
+        if (d.parent_dept_id === currId && !descendantIds.has(d.id) && d.id !== editingDept.id) {
+          descendantIds.add(d.id);
+          queue.push(d.id);
+        }
+      }
+    }
+  }
+
+  const editingHasChildren = Boolean(editingDept && descendantIds.size > 0);
+  const modalBranchCandidates = branches.filter((b) => b.is_active || b.id === editingDept?.branch_id);
   const modalParentCandidates = allDepartments.filter(
-    (d) => d.branch_id === effectiveModalBranchId && d.is_active
+    (d) =>
+      d.branch_id === effectiveModalBranchId &&
+      d.id !== editingDept?.id &&
+      !descendantIds.has(d.id) &&
+      (d.is_active || d.id === editingDept?.parent_dept_id),
   );
 
-  async function handleCreate(e: FormEvent) {
+  function openCreateModal() {
+    const activeSelected = branches.find((b) => b.id === selectedBranchId && b.is_active);
+    const firstActive = branches.find((b) => b.is_active);
+    setEditingDept(null);
+    setModalBranchId(activeSelected ? activeSelected.id : firstActive?.id || "");
+    setName("");
+    setCode("");
+    setParentId("");
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function openEditModal(dept: Department) {
+    setEditingDept(dept);
+    setModalBranchId(dept.branch_id);
+    setName(dept.name);
+    setCode(dept.code);
+    setParentId(dept.parent_dept_id || "");
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function closeFormModal() {
+    setIsFormOpen(false);
+    setEditingDept(null);
+    setFormError("");
+  }
+
+  async function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
     const branchIdToUse = effectiveModalBranchId;
-    if (!branchIdToUse || !name || code.length < 2) return;
-    setCreateSubmitting(true);
-    setCreateError("");
+    const trimmedName = name.trim();
+    const trimmedCode = code.trim().toUpperCase();
+    if (!branchIdToUse || !trimmedName || trimmedCode.length < 2) return;
+    setFormSubmitting(true);
+    setFormError("");
     try {
-      await api.createDepartment(branchIdToUse, name, code.toUpperCase(), parentId || null);
+      if (editingDept) {
+        await api.updateDepartment(editingDept.id, {
+          branch_id: branchIdToUse,
+          name: trimmedName,
+          code: trimmedCode,
+          parent_dept_id: parentId || null,
+        });
+      } else {
+        await api.createDepartment(branchIdToUse, trimmedName, trimmedCode, parentId || null);
+      }
       setName("");
       setCode("");
       setParentId("");
-      setIsCreateOpen(false);
+      closeFormModal();
       await loadData(branchIdToUse);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create department");
+      setFormError(err instanceof Error ? err.message : `Failed to ${editingDept ? "update" : "create"} department`);
     } finally {
-      setCreateSubmitting(false);
+      setFormSubmitting(false);
     }
   }
 
@@ -130,7 +191,7 @@ export function DepartmentsPage() {
   }
 
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
-  const departmentById = new Map(departments.map((dept) => [dept.id, dept]));
+  const departmentById = new Map(allDepartments.map((dept) => [dept.id, dept]));
 
   function parentLabel(parentDeptId: string | null | undefined) {
     if (!parentDeptId) return "—";
@@ -171,12 +232,7 @@ export function DepartmentsPage() {
             <Button
               variant="primary"
               icon={<Plus size={16} />}
-              onClick={() => {
-                const activeBranch = branches.find((b) => b.id === selectedBranchId && b.is_active);
-                const firstActive = branches.find((b) => b.is_active);
-                setModalBranchId(activeBranch ? activeBranch.id : firstActive?.id || "");
-                setIsCreateOpen(true);
-              }}
+              onClick={openCreateModal}
               disabled={branches.filter((b) => b.is_active).length === 0}
             >
               Add Department
@@ -220,13 +276,7 @@ export function DepartmentsPage() {
             can("org.department.create") && branches.some((b) => b.is_active)
               ? {
                   label: "Add Department",
-                  onClick: () => {
-                    const activeSelected = branches.find((b) => b.id === selectedBranchId && b.is_active);
-                    const firstActive = branches.find((b) => b.is_active);
-                    setModalBranchId(activeSelected ? activeSelected.id : firstActive?.id || "");
-                    setParentId("");
-                    setIsCreateOpen(true);
-                  },
+                  onClick: openCreateModal,
                   icon: <Plus size={16} />,
                 }
               : undefined
@@ -242,7 +292,7 @@ export function DepartmentsPage() {
                 {branches.length > 1 ? <th>Branch</th> : null}
                 <th>Parent Unit</th>
                 <th style={{ width: "120px" }}>Status</th>
-                <th style={{ width: "200px", textAlign: "right" }}>Actions</th>
+                <th style={{ width: "260px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -269,14 +319,25 @@ export function DepartmentsPage() {
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                         {can("org.department.update") ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            icon={<Power size={14} />}
-                            onClick={() => handleToggleActive(dept)}
-                          >
-                            {dept.is_active ? "Deactivate" : "Activate"}
-                          </Button>
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<Pencil size={14} />}
+                              onClick={() => openEditModal(dept)}
+                              title="Edit department"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<Power size={14} />}
+                              onClick={() => handleToggleActive(dept)}
+                            >
+                              {dept.is_active ? "Deactivate" : "Activate"}
+                            </Button>
+                          </>
                         ) : null}
                         {can("org.department.delete") ? (
                           <Button
@@ -297,40 +358,34 @@ export function DepartmentsPage() {
         </div>
       )}
 
-      {/* Add Department Modal */}
+      {/* Add / Edit Department Modal */}
       <Modal
-        isOpen={isCreateOpen}
-        onClose={() => {
-          setIsCreateOpen(false);
-          setCreateError("");
-        }}
-        title="Add Department"
-        description="Create a department within a selected branch."
+        isOpen={isFormOpen}
+        onClose={closeFormModal}
+        title={editingDept ? "Edit Department" : "Add Department"}
+        description={
+          editingDept
+            ? `Update details, branch assignment, or parent hierarchy for ${editingDept.name} (${editingDept.code}).`
+            : "Create a department within a selected branch."
+        }
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsCreateOpen(false);
-                setCreateError("");
-              }}
-              disabled={createSubmitting}
-            >
+            <Button variant="secondary" onClick={closeFormModal} disabled={formSubmitting}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              onClick={(e) => handleCreate(e as unknown as FormEvent)}
-              loading={createSubmitting}
-              disabled={!name.trim() || code.trim().length < 2 || !modalBranchId}
+              onClick={(e) => handleFormSubmit(e as unknown as FormEvent)}
+              loading={formSubmitting}
+              disabled={!name.trim() || code.trim().length < 2 || !effectiveModalBranchId}
             >
-              Create Department
+              {editingDept ? "Save Changes" : "Create Department"}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {createError ? (
+        <form onSubmit={handleFormSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {formError ? (
             <div
               style={{
                 padding: "0.5rem 0.75rem",
@@ -340,12 +395,20 @@ export function DepartmentsPage() {
                 fontSize: "0.8125rem",
               }}
             >
-              {createError}
+              {formError}
             </div>
           ) : null}
 
-          {branches.length > 1 ? (
-            <Field label="Branch" required>
+          {branches.length > 1 || editingDept ? (
+            <Field
+              label="Branch"
+              required
+              help={
+                editingHasChildren
+                  ? "Re-parent sub-departments before moving this department to another branch."
+                  : undefined
+              }
+            >
               <select
                 className="select"
                 value={effectiveModalBranchId}
@@ -353,11 +416,12 @@ export function DepartmentsPage() {
                   setModalBranchId(e.target.value);
                   setParentId("");
                 }}
+                disabled={editingHasChildren}
                 required
               >
-                {branches.filter((b) => b.is_active).map((b) => (
+                {modalBranchCandidates.map((b) => (
                   <option key={b.id} value={b.id}>
-                    {b.name} ({b.code})
+                    {b.name} ({b.code}){!b.is_active ? " (Inactive)" : ""}
                   </option>
                 ))}
               </select>

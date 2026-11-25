@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Briefcase, Trash2, Power, Filter, UserCheck, ArrowRight } from "lucide-react";
+import { Plus, Briefcase, Trash2, Power, Filter, UserCheck, ArrowRight, Pencil } from "lucide-react";
 import { api, Branch, Department, Designation, EmployeeRow } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
@@ -23,13 +23,14 @@ export function DesignationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  // Add Designation Modal
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  // Add / Edit Designation Modal
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingDesig, setEditingDesig] = useState<Designation | null>(null);
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
-  const [createSubmitting, setCreateSubmitting] = useState(false);
-  const [createError, setCreateError] = useState("");
+  const [formSubmitting, setFormSubmitting] = useState(false);
+  const [formError, setFormError] = useState("");
 
   // Delete & Deactivate Modals
   const [deleteTarget, setDeleteTarget] = useState<Designation | null>(null);
@@ -97,22 +98,58 @@ export function DesignationsPage() {
     await loadData(selectedBranchId, newDeptId);
   }
 
-  async function handleCreate(e: FormEvent) {
+  function openCreateModal() {
+    setEditingDesig(null);
+    setName("");
+    setCode("");
+    setDescription("");
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function openEditModal(desig: Designation) {
+    setEditingDesig(desig);
+    setName(desig.name);
+    setCode(desig.code);
+    setDescription(desig.description || "");
+    setFormError("");
+    setIsFormOpen(true);
+  }
+
+  function closeFormModal() {
+    setIsFormOpen(false);
+    setEditingDesig(null);
+    setFormError("");
+  }
+
+  async function handleFormSubmit(e: FormEvent) {
     e.preventDefault();
-    if (!selectedDeptId || !name || code.length < 2) return;
-    setCreateSubmitting(true);
-    setCreateError("");
+    const trimmedName = name.trim();
+    const trimmedCode = code.trim().toUpperCase();
+    const trimmedDesc = description.trim();
+    if (!trimmedName || trimmedCode.length < 2) return;
+    if (!editingDesig && !selectedDeptId) return;
+    setFormSubmitting(true);
+    setFormError("");
     try {
-      await api.createDesignation(selectedDeptId, name, code.toUpperCase(), description || null);
+      if (editingDesig) {
+        await api.updateDesignation(editingDesig.id, {
+          name: trimmedName,
+          code: trimmedCode,
+          description: trimmedDesc || null,
+        });
+      } else {
+        await api.createDesignation(selectedDeptId, trimmedName, trimmedCode, trimmedDesc || null);
+      }
       setName("");
       setCode("");
       setDescription("");
-      setIsCreateOpen(false);
+      closeFormModal();
       await loadData(selectedBranchId, selectedDeptId);
     } catch (err) {
-      setCreateError(err instanceof Error ? err.message : "Failed to create designation");
+      setFormError(err instanceof Error ? err.message : `Failed to ${editingDesig ? "update" : "create"} designation`);
     } finally {
-      setCreateSubmitting(false);
+      setFormSubmitting(false);
     }
   }
 
@@ -224,7 +261,7 @@ export function DesignationsPage() {
             <Button
               variant="primary"
               icon={<Plus size={16} />}
-              onClick={() => setIsCreateOpen(true)}
+              onClick={openCreateModal}
               disabled={!canCreateUnderSelection}
               title={
                 !selectedDeptId
@@ -266,7 +303,7 @@ export function DesignationsPage() {
               : "Designations belong to a department. Create a department first under this branch to begin adding job positions."
           }
           action={
-            !selectedBranch || selectedBranch.is_active
+            can("org.department.create") && (!selectedBranch || selectedBranch.is_active)
               ? {
                   label: "Create Department",
                   onClick: () => navigate("/org/departments"),
@@ -289,7 +326,7 @@ export function DesignationsPage() {
             can("org.designation.create") && canCreateUnderSelection
               ? {
                   label: "Add Designation",
-                  onClick: () => setIsCreateOpen(true),
+                  onClick: openCreateModal,
                   icon: <Plus size={16} />,
                 }
               : undefined
@@ -305,7 +342,7 @@ export function DesignationsPage() {
                 <th>Department</th>
                 <th>Description</th>
                 <th style={{ width: "120px" }}>Status</th>
-                <th style={{ width: "200px", textAlign: "right" }}>Actions</th>
+                <th style={{ width: "260px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -332,14 +369,25 @@ export function DesignationsPage() {
                     <td style={{ textAlign: "right" }}>
                       <div style={{ display: "inline-flex", gap: "0.5rem" }}>
                         {can("org.designation.update") ? (
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            icon={<Power size={14} />}
-                            onClick={() => handleToggleActive(desig)}
-                          >
-                            {desig.is_active ? "Deactivate" : "Activate"}
-                          </Button>
+                          <>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<Pencil size={14} />}
+                              onClick={() => openEditModal(desig)}
+                              title="Edit designation"
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              icon={<Power size={14} />}
+                              onClick={() => handleToggleActive(desig)}
+                            >
+                              {desig.is_active ? "Deactivate" : "Activate"}
+                            </Button>
+                          </>
                         ) : null}
                         {can("org.designation.delete") ? (
                           <Button
@@ -419,40 +467,34 @@ export function DesignationsPage() {
         </div>
       ) : null}
 
-      {/* Add Designation Modal */}
+      {/* Add / Edit Designation Modal */}
       <Modal
-        isOpen={isCreateOpen}
-        onClose={() => {
-          setIsCreateOpen(false);
-          setCreateError("");
-        }}
-        title="Add Designation"
-        description={`Add a job title to ${deptNameById.get(selectedDeptId) || "the department"}.`}
+        isOpen={isFormOpen}
+        onClose={closeFormModal}
+        title={editingDesig ? "Edit Designation" : "Add Designation"}
+        description={
+          editingDesig
+            ? `Update title, code, or scope for ${editingDesig.name} in ${deptNameById.get(editingDesig.department_id) || "department"}.`
+            : `Add a job title to ${deptNameById.get(selectedDeptId) || "the department"}.`
+        }
         footer={
           <>
-            <Button
-              variant="secondary"
-              onClick={() => {
-                setIsCreateOpen(false);
-                setCreateError("");
-              }}
-              disabled={createSubmitting}
-            >
+            <Button variant="secondary" onClick={closeFormModal} disabled={formSubmitting}>
               Cancel
             </Button>
             <Button
               variant="primary"
-              onClick={(e) => handleCreate(e as unknown as FormEvent)}
-              loading={createSubmitting}
-              disabled={!name.trim() || code.trim().length < 2 || !selectedDeptId}
+              onClick={(e) => handleFormSubmit(e as unknown as FormEvent)}
+              loading={formSubmitting}
+              disabled={!name.trim() || code.trim().length < 2 || (!editingDesig && !selectedDeptId)}
             >
-              Create Designation
+              {editingDesig ? "Save Changes" : "Create Designation"}
             </Button>
           </>
         }
       >
-        <form onSubmit={handleCreate} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          {createError ? (
+        <form onSubmit={handleFormSubmit} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {formError ? (
             <div
               style={{
                 padding: "0.5rem 0.75rem",
@@ -462,7 +504,7 @@ export function DesignationsPage() {
                 fontSize: "0.8125rem",
               }}
             >
-              {createError}
+              {formError}
             </div>
           ) : null}
 

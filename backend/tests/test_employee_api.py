@@ -134,3 +134,7 @@ async def test_employee_api_crud_and_masking() -> None:
         )
         assert fail_create_resp.status_code == 400
         assert "Inactive branch" in fail_create_resp.text
+
+        # Clean up temporary branch created during negative test
+        del_branch_resp = await client.delete(f"/api/v1/branches/{inactive_branch_id}", headers=headers)
+        assert del_branch_resp.status_code == 200

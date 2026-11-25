@@ -29,7 +29,7 @@ import { Badge } from "../../components/common/Badge";
 import { EmptyState } from "../../components/common/EmptyState";
 import { ConfirmModal } from "../../components/common/ConfirmModal";
 import { Spinner } from "../../components/common/Spinner";
-import { Employee360Modal } from "./Employee360Drawer";
+import { Employee360Modal } from "./Employee360Modal";
 import { EmployeeFormModal } from "./EmployeeFormModal";
 
 export function EmployeesPage() {

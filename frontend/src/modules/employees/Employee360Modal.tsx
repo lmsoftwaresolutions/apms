@@ -20,6 +20,7 @@ import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
 import { Badge } from "../../components/common/Badge";
 import { Modal } from "../../components/common/Modal";
+import { Tabs } from "../../components/common/Tabs";
 
 export interface Employee360ModalProps {
   employee: Employee | null;
@@ -199,57 +200,14 @@ export function Employee360Modal({
         }
       >
         {/* Tab Navigation */}
-        <div
-          style={{
-            display: "flex",
-            borderBottom: "1px solid var(--border-default)",
-            marginBottom: "1.25rem",
-            gap: "0.5rem",
-          }}
-        >
-          <button
-            type="button"
-            onClick={() => setActiveTab("overview")}
-            style={{
-              padding: "0.625rem 1rem",
-              background: "transparent",
-              border: "none",
-              borderBottom: activeTab === "overview" ? "2px solid var(--color-primary)" : "2px solid transparent",
-              color: activeTab === "overview" ? "var(--color-primary)" : "var(--text-secondary)",
-              fontWeight: 650,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <Briefcase size={16} />
-            Overview & Profile
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("statutory")}
-            style={{
-              padding: "0.625rem 1rem",
-              background: "transparent",
-              border: "none",
-              borderBottom: activeTab === "statutory" ? "2px solid var(--color-primary)" : "2px solid transparent",
-              color: activeTab === "statutory" ? "var(--color-primary)" : "var(--text-secondary)",
-              fontWeight: 650,
-              fontSize: "0.875rem",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              gap: "0.5rem",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <Shield size={16} />
-            Statutory & PII Vault
-          </button>
-        </div>
+        <Tabs
+          tabs={[
+            { id: "overview", label: "Overview & Profile", icon: <Briefcase size={16} /> },
+            { id: "statutory", label: "Statutory & PII Vault", icon: <Shield size={16} /> },
+          ]}
+          activeTab={activeTab}
+          onChange={(tabId) => setActiveTab(tabId as "overview" | "statutory")}
+        />
 
         {/* Modal Tab Content */}
         {activeTab === "overview" ? (
@@ -822,7 +780,3 @@ export function Employee360Modal({
     </>
   );
 }
-
-// Export alias for backward compatibility
-export const Employee360Drawer = Employee360Modal;
-export type Employee360DrawerProps = Employee360ModalProps;

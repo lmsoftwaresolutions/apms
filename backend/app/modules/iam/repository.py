@@ -149,10 +149,17 @@ async def get_tenant(session: AsyncSession, tenant_id: UUID) -> Tenant | None:
     return await session.get(Tenant, tenant_id)
 
 
-async def update_tenant(session: AsyncSession, tenant: Tenant, display_name: str | None, logo_url: str | None) -> Tenant:
+async def update_tenant(
+    session: AsyncSession,
+    tenant: Tenant,
+    display_name: str | None,
+    logo_url: str | None,
+    *,
+    update_logo: bool = False,
+) -> Tenant:
     if display_name is not None:
         tenant.display_name = display_name
-    if logo_url is not None:
+    if update_logo or logo_url is not None:
         tenant.logo_url = logo_url
     await session.flush()
     return tenant

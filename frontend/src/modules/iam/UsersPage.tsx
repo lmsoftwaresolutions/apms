@@ -130,6 +130,15 @@ export function UsersPage() {
   const [isPermsListOpen, setIsPermsListOpen] = useState(false);
   const [permSearchQuery, setPermSearchQuery] = useState("");
 
+  // Create User Modal
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newFullName, setNewFullName] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newRoleId, setNewRoleId] = useState("");
+  const [createSubmitting, setCreateSubmitting] = useState(false);
+  const [createError, setCreateError] = useState("");
+
   async function loadData() {
     setLoading(true);
     try {
@@ -355,6 +364,48 @@ export function UsersPage() {
     }
   }
 
+  function openCreateUserModal() {
+    setNewFullName("");
+    setNewEmail("");
+    setNewPassword("");
+    setNewRoleId("");
+    setCreateError("");
+    setIsCreateOpen(true);
+  }
+
+  async function handleCreateUser(e: FormEvent) {
+    e.preventDefault();
+    const trimmedName = newFullName.trim();
+    const trimmedEmail = newEmail.trim().toLowerCase();
+    const trimmedPassword = newPassword.trim();
+    if (!trimmedName || trimmedEmail.length < 3 || !trimmedEmail.includes("@")) {
+      setCreateError("Please enter a valid full name and email address.");
+      return;
+    }
+    if (trimmedPassword.length > 0 && trimmedPassword.length < 8) {
+      setCreateError("Password must be at least 8 characters, or leave blank for the default initial password.");
+      return;
+    }
+    setCreateSubmitting(true);
+    setCreateError("");
+    try {
+      const created = await api.createUser({
+        full_name: trimmedName,
+        email: trimmedEmail,
+        ...(trimmedPassword ? { password: trimmedPassword } : {}),
+        ...(newRoleId ? { role_id: newRoleId } : {}),
+      });
+      setIsCreateOpen(false);
+      await loadData();
+      setActiveUserId(created.id);
+      setStagedRoleCodes(new Set((created.roles || []).map((r) => r.toUpperCase())));
+    } catch (err) {
+      setCreateError(err instanceof Error ? err.message : "Failed to create user");
+    } finally {
+      setCreateSubmitting(false);
+    }
+  }
+
   // Helper for role badge colors
   function getRoleBadge(roleCode?: string) {
     if (!roleCode) {
@@ -482,6 +533,8 @@ export function UsersPage() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "flex-start",
+          gap: "1rem",
+          flexWrap: "wrap",
           marginBottom: "1.25rem",
         }}
       >
@@ -501,6 +554,12 @@ export function UsersPage() {
             Select a person to see and change the roles they have.
           </p>
         </div>
+
+        {can("iam.assignment.create") ? (
+          <Button variant="primary" icon={<Plus size={16} />} onClick={openCreateUserModal}>
+            Add User
+          </Button>
+        ) : null}
       </div>
 
       {error ? (
@@ -1489,6 +1548,104 @@ export function UsersPage() {
             )}
           </div>
         </div>
+      </Modal>
+
+      {/* Create User Modal */}
+      <Modal
+        isOpen={isCreateOpen}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setCreateError("");
+        }}
+        title="Add Portal User"
+        description="Onboard a new user account and optionally assign an initial access role."
+        footer={
+          <>
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setIsCreateOpen(false);
+                setCreateError("");
+              }}
+              disabled={createSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={(e) => handleCreateUser(e as unknown as FormEvent)}
+              loading={createSubmitting}
+              disabled={!newFullName.trim() || !newEmail.trim()}
+            >
+              Create User
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleCreateUser} style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {createError ? (
+            <div
+              style={{
+                padding: "0.5rem 0.75rem",
+                backgroundColor: "var(--color-danger-bg)",
+                color: "var(--color-danger-fg)",
+                borderRadius: "0.375rem",
+                fontSize: "0.8125rem",
+              }}
+            >
+              {createError}
+            </div>
+          ) : null}
+
+          <Field label="Full Name" required help="e.g. Rajesh Kumar">
+            <input
+              className="input"
+              value={newFullName}
+              onChange={(e) => setNewFullName(e.target.value)}
+              placeholder="e.g. Rajesh Kumar"
+              required
+            />
+          </Field>
+
+          <Field label="Work Email" required help="Used to sign in to the portal">
+            <input
+              className="input"
+              type="email"
+              value={newEmail}
+              onChange={(e) => setNewEmail(e.target.value)}
+              placeholder="e.g. rajesh@northmill.example"
+              required
+            />
+          </Field>
+
+          <Field
+            label="Initial Password (Optional)"
+            help="Minimum 8 characters, or leave blank to assign default initial password (ChangeMe-123)"
+          >
+            <input
+              className="input"
+              type="password"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="Leave blank for default password"
+            />
+          </Field>
+
+          <Field label="Initial Role (Optional)" help="You can assign or modify roles afterward">
+            <select
+              className="select"
+              value={newRoleId}
+              onChange={(e) => setNewRoleId(e.target.value)}
+            >
+              <option value="">No initial role</option>
+              {roles.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.code})
+                </option>
+              ))}
+            </select>
+          </Field>
+        </form>
       </Modal>
     </div>
   );
