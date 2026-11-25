@@ -87,7 +87,7 @@ STATEMENTS = [
       ADD COLUMN allow_wfh boolean NOT NULL DEFAULT true,
       ADD COLUMN allow_overtime boolean NOT NULL DEFAULT true,
       ADD COLUMN wfh_ot_requires_approval boolean NOT NULL DEFAULT true,
-      ADD COLUMN ot_auto_approve_threshold_minutes integer,
+      ADD COLUMN ot_auto_approve_threshold_minutes integer
     """,
     """
     ALTER TABLE policy_master DROP CONSTRAINT IF EXISTS ck_policy_ot_approval_mode
