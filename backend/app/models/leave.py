@@ -109,4 +109,5 @@ class LeaveTransaction(Base):
     entry_type: Mapped[str] = mapped_column(String(20))
     days: Mapped[Decimal] = mapped_column(Numeric(6, 1))
     session_target: Mapped[str | None] = mapped_column(String(20), default=None)
+    source: Mapped[str | None] = mapped_column(String(30), default=None)
     created_at: Mapped[datetime]

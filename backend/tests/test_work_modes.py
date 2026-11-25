@@ -787,6 +787,8 @@ async def test_late_penalty_posts_one_leave_ledger_row(seeded_tenants: tuple[Ten
         session.add(PunchEvent(id=uuid4(), tenant_id=tenant.id, raw_envelope_id=env.id, employee_id=emp.id, punch_time=datetime(2026, 11, 18, 12, 30, tzinfo=UTC), source="TEST", status="ACTIVE", created_at=now))
         await session.commit()
         await set_tenant(session, tenant.id)
+        await session.refresh(policy)
+        await session.refresh(env)
 
         shift = ShiftInstanceContract(
             calendar_date=day,
@@ -798,11 +800,13 @@ async def test_late_penalty_posts_one_leave_ledger_row(seeded_tenants: tuple[Ten
         await calculate_and_save_daily_attendance(session, tenant.id, emp.id, day, shift_contract=shift)
         await session.commit()
         await set_tenant(session, tenant.id)
+        await session.refresh(policy)
+        await session.refresh(env)
 
         rows = [
             row
             for row in await list_transactions(session, tenant.id, emp.id)
-            if row.session_target == "LATE_PENALTY"
+            if row.source == "LATE_PENALTY"
         ]
         assert len(rows) == 1
         assert rows[0].entry_type == "DEBIT"
@@ -833,7 +837,7 @@ async def test_late_penalty_posts_one_leave_ledger_row(seeded_tenants: tuple[Ten
         penalty_rows = [
             row
             for row in await list_transactions(session, tenant.id, emp.id)
-            if row.session_target == "LATE_PENALTY" and row.calendar_date == next_day
+            if row.source == "LATE_PENALTY" and row.calendar_date == next_day
         ]
         assert len(penalty_rows) == 1
         assert penalty_rows[0].entry_type == "LOP"

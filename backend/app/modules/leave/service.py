@@ -154,7 +154,7 @@ async def post_late_penalty(
     existing = [
         row
         for row in await list_transactions(session, tenant_id, employee_id)
-        if row.calendar_date == calendar_date and row.session_target == LATE_PENALTY_MARKER
+        if row.calendar_date == calendar_date and row.source == LATE_PENALTY_MARKER
     ]
     if existing:
         return "already_posted"
@@ -171,7 +171,8 @@ async def post_late_penalty(
                 calendar_date=calendar_date,
                 entry_type="LOP",
                 days=requested,
-                session_target=LATE_PENALTY_MARKER,
+                session_target=None,
+                source=LATE_PENALTY_MARKER,
                 created_at=now,
             ),
         )
@@ -195,7 +196,8 @@ async def post_late_penalty(
                 calendar_date=calendar_date,
                 entry_type="DEBIT",
                 days=debit_days,
-                session_target=LATE_PENALTY_MARKER,
+                session_target=None,
+                source=LATE_PENALTY_MARKER,
                 created_at=now,
             ),
         )
@@ -210,7 +212,8 @@ async def post_late_penalty(
                 calendar_date=calendar_date,
                 entry_type="LOP",
                 days=lop_days,
-                session_target=LATE_PENALTY_MARKER,
+                session_target=None,
+                source=LATE_PENALTY_MARKER,
                 created_at=now,
             ),
         )

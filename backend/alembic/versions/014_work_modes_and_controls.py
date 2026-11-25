@@ -111,6 +111,11 @@ STATEMENTS = [
       ON work_mode_requests (tenant_id, employee_id, calendar_date, session_target)
       WHERE status <> 'REJECTED'
     """,
+    """
+    ALTER TABLE leave_transactions
+      ADD COLUMN source varchar(30),
+      ADD CONSTRAINT ck_leave_txn_source CHECK (source IS NULL OR source IN ('LATE_PENALTY'))
+    """,
     "CREATE INDEX ix_work_mode_requests_emp_date ON work_mode_requests (tenant_id, employee_id, calendar_date)",
     "CREATE INDEX ix_work_mode_requests_status ON work_mode_requests (tenant_id, status)",
 ]
@@ -168,6 +173,13 @@ def downgrade() -> None:
     bind.execute(DELETE_ROLE_GRANTS, {"codes": codes})
     bind.execute(DELETE_PERMISSIONS, {"codes": codes})
     op.execute("DROP TABLE IF EXISTS work_mode_requests")
+    op.execute(
+        """
+        ALTER TABLE leave_transactions
+          DROP CONSTRAINT IF EXISTS ck_leave_txn_source,
+          DROP COLUMN IF EXISTS source
+        """
+    )
     op.execute(
         """
         ALTER TABLE policy_master
