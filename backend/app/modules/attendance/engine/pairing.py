@@ -190,3 +190,44 @@ def pair_punches_for_shift(
     result.has_single_punch = len(all_matched_punches) == 1 or any(s.is_single_punch for s in result.sessions)
 
     return result
+
+
+def _retotal(result: DailyPairingResult) -> None:
+    result.total_worked_minutes = sum(s.worked_minutes for s in result.sessions)
+    result.total_late_minutes = sum(s.late_minutes for s in result.sessions)
+    result.total_early_exit_minutes = sum(s.early_exit_minutes for s in result.sessions)
+    result.has_single_punch = result.total_punches_matched == 1 or any(s.is_single_punch for s in result.sessions)
+
+
+def apply_session_waiver(result: DailyPairingResult, session_target: str) -> None:
+    """Credit the targeted half without turning the rest of the day into time worked.
+
+    One session: FIRST_HALF and SECOND_HALF each credit half of that session.
+    Two sessions: FIRST_HALF credits session 1 and SECOND_HALF credits session 2.
+    BOTH credits every session.
+    """
+    if session_target not in {"FIRST_HALF", "SECOND_HALF", "BOTH"} or not result.sessions:
+        return
+    if len(result.sessions) == 1:
+        session = result.sessions[0]
+        credit = session.scheduled_minutes if session_target == "BOTH" else session.scheduled_minutes // 2
+        session.worked_minutes = max(session.worked_minutes, credit)
+        if session.worked_minutes >= int(session.scheduled_minutes * 0.5):
+            session.status = "COMPLETED"
+            session.is_single_punch = False
+    else:
+        if session_target == "FIRST_HALF":
+            chosen = {result.sessions[0].session_order}
+        elif session_target == "SECOND_HALF":
+            chosen = {result.sessions[-1].session_order}
+        else:
+            chosen = {s.session_order for s in result.sessions}
+        for session in result.sessions:
+            if session.session_order not in chosen:
+                continue
+            session.worked_minutes = max(session.worked_minutes, session.scheduled_minutes)
+            session.late_minutes = 0
+            session.early_exit_minutes = 0
+            session.is_single_punch = False
+            session.status = "COMPLETED"
+    _retotal(result)

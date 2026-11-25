@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from app.modules.attendance.engine.pairing import DailyPairingResult
+from app.modules.attendance.engine.pairing import DailyPairingResult, apply_session_waiver
 
 
 @dataclass
@@ -22,6 +22,8 @@ def evaluate_daily_rollup(
     theta_present: float = 0.90,
     theta_half_day: float = 0.50,
     policy: object | None = None,
+    work_mode: str | None = None,
+    session_target: str | None = None,
 ) -> DailyRollupDecision:
     # 1. Employer-cancelled session (N66d / ROS-10)
     if pairing.is_cancelled_paid:
@@ -53,6 +55,26 @@ def evaluate_daily_rollup(
             explanation="Scheduled rest day",
         )
 
+    waived = session_target in {"FIRST_HALF", "SECOND_HALF", "BOTH"}
+    if waived:
+        apply_session_waiver(pairing, session_target or "")
+
+    # Approved full-day on-duty credits the scheduled day. It does not invent an 8-hour day.
+    if work_mode == "ON_DUTY" and session_target in {None, "FULL"}:
+        sched = pairing.total_scheduled_minutes
+        return DailyRollupDecision(
+            status="PRESENT",
+            worked_ratio=1.0 if sched > 0 else 0.0,
+            worked_minutes=sched,
+            scheduled_minutes=sched,
+            late_minutes=0,
+            early_exit_minutes=0,
+            overtime_minutes=0,
+            is_single_punch=False,
+            anomaly_code=None,
+            explanation="Approved full-day on-duty request credits the scheduled day. Overtime stays at zero.",
+        )
+
     # 3. Single-Punch Anomaly (Q4 / BR-ATT-04 / BR-ATT-16)
     if pairing.total_punches_matched == 1 or pairing.has_single_punch or (len(pairing.sessions) == 1 and pairing.sessions[0].is_single_punch):
         return DailyRollupDecision(
@@ -68,8 +90,8 @@ def evaluate_daily_rollup(
             explanation="Single or unpaired punch recorded for shift session. Defaults to NEEDS_REVIEW per Q4.",
         )
 
-    # 4. Zero punches matched
-    if pairing.total_punches_matched == 0 or pairing.total_worked_minutes == 0:
+    # 4. Zero punches matched. A waived session can credit time with no punches.
+    if pairing.total_worked_minutes == 0 and (pairing.total_punches_matched == 0 or not waived):
         return DailyRollupDecision(
             status="ABSENT",
             worked_ratio=0.0,
@@ -162,6 +184,11 @@ def evaluate_daily_rollup(
     max_ot = getattr(policy, "max_ot_minutes_per_day", None) if policy else None
     if max_ot is not None:
         ot_minutes = min(ot_minutes, max_ot)
+
+    # N20: extra minutes are not payable until a supervisor authorizes them.
+    if work_mode == "WFH" and ot_minutes > 0:
+        ot_minutes = 0
+        explanation += " Extra minutes stay unpayable until a supervisor authorizes overtime (N20)."
 
     return DailyRollupDecision(
         status=tentative_status,

@@ -32,6 +32,14 @@ class PolicyBase(BaseModel):
     # Punch Rules
     in_out_rule: Literal["FIRST_IN_LAST_OUT", "ALL_IN_OUT"] = "FIRST_IN_LAST_OUT"
 
+    # Work Modes & Mode-Gated Controls
+    wfh_monthly_auto_quota: int = Field(default=4, ge=0)
+    allow_wfh_overtime: bool = False
+    ot_approval_mode: Literal["ALWAYS_REQUIRE_APPROVAL"] = "ALWAYS_REQUIRE_APPROVAL"
+    max_free_lates_per_month: int = Field(default=3, ge=0)
+    late_penalty_action: Literal["WARNING", "DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"] = "WARNING"
+    late_penalty_leave_type_id: UUID | None = None
+
 
 class PolicyCreate(PolicyBase):
     @model_validator(mode="after")
@@ -67,6 +75,13 @@ class PolicyUpdate(BaseModel):
     max_ot_minutes_per_day: int | None = Field(default=None, ge=0)
 
     in_out_rule: Literal["FIRST_IN_LAST_OUT", "ALL_IN_OUT"] | None = None
+
+    wfh_monthly_auto_quota: int | None = Field(default=None, ge=0)
+    allow_wfh_overtime: bool | None = None
+    ot_approval_mode: Literal["ALWAYS_REQUIRE_APPROVAL"] | None = None
+    max_free_lates_per_month: int | None = Field(default=None, ge=0)
+    late_penalty_action: Literal["WARNING", "DEDUCT_LEAVE_HALF_DAY", "LOSS_OF_PAY"] | None = None
+    late_penalty_leave_type_id: UUID | None = None
 
 
 class PolicyOut(PolicyBase):

@@ -72,6 +72,8 @@ async def seed() -> None:
                 "leave.request.review",
                 "muster.export.read",
                 "policy.master.read",
+                "work_mode.request.read",
+                "work_mode.request.review",
             ],
             "EMPLOYEE": [
                 "org.branch.read",
@@ -82,6 +84,8 @@ async def seed() -> None:
                 "attendance.regularization.read",
                 "leave.request.create",
                 "leave.request.read",
+                "work_mode.request.create",
+                "work_mode.request.read",
             ],
         }
 

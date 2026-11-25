@@ -16,6 +16,7 @@ from app.modules.policies.router import router as policies_router
 from app.modules.punches.router import router as punches_router
 from app.modules.roster.router import router as roster_router
 from app.modules.shifts.router import router as shifts_router
+from app.modules.work_modes.router import router as work_modes_router
 
 api_router = APIRouter()
 api_router.include_router(auth_router)
@@ -33,4 +34,5 @@ api_router.include_router(ess_router)
 api_router.include_router(leave_router)
 api_router.include_router(muster_router)
 api_router.include_router(policies_router)
+api_router.include_router(work_modes_router)
 api_router.include_router(attendance_router)
