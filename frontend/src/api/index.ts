@@ -10,6 +10,78 @@ export type Me = {
 
 export type Branch = { id: string; name: string; code: string; is_active: boolean };
 
+export type PolicySummary = {
+  id: string;
+  code: string;
+  name: string;
+  is_active: boolean;
+  late_arrival_allow_minutes: number;
+  early_departure_allow_minutes: number;
+  half_day_work_duration_minutes: number;
+  full_day_work_duration_minutes: number;
+};
+
+export type ShiftSessionInput = {
+  session_order: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  pre_window_minutes?: number;
+  post_window_minutes?: number;
+  grace_period_late_minutes?: number;
+  grace_period_early_minutes?: number;
+  min_presence_ratio?: number | string;
+  break_duration_minutes?: number;
+};
+
+export type ShiftSession = {
+  id: string;
+  session_order: number;
+  name: string;
+  start_time: string;
+  end_time: string;
+  pre_window_minutes: number;
+  post_window_minutes: number;
+  grace_period_late_minutes: number;
+  grace_period_early_minutes: number;
+  min_presence_ratio: string;
+  break_duration_minutes: number;
+  is_overnight: boolean;
+};
+
+export type ShiftTemplate = {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  shift_type: "FIXED" | "FLEXI" | "OVERNIGHT" | "SPLIT" | "CONTINUOUS" | string;
+  color_code: string | null;
+  policy_id: string | null;
+  is_overnight: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  sessions: ShiftSession[];
+};
+
+export type ShiftTemplateCreateInput = {
+  code: string;
+  name: string;
+  shift_type: string;
+  color_code?: string | null;
+  policy_id?: string | null;
+  sessions: ShiftSessionInput[];
+};
+
+export type ShiftTemplateUpdateInput = {
+  name?: string | null;
+  shift_type?: string | null;
+  is_active?: boolean | null;
+  color_code?: string | null;
+  policy_id?: string | null;
+  sessions?: ShiftSessionInput[] | null;
+};
+
 export type Department = {
   id: string;
   branch_id: string;
@@ -343,4 +415,24 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  policies: (isActive?: boolean) =>
+    request<PolicySummary[]>(
+      isActive !== undefined ? `/api/v1/policies?is_active=${String(isActive)}` : "/api/v1/policies",
+    ),
+  shiftTemplates: (activeOnly = false) =>
+    request<ShiftTemplate[]>(`/api/v1/shifts/templates?active_only=${String(activeOnly)}`),
+  shiftTemplate: (id: string) => request<ShiftTemplate>(`/api/v1/shifts/templates/${id}`),
+  createShiftTemplate: (payload: ShiftTemplateCreateInput) =>
+    request<ShiftTemplate>("/api/v1/shifts/templates", {
+      method: "POST",
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+      body: JSON.stringify(payload),
+    }),
+  updateShiftTemplate: (id: string, payload: ShiftTemplateUpdateInput) =>
+    request<ShiftTemplate>(`/api/v1/shifts/templates/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  deleteShiftTemplate: (id: string) =>
+    request<void>(`/api/v1/shifts/templates/${id}`, { method: "DELETE" }),
 };

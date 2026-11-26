@@ -9,6 +9,7 @@ import { RolesPage } from "./modules/iam/RolesPage";
 import { UsersPage } from "./modules/iam/UsersPage";
 import { EmployeesPage } from "./modules/employees/EmployeesPage";
 import { PendingActionsPage } from "./modules/actions/PendingActionsPage";
+import { ShiftTemplatesPage } from "./modules/shifts/ShiftTemplatesPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -76,16 +77,8 @@ export function App() {
           />
 
           {/* Scheduling */}
-          <Route
-            path="/shifts"
-            element={
-              <PlaceholderPage
-                title="Shift Management"
-                moduleName="Scheduling"
-                description="Shift templates, split sessions (N65 gap exclusion), and rotating schedules coming soon."
-              />
-            }
-          />
+          <Route path="/shifts" element={<ShiftTemplatesPage />} />
+          <Route path="/shifts/templates" element={<Navigate to="/shifts" replace />} />
           <Route
             path="/roster"
             element={

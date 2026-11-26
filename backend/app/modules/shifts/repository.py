@@ -75,6 +75,8 @@ async def update_shift_template(
         setattr(template, key, val)
 
     if new_sessions is not None:
+        template.sessions.clear()
+        await session.flush()
         template.sessions = new_sessions
 
     await session.flush()
