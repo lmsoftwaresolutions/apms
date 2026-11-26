@@ -639,7 +639,7 @@ export function ScheduleShiftsModal({
                             >
                               {activeTemplates.map((tpl) => (
                                 <option key={tpl.id} value={tpl.id}>
-                                  {tpl.code}
+                                  {tpl.name} ({tpl.code})
                                 </option>
                               ))}
                             </select>

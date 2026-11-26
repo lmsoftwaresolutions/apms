@@ -115,6 +115,7 @@ export type MaterializeRosterInput = {
   days: number;
   shift_template_id?: string | null;
   roster_pattern_id?: string | null;
+  rest_weekdays?: number[] | null;
 };
 
 export type MaterializeRosterResponse = {

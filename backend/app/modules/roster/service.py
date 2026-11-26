@@ -273,7 +273,11 @@ async def materialize_roster(
                     raw_tid = mapping_entry["shift_template_id"]
                     target_template_id = UUID(raw_tid) if isinstance(raw_tid, str) else raw_tid
             elif single_template is not None:
-                target_template_id = single_template.id
+                if payload.rest_weekdays and current_date.weekday() in payload.rest_weekdays:
+                    is_rest_day = True
+                    status_val = "REST_DAY"
+                else:
+                    target_template_id = single_template.id
 
             sessions_snapshot: list[dict[str, Any]] = []
             if not is_rest_day:

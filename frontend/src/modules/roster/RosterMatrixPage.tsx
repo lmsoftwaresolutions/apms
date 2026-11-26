@@ -1,13 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
-  Ban,
   CalendarDays,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  Copy,
   HelpCircle,
   Layers,
-  Pencil,
   Repeat,
   Search,
   Sparkles,
@@ -28,8 +27,8 @@ import { EmptyState } from "../../components/common/EmptyState";
 import { LoadingRow } from "../../components/common/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { formatTimeShort } from "../shifts/shiftUtils";
+import { CellAssignmentModal, CopyPayload } from "./CellAssignmentModal";
 import { ScheduleMode, ScheduleShiftsModal } from "./ScheduleShiftsModal";
-import { ShiftOverrideModal } from "./ShiftOverrideModal";
 import { formatMonthYear, getMonthDays, shiftDateStr } from "./rosterUtils";
 
 type ViewFilter = "ALL" | "FIXED" | "ROTATING";
@@ -116,22 +115,12 @@ export function RosterMatrixPage() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
 
-  // Selected Cell & Excel Drag-to-Fill State
+  // Selected Cell, Modal, Copy Mode & Excel Drag-to-Fill State
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [cellModalOpen, setCellModalOpen] = useState(false);
+  const [copyMode, setCopyMode] = useState<CopyPayload | null>(null);
   const [dragFill, setDragFill] = useState<DragFillState | null>(null);
-
-  // Tier 2 Override / Cancel Modal State
-  const [overrideModalState, setOverrideModalState] = useState<{
-    isOpen: boolean;
-    mode: "override" | "cancel";
-    employee: Employee | null;
-    instance: DatedShiftInstance | null;
-  }>({
-    isOpen: false,
-    mode: "override",
-    employee: null,
-    instance: null,
-  });
+  const didDragRef = useRef(false);
 
   const days = getMonthDays(year, month);
   const monthStart = days[0].dateStr;
@@ -196,6 +185,10 @@ export function RosterMatrixPage() {
       setDragFill(null);
 
       if (startIndex === currentIndex) return;
+      didDragRef.current = true;
+      window.setTimeout(() => {
+        didDragRef.current = false;
+      }, 50);
 
       const minIdx = Math.min(startIndex, currentIndex);
       const maxIdx = Math.max(startIndex, currentIndex);
@@ -294,35 +287,41 @@ export function RosterMatrixPage() {
     setScheduleModalOpen(true);
   }
 
-  function openOverrideModal(
-    mode: "override" | "cancel",
-    employee: Employee,
-    instance: DatedShiftInstance,
-  ) {
-    setSelectedCell(null);
-    setOverrideModalState({
-      isOpen: true,
-      mode,
-      employee,
-      instance,
-    });
-  }
-
-  async function handleQuickAssignCell(shiftTemplateId: string) {
-    if (!selectedCell || !can("roster.instance.create")) return;
+  async function handlePasteCell(dateStr: string, inst: DatedShiftInstance | undefined) {
+    if (!copyMode || !can("roster.instance.create")) return;
     setSavingFill(true);
     setError("");
     try {
-      await api.materializeRoster({
-        employee_ids: [selectedCell.employee.id],
-        start_date: selectedCell.dateStr,
-        days: 1,
-        shift_template_id: shiftTemplateId,
-      });
+      if (copyMode.shiftTemplateId && !copyMode.isRestDay) {
+        await api.materializeRoster({
+          employee_ids: [copyMode.employeeId],
+          start_date: dateStr,
+          days: 1,
+          shift_template_id: copyMode.shiftTemplateId,
+        });
+      } else if (copyMode.isRestDay) {
+        if (inst) {
+          await api.overrideShiftInstance(inst.id, {
+            shift_template_id: null,
+            is_rest_day: true,
+            reason: "Copy mode paste Rest Day (OFF)",
+          });
+        } else if (activeTemplates[0]) {
+          const [y, m, d] = dateStr.split("-").map(Number);
+          const jsDay = new Date(y, m - 1, d).getDay();
+          const pyWeekday = jsDay === 0 ? 6 : jsDay - 1;
+          await api.materializeRoster({
+            employee_ids: [copyMode.employeeId],
+            start_date: dateStr,
+            days: 1,
+            shift_template_id: activeTemplates[0].id,
+            rest_weekdays: [pyWeekday],
+          });
+        }
+      }
       await loadData(true);
-      setSelectedCell(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign shift");
+      setError(err instanceof Error ? err.message : "Failed to paste shift");
     } finally {
       setSavingFill(false);
     }
@@ -335,6 +334,7 @@ export function RosterMatrixPage() {
   ) {
     if (!inst || !can("roster.instance.create")) return;
     if (!inst.shift_template_id && !inst.is_rest_day) return;
+    didDragRef.current = false;
     const tpl = inst.shift_template_id ? templateMap.get(inst.shift_template_id) : null;
     setDragFill({
       employeeId: empId,
@@ -347,10 +347,8 @@ export function RosterMatrixPage() {
     });
   }
 
-  const prevInstanceForModal = overrideModalState.instance
-    ? instanceMap.get(
-        `${overrideModalState.instance.employee_id}::${shiftDateStr(overrideModalState.instance.calendar_date, -1)}`,
-      )
+  const prevInstanceForCellModal = selectedCell
+    ? instanceMap.get(`${selectedCell.employee.id}::${shiftDateStr(selectedCell.dateStr, -1)}`)
     : undefined;
 
   return (
@@ -731,8 +729,8 @@ export function RosterMatrixPage() {
         ) : null}
       </div>
 
-      {/* Selected Cell Quick-Edit & Inspection Bar */}
-      {selectedCell ? (
+      {/* Copy Mode Banner (after Save & Copy to Cells) */}
+      {copyMode ? (
         <div
           className="card-panel"
           style={{
@@ -747,87 +745,21 @@ export function RosterMatrixPage() {
             gap: "0.75rem",
           }}
         >
-          <div style={{ fontSize: "0.84rem" }}>
-            <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-              {selectedCell.employee.full_name} ({selectedCell.employee.employee_code}) ·{" "}
-              <span style={{ fontFamily: "var(--font-mono)" }}>{selectedCell.dateStr}</span>
-            </div>
-            <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "0.15rem" }}>
-              {!selectedCell.instance
-                ? "Unscheduled — pick a shift template to assign, or drag from another cell."
-                : selectedCell.instance.status === "CANCELLED_PAID"
-                  ? `CANCELLED_PAID (N66d): ${selectedCell.instance.modification_reason || ""}`
-                  : selectedCell.instance.is_rest_day
-                    ? "Weekly Off / Rest Day (OFF)"
-                    : (() => {
-                        const tpl = selectedCell.instance.shift_template_id
-                          ? templateMap.get(selectedCell.instance.shift_template_id)
-                          : null;
-                        const s = selectedCell.instance.sessions[0];
-                        return `${tpl ? `${tpl.code} — ${tpl.name}` : "Scheduled"}${
-                          s ? ` (${formatTimeShort(s.start_time)}–${formatTimeShort(s.end_time)})` : ""
-                        }${selectedCell.instance.is_adhoc_modified ? ` · N67: ${selectedCell.instance.modification_reason}` : ""}`;
-                      })()}
-            </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.85rem" }}>
+            <Copy size={16} color="var(--color-primary)" />
+            <span>
+              Copying <strong>{copyMode.label}</strong> for{" "}
+              <strong>{copyMode.employeeName}</strong> — click/tap any cells in this row or drag horizontally to paste.
+            </span>
           </div>
-
-          <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
-            {can("roster.instance.create") ? (
-              <select
-                className="select"
-                style={{ width: "auto", minWidth: "170px", padding: "0.3rem 0.6rem", fontSize: "0.8rem" }}
-                value=""
-                disabled={savingFill}
-                onChange={(e) => {
-                  if (e.target.value) void handleQuickAssignCell(e.target.value);
-                }}
-              >
-                <option value="">Quick assign shift...</option>
-                {activeTemplates.map((tpl) => (
-                  <option key={tpl.id} value={tpl.id}>
-                    {getTemplateCompactLabel(tpl)} — {tpl.code} ({tpl.name})
-                  </option>
-                ))}
-              </select>
-            ) : null}
-
-            {selectedCell.instance && can("roster.instance.update") ? (
-              <>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  icon={<Pencil size={13} />}
-                  onClick={() =>
-                    openOverrideModal("override", selectedCell.employee, selectedCell.instance!)
-                  }
-                >
-                  Override (N67)
-                </Button>
-                {selectedCell.instance.status !== "CANCELLED_PAID" &&
-                !selectedCell.instance.is_rest_day ? (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    icon={<Ban size={13} />}
-                    onClick={() =>
-                      openOverrideModal("cancel", selectedCell.employee, selectedCell.instance!)
-                    }
-                  >
-                    Cancel (N66d)
-                  </Button>
-                ) : null}
-              </>
-            ) : null}
-
-            <Button
-              size="sm"
-              variant="ghost"
-              aria-label="Close selection"
-              onClick={() => setSelectedCell(null)}
-            >
-              <X size={15} />
-            </Button>
-          </div>
+          <Button
+            size="sm"
+            variant="primary"
+            icon={<X size={14} />}
+            onClick={() => setCopyMode(null)}
+          >
+            Done Copying
+          </Button>
         </div>
       ) : null}
 
@@ -1001,13 +933,19 @@ export function RosterMatrixPage() {
                             }
                           }}
                           onClick={() => {
-                            if (dragFill) return;
+                            if (dragFill || didDragRef.current) return;
+                            if (copyMode && copyMode.employeeId === emp.id) {
+                              void handlePasteCell(d.dateStr, inst);
+                              return;
+                            }
+                            setCopyMode(null);
                             setSelectedCell({
                               employee: emp,
                               dateStr: d.dateStr,
                               dayIndex: dayIdx,
                               instance: inst,
                             });
+                            setCellModalOpen(true);
                           }}
                           style={{
                             position: "relative",
@@ -1136,18 +1074,28 @@ export function RosterMatrixPage() {
         onSaved={() => loadData(true)}
       />
 
-      {/* N67 Override / N66d Cancel Modal */}
-      <ShiftOverrideModal
-        isOpen={overrideModalState.isOpen}
-        onClose={() =>
-          setOverrideModalState((prev) => ({ ...prev, isOpen: false }))
+      {/* Cell Assignment Modal (Single Day / Fixed Auto-Fill / Rest Day / Cancel) */}
+      <CellAssignmentModal
+        isOpen={cellModalOpen}
+        onClose={() => setCellModalOpen(false)}
+        employee={selectedCell?.employee || null}
+        dateStr={selectedCell?.dateStr || monthStart}
+        monthStart={monthStart}
+        monthDaysCount={days.length}
+        dayIndex={selectedCell?.dayIndex || 0}
+        instance={
+          selectedCell
+            ? instanceMap.get(`${selectedCell.employee.id}::${selectedCell.dateStr}`)
+            : undefined
         }
-        mode={overrideModalState.mode}
-        instance={overrideModalState.instance}
-        prevInstance={prevInstanceForModal}
-        employee={overrideModalState.employee}
+        prevInstance={prevInstanceForCellModal}
         templates={templates}
-        onSaved={() => loadData(true)}
+        onSaved={async (copyAfter) => {
+          await loadData(true);
+          if (copyAfter) {
+            setCopyMode(copyAfter);
+          }
+        }}
       />
     </div>
   );

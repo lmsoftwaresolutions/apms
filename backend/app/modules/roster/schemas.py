@@ -40,6 +40,10 @@ class MaterializeRosterRequest(BaseModel):
     days: int = Field(default=30, ge=1, le=90)  # ADR-15: 30-day forward horizon
     shift_template_id: UUID | None = None
     roster_pattern_id: UUID | None = None
+    rest_weekdays: list[int] | None = Field(
+        default=None,
+        description="Optional Python weekdays (0=Mon..6=Sun) to mark as REST_DAY when assigning a fixed shift_template_id.",
+    )
 
     @model_validator(mode="after")
     def validate_source_exclusivity(self) -> "MaterializeRosterRequest":
@@ -47,6 +51,8 @@ class MaterializeRosterRequest(BaseModel):
             raise ValueError("Provide either shift_template_id or roster_pattern_id, not both.")
         if not self.shift_template_id and not self.roster_pattern_id:
             raise ValueError("Either shift_template_id or roster_pattern_id must be provided.")
+        if self.rest_weekdays is not None and any(d < 0 or d > 6 for d in self.rest_weekdays):
+            raise ValueError("rest_weekdays values must be between 0 (Monday) and 6 (Sunday).")
         return self
 
 

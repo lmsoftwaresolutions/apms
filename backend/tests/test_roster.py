@@ -508,3 +508,72 @@ async def test_roster_pattern_invalid_day_index_422() -> None:
         assert resp.status_code == 422
         assert "cycle_length_days" in resp.json()["detail"].lower()
 
+
+@pytest.mark.asyncio
+async def test_materialize_fixed_with_rest_weekdays() -> None:
+    """Fixed shift materialization with rest_weekdays marks weekly off days as clean REST_DAY."""
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@northmill.example", "password": "ChangeMe-Admin-1"},
+        )
+        headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+
+        branches_resp = await client.get("/api/v1/branches", headers=headers)
+        branch_id = branches_resp.json()[0]["id"]
+
+        emp_resp = await client.post(
+            "/api/v1/employees",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json={
+                "employee_code": f"FXW_{uuid4().hex[:6].upper()}",
+                "full_name": "Fixed Weekly Off Worker",
+                "branch_id": branch_id,
+                "date_of_joining": "2026-01-01",
+            },
+        )
+        assert emp_resp.status_code == 201
+        emp_id = emp_resp.json()["id"]
+
+        tpl_resp = await client.post(
+            "/api/v1/shifts/templates",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json={
+                "code": f"FXW_{uuid4().hex[:6].upper()}",
+                "name": "Fixed Day Shift",
+                "shift_type": "FIXED",
+                "sessions": [
+                    {"session_order": 1, "name": "Day", "start_time": "09:00:00", "end_time": "18:00:00"}
+                ],
+            },
+        )
+        assert tpl_resp.status_code == 201
+        tid = tpl_resp.json()["id"]
+
+        # 2026-11-01 is Sunday (weekday=6); materialize 7 days with rest_weekdays=[6]
+        mat_resp = await client.post(
+            "/api/v1/roster/materialize",
+            headers=headers,
+            json={
+                "employee_ids": [emp_id],
+                "start_date": "2026-11-01",
+                "days": 7,
+                "shift_template_id": tid,
+                "rest_weekdays": [6],
+            },
+        )
+        assert mat_resp.status_code == 201
+
+        inst_resp = await client.get(
+            f"/api/v1/roster/instances?employee_id={emp_id}&start_date=2026-11-01&end_date=2026-11-07",
+            headers=headers,
+        )
+        assert inst_resp.status_code == 200
+        rows = {r["calendar_date"]: r for r in inst_resp.json()}
+        assert rows["2026-11-01"]["is_rest_day"] is True
+        assert rows["2026-11-01"]["status"] == "REST_DAY"
+        assert rows["2026-11-01"]["is_adhoc_modified"] is False
+        assert rows["2026-11-02"]["is_rest_day"] is False
+        assert rows["2026-11-02"]["status"] == "SCHEDULED"
+
