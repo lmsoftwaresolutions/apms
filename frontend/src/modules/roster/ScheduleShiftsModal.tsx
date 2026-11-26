@@ -12,6 +12,7 @@ import {
 import { Button } from "../../components/common/Button";
 import { Field } from "../../components/common/Field";
 import { Modal } from "../../components/common/Modal";
+import { shiftDateStr } from "./rosterUtils";
 
 export type ScheduleMode = "fixed" | "pattern" | "bulk";
 
@@ -50,7 +51,9 @@ export function ScheduleShiftsModal({
   const [selectedEmpIds, setSelectedEmpIds] = useState<string[]>([]);
 
   const [startDate, setStartDate] = useState(defaultStartDate);
-  const [days, setDays] = useState(defaultDays);
+  const [endDate, setEndDate] = useState(() =>
+    shiftDateStr(defaultStartDate, Math.min(90, Math.max(1, defaultDays)) - 1),
+  );
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [selectedPatternId, setSelectedPatternId] = useState("");
 
@@ -67,12 +70,25 @@ export function ScheduleShiftsModal({
   const activeTemplates = templates.filter((t) => t.is_active);
   const activeEmployees = employees.filter((e) => e.is_active);
 
+  const computedDays = (() => {
+    if (!startDate || !endDate) return 0;
+    const [sy, sm, sd] = startDate.split("-").map(Number);
+    const [ey, em, ed] = endDate.split("-").map(Number);
+    const sUtc = Date.UTC(sy, sm - 1, sd);
+    const eUtc = Date.UTC(ey, em - 1, ed);
+    return Math.round((eUtc - sUtc) / 86400000) + 1;
+  })();
+  const isDateRangeValid = computedDays >= 1 && computedDays <= 90;
+  const days = isDateRangeValid ? computedDays : 1;
+
   useEffect(() => {
     if (!isOpen) return;
     setStep(1);
     setError("");
     setStartDate(defaultStartDate);
-    setDays(Math.min(90, Math.max(1, defaultDays)));
+    setEndDate(
+      shiftDateStr(defaultStartDate, Math.min(90, Math.max(1, defaultDays)) - 1),
+    );
     setTargetType(departments.length > 0 ? "department" : "employees");
     setSelectedDeptId(departments[0]?.id || "");
     setSelectedEmpIds([]);
@@ -269,7 +285,7 @@ export function ScheduleShiftsModal({
             form="schedule-shifts-form"
             variant="primary"
             loading={submitting}
-            disabled={targetEmpIds.length === 0}
+            disabled={targetEmpIds.length === 0 || !isDateRangeValid}
           >
             {mode === "fixed" && step === 1
               ? "Preview Impact >"
@@ -409,7 +425,7 @@ export function ScheduleShiftsModal({
               )}
             </div>
 
-            {/* Date Horizon */}
+            {/* Date Range */}
             <div
               style={{
                 display: "grid",
@@ -423,18 +439,35 @@ export function ScheduleShiftsModal({
                   type="date"
                   className="input"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => {
+                    const nextStart = e.target.value;
+                    setStartDate(nextStart);
+                    if (nextStart && endDate && endDate < nextStart) {
+                      setEndDate(nextStart);
+                    }
+                  }}
                   required
                 />
               </Field>
-              <Field label="Materialization Horizon (Days)" required help="ADR-15: 1–90 days">
+              <Field
+                label="End Date"
+                required
+                error={
+                  !isDateRangeValid
+                    ? computedDays < 1
+                      ? "End date must be on or after start date."
+                      : `Range is ${computedDays} days (ADR-15 max 90 days).`
+                    : null
+                }
+                help={isDateRangeValid ? `${computedDays} day(s) selected (max 90)` : null}
+              >
                 <input
-                  type="number"
-                  min={1}
-                  max={90}
+                  type="date"
                   className="input"
-                  value={days}
-                  onChange={(e) => setDays(Math.min(90, Math.max(1, parseInt(e.target.value || "30", 10))))}
+                  value={endDate}
+                  min={startDate}
+                  max={startDate ? shiftDateStr(startDate, 89) : undefined}
+                  onChange={(e) => setEndDate(e.target.value)}
                   required
                 />
               </Field>
