@@ -259,8 +259,8 @@ export function ShiftTemplatesPage() {
         }}
       >
         <div
-          className="card"
-          style={{ padding: "0.75rem 1.15rem", minWidth: "130px" }}
+          className="card-panel"
+          style={{ padding: "0.85rem 1.25rem", minWidth: "135px", marginBottom: 0 }}
         >
           <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
             {totalCount}
@@ -269,8 +269,8 @@ export function ShiftTemplatesPage() {
         </div>
 
         <div
-          className="card"
-          style={{ padding: "0.75rem 1.15rem", minWidth: "130px" }}
+          className="card-panel"
+          style={{ padding: "0.85rem 1.25rem", minWidth: "135px", marginBottom: 0 }}
         >
           <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
             {activeCount}
@@ -279,8 +279,8 @@ export function ShiftTemplatesPage() {
         </div>
 
         <div
-          className="card"
-          style={{ padding: "0.75rem 1.15rem", minWidth: "130px" }}
+          className="card-panel"
+          style={{ padding: "0.85rem 1.25rem", minWidth: "135px", marginBottom: 0 }}
         >
           <div style={{ fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
             {overnightCount}
@@ -351,35 +351,36 @@ export function ShiftTemplatesPage() {
       </div>
 
       {/* 8-Column Directory Table */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {loading ? (
-          <table className="table">
+      {loading ? (
+        <div className="table-container">
+          <table className="data-table">
             <tbody>
               <LoadingRow cols={8} />
             </tbody>
           </table>
-        ) : filteredTemplates.length === 0 ? (
-          <EmptyState
-            icon={<CalendarRange size={36} />}
-            title="No shift templates found"
-            description={
-              templates.length === 0
-                ? "Create your first shift template (Standard, Split N65, or Overnight) to start scheduling."
-                : "No shift templates match your current search or filters."
-            }
-            action={
-              templates.length === 0 && can("shift.template.create")
-                ? {
-                    label: "Add shift template",
-                    onClick: openCreateModal,
-                    icon: <Plus size={16} />,
-                  }
-                : undefined
-            }
-          />
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="table">
+        </div>
+      ) : filteredTemplates.length === 0 ? (
+        <EmptyState
+          icon={<CalendarRange size={36} />}
+          title="No shift templates found"
+          description={
+            templates.length === 0
+              ? "Create your first shift template (Standard, Split N65, or Overnight) to start scheduling."
+              : "No shift templates match your current search or filters."
+          }
+          action={
+            templates.length === 0 && can("shift.template.create")
+              ? {
+                  label: "Add shift template",
+                  onClick: openCreateModal,
+                  icon: <Plus size={16} />,
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <div className="table-container">
+          <table className="data-table">
               <thead>
                 <tr>
                   <th>Shift</th>
@@ -530,9 +531,8 @@ export function ShiftTemplatesPage() {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {!loading && templates.length > 0 ? (
         <div style={{ marginTop: "0.75rem", fontSize: "0.78rem", color: "var(--text-muted)" }}>
