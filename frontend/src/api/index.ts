@@ -273,6 +273,82 @@ export type MusterLine = {
 export type MusterExportFormat = "xlsx" | "csv" | "pdf";
 export type MusterExportTemplate = "standard" | "form_25" | "form_ii" | "form_t";
 
+export type EssTodaySummary = {
+  employee_id: string;
+  calendar_date: string;
+  punches: string[];
+  status: string | null;
+  worked_duration_minutes: number | null;
+  anomaly_code: string | null;
+};
+
+export type EssCalendarDay = {
+  calendar_date: string;
+  status: string;
+  worked_duration_minutes: number;
+  overtime_minutes: number;
+  anomaly_code: string | null;
+};
+
+export type EssShiftDay = {
+  calendar_date: string;
+  status: string;
+  is_rest_day: boolean;
+  sessions: Array<{
+    session_order: number;
+    name: string;
+    start_time: string;
+    end_time: string;
+  }>;
+};
+
+export type WorkModeRequest = {
+  id: string;
+  employee_id: string;
+  work_mode: "WFH" | "ON_DUTY" | string;
+  calendar_date: string;
+  session_target: "FULL" | "FIRST_HALF" | "SECOND_HALF" | string;
+  reason: string;
+  status: string;
+  is_auto_approved: boolean;
+  decision_reason: string | null;
+  created_at: string;
+};
+
+export type LeaveType = {
+  id: string;
+  code: string;
+  name: string;
+  allow_negative_balance: boolean;
+  sandwich_enabled: boolean;
+};
+
+export type LeaveBalance = {
+  leave_type_id: string;
+  code: string;
+  name: string;
+  balance: string;
+};
+
+export type LeaveRequestItem = {
+  id: string;
+  employee_id: string;
+  start_date: string;
+  end_date: string;
+  portion: string;
+  days: string;
+  status: string;
+};
+
+export type RegularizationItem = {
+  id: string;
+  employee_id: string;
+  calendar_date: string;
+  request_type: string;
+  status: string;
+  reason: string;
+};
+
 export type Department = {
   id: string;
   branch_id: string;
@@ -768,4 +844,58 @@ export const api = {
     URL.revokeObjectURL(url);
     return filename;
   },
+  essToday: () => request<EssTodaySummary>("/api/v1/ess/today"),
+  essCalendar: (start_date: string, end_date: string) =>
+    request<EssCalendarDay[]>(
+      `/api/v1/ess/calendar?start_date=${encodeURIComponent(start_date)}&end_date=${encodeURIComponent(end_date)}`,
+    ),
+  essShifts: (start_date: string, end_date: string) =>
+    request<EssShiftDay[]>(
+      `/api/v1/ess/shifts?start_date=${encodeURIComponent(start_date)}&end_date=${encodeURIComponent(end_date)}`,
+    ),
+  essMyWorkModeRequests: () =>
+    request<WorkModeRequest[]>("/api/v1/ess/work-modes/my-requests"),
+  essApplyWorkMode: (payload: {
+    work_mode: "WFH" | "ON_DUTY";
+    calendar_date: string;
+    session_target: "FULL" | "FIRST_HALF" | "SECOND_HALF";
+    reason: string;
+  }) =>
+    request<WorkModeRequest>("/api/v1/ess/work-modes/apply", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  leaveTypes: () => request<LeaveType[]>("/api/v1/leave/types"),
+  leaveBalances: (employeeId?: string) =>
+    request<LeaveBalance[]>(
+      employeeId
+        ? `/api/v1/leave/balances?employee_id=${encodeURIComponent(employeeId)}`
+        : "/api/v1/leave/balances",
+    ),
+  leaveRequests: () => request<LeaveRequestItem[]>("/api/v1/leave/requests"),
+  createLeaveRequest: (payload: {
+    employee_id?: string | null;
+    leave_type_id: string;
+    start_date: string;
+    end_date: string;
+    portion?: string;
+    reason: string;
+  }) =>
+    request<{ id: string; status: string; days: string }>("/api/v1/leave/requests", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  regularizations: () => request<RegularizationItem[]>("/api/v1/attendance/regularizations"),
+  createRegularization: (payload: {
+    employee_id?: string | null;
+    calendar_date: string;
+    request_type: string;
+    requested_in?: string | null;
+    requested_out?: string | null;
+    reason: string;
+  }) =>
+    request<RegularizationItem>("/api/v1/attendance/regularizations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
 };

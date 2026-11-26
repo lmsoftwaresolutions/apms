@@ -48,6 +48,13 @@ interface NavGroup {
 
 const NAV_GROUPS: NavGroup[] = [
   {
+    group: "Self Service",
+    icon: UserIcon,
+    items: [
+      { label: "My Portal (ESS)", to: "/ess", icon: UserCheck },
+    ],
+  },
+  {
     group: "Operations",
     icon: Activity,
     items: [
