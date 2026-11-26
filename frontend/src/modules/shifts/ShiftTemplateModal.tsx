@@ -343,7 +343,7 @@ export function ShiftTemplateModal({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1.6fr 1.4fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
             gap: "0.75rem",
             marginBottom: "1rem",
           }}
@@ -393,7 +393,7 @@ export function ShiftTemplateModal({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr 1fr auto",
+            gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))",
             gap: "1rem",
             padding: "0.875rem",
             borderRadius: "var(--radius)",
@@ -491,7 +491,7 @@ export function ShiftTemplateModal({
             >
               Badge Color
             </div>
-            <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", maxWidth: "120px" }}>
+            <div style={{ display: "flex", gap: "0.45rem", flexWrap: "wrap" }}>
               {SHIFT_COLORS.map((c) => (
                 <button
                   key={c.value}
@@ -762,7 +762,7 @@ function SessionEditorCard({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr 0.8fr 0.8fr 0.8fr",
+          gridTemplateColumns: "repeat(auto-fit, minmax(115px, 1fr))",
           gap: "0.65rem",
         }}
       >
@@ -839,7 +839,7 @@ function SessionEditorCard({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1.5fr 1fr 1fr 1fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(125px, 1fr))",
             gap: "0.65rem",
             marginTop: "0.65rem",
             paddingTop: "0.65rem",

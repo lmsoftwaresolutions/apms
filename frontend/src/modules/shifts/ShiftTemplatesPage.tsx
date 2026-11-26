@@ -233,7 +233,14 @@ export function ShiftTemplatesPage() {
   return (
     <div>
       {/* Header */}
-      <div className="card-header" style={{ marginBottom: "1rem" }}>
+      <div
+        className="card-header"
+        style={{
+          marginBottom: "1rem",
+          flexWrap: "wrap",
+          gap: "0.75rem",
+        }}
+      >
         <div>
           <h2 className="card-title">Shift Templates</h2>
           <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--text-muted)" }}>
