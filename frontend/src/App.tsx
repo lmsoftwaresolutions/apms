@@ -13,6 +13,7 @@ import { ShiftTemplatesPage } from "./modules/shifts/ShiftTemplatesPage";
 import { RosterMatrixPage } from "./modules/roster/RosterMatrixPage";
 import { PunchStreamPage } from "./modules/punches/PunchStreamPage";
 import { DailyAttendancePage } from "./modules/attendance/DailyAttendancePage";
+import { MusterRollPage } from "./modules/muster/MusterRollPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -32,16 +33,8 @@ export function App() {
           <Route path="/attendance/daily" element={<Navigate to="/attendance" replace />} />
           <Route path="/punches" element={<PunchStreamPage />} />
           <Route path="/attendance/punches" element={<Navigate to="/punches" replace />} />
-          <Route
-            path="/muster"
-            element={
-              <PlaceholderPage
-                title="Muster Roll"
-                moduleName="Operations"
-                description="Form XX statutory muster roll, monthly attendance rollups, and audit logs coming soon."
-              />
-            }
-          />
+          <Route path="/muster" element={<MusterRollPage />} />
+          <Route path="/attendance/muster" element={<Navigate to="/muster" replace />} />
           <Route
             path="/anomalies"
             element={
