@@ -11,6 +11,7 @@ import { EmployeesPage } from "./modules/employees/EmployeesPage";
 import { PendingActionsPage } from "./modules/actions/PendingActionsPage";
 import { ShiftTemplatesPage } from "./modules/shifts/ShiftTemplatesPage";
 import { RosterMatrixPage } from "./modules/roster/RosterMatrixPage";
+import { PunchStreamPage } from "./modules/punches/PunchStreamPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -36,16 +37,8 @@ export function App() {
               />
             }
           />
-          <Route
-            path="/punches"
-            element={
-              <PlaceholderPage
-                title="Live Punches"
-                moduleName="Operations"
-                description="Biometric device raw envelopes, webhook ingest, and debounced punch timeline coming soon."
-              />
-            }
-          />
+          <Route path="/punches" element={<PunchStreamPage />} />
+          <Route path="/attendance/punches" element={<Navigate to="/punches" replace />} />
           <Route
             path="/muster"
             element={
