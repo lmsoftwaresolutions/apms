@@ -266,7 +266,7 @@ export function PunchStreamPage() {
         <>
           {/* Filter Bar */}
           <div
-            className="card"
+            className="card-panel"
             style={{
               padding: "0.875rem 1rem",
               marginBottom: "1rem",
@@ -278,7 +278,7 @@ export function PunchStreamPage() {
           >
             <select
               className="select"
-              style={{ width: "auto", minWidth: "220px" }}
+              style={{ flex: "1 1 200px", maxWidth: "280px" }}
               value={employeeFilter}
               onChange={(e) => setEmployeeFilter(e.target.value)}
             >
@@ -292,7 +292,7 @@ export function PunchStreamPage() {
 
             <select
               className="select"
-              style={{ width: "auto", minWidth: "180px" }}
+              style={{ flex: "1 1 180px", maxWidth: "240px" }}
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
             >
@@ -304,31 +304,32 @@ export function PunchStreamPage() {
           </div>
 
           {/* Punch Feed Table */}
-          <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-            {loading ? (
-              <table className="table">
+          {loading ? (
+            <div className="table-container">
+              <table className="data-table">
                 <tbody>
                   <LoadingRow cols={6} />
                 </tbody>
               </table>
-            ) : punches.length === 0 ? (
-              <EmptyState
-                icon={<Zap size={36} />}
-                title="No punch events recorded"
-                description="Use Simulate Punch or Bulk CSV Ingestion to ingest biometric or manual punches."
-                action={
-                  can("capture.punch.ingest")
-                    ? {
-                        label: "Simulate Punch",
-                        onClick: () => setIsSimModalOpen(true),
-                        icon: <Plus size={15} />,
-                      }
-                    : undefined
-                }
-              />
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table className="table">
+            </div>
+          ) : punches.length === 0 ? (
+            <EmptyState
+              icon={<Zap size={36} />}
+              title="No punch events recorded"
+              description="Use Simulate Punch or Bulk CSV Ingestion to ingest biometric or manual punches."
+              action={
+                can("capture.punch.ingest")
+                  ? {
+                      label: "Simulate Punch",
+                      onClick: () => setIsSimModalOpen(true),
+                      icon: <Plus size={15} />,
+                    }
+                  : undefined
+              }
+            />
+          ) : (
+            <div className="table-container">
+              <table className="data-table">
                   <thead>
                     <tr>
                       <th>Punch Time (IST)</th>
@@ -400,13 +401,12 @@ export function PunchStreamPage() {
                     })}
                   </tbody>
                 </table>
-              </div>
-            )}
-          </div>
+            </div>
+          )}
         </>
       ) : (
         /* Tab 2: Bulk CSV Ingestion */
-        <div className="card" style={{ padding: "1.25rem" }}>
+        <div className="card-panel" style={{ padding: "1.25rem" }}>
           <div
             style={{
               display: "flex",
@@ -516,8 +516,8 @@ export function PunchStreamPage() {
                 Pre-flight Summary: {csvRows.length} rows detected • {validCsvCount} valid •{" "}
                 {csvRows.length - validCsvCount} malformed
               </div>
-              <div style={{ overflowX: "auto", maxHeight: "220px", border: "1px solid var(--border-default)", borderRadius: "var(--radius)" }}>
-                <table className="table">
+              <div className="table-container" style={{ maxHeight: "220px" }}>
+                <table className="data-table">
                   <thead>
                     <tr>
                       <th>Line</th>

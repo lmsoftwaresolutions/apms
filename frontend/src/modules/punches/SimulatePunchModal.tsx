@@ -155,7 +155,7 @@ export function SimulatePunchModal({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "1.3fr 1fr",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
             gap: "0.75rem",
             marginTop: "0.75rem",
           }}
