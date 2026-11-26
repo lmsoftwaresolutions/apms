@@ -190,6 +190,44 @@ export type PunchIngestResult = {
   is_duplicate: boolean;
 };
 
+export type DailyAttendanceRecord = {
+  id: string;
+  tenant_id: string;
+  employee_id: string;
+  calendar_date: string;
+  dated_shift_instance_id: string | null;
+  status: string;
+  worked_duration_minutes: number;
+  scheduled_duration_minutes: number;
+  worked_ratio: number;
+  late_minutes: number;
+  early_departure_minutes: number;
+  overtime_minutes: number;
+  is_single_punch: boolean;
+  anomaly_code: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AttendanceTrace = {
+  id: string;
+  tenant_id: string;
+  attendance_record_id: string;
+  employee_id: string;
+  calendar_date: string;
+  trace_payload: Record<string, unknown>;
+  evaluated_at: string;
+};
+
+export type RollupFailure = {
+  id: string;
+  employee_id: string;
+  calendar_date: string;
+  error_title: string;
+  error_detail: string;
+  created_at: string;
+};
+
 export type Department = {
   id: string;
   branch_id: string;
@@ -595,4 +633,23 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
+  dailyAttendance: (params?: { employee_id?: string; start_date?: string; end_date?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.employee_id) query.set("employee_id", params.employee_id);
+    if (params?.start_date) query.set("start_date", params.start_date);
+    if (params?.end_date) query.set("end_date", params.end_date);
+    const qs = query.toString();
+    return request<DailyAttendanceRecord[]>(`/api/v1/attendance/daily${qs ? `?${qs}` : ""}`);
+  },
+  attendanceTrace: (recordId: string) =>
+    request<AttendanceTrace>(`/api/v1/attendance/${recordId}/trace`),
+  runAttendanceCutoff: () =>
+    request<{ evaluated: number }>("/api/v1/attendance/rollup/cutoff", { method: "POST" }),
+  recalculateAttendance: (employee_id: string, calendar_date: string) =>
+    request<DailyAttendanceRecord>("/api/v1/attendance/recalculate", {
+      method: "POST",
+      body: JSON.stringify({ employee_id, calendar_date }),
+    }),
+  attendanceRollupFailures: () =>
+    request<RollupFailure[]>("/api/v1/attendance/rollup/failures"),
 };
