@@ -4,22 +4,13 @@ import { api, Employee, PunchIngestResult } from "../../api";
 import { Button } from "../../components/common/Button";
 import { Field } from "../../components/common/Field";
 import { Modal } from "../../components/common/Modal";
+import { ingestOutcome, istDateTimeLocal } from "./punchCsv";
 
 export interface SimulatePunchModalProps {
   isOpen: boolean;
   onClose: () => void;
   employees: Employee[];
   onIngested: () => Promise<void>;
-}
-
-function defaultNowLocal(): string {
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const hh = String(d.getHours()).padStart(2, "0");
-  const min = String(d.getMinutes()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}T${hh}:${min}`;
 }
 
 export function SimulatePunchModal({
@@ -29,7 +20,7 @@ export function SimulatePunchModal({
   onIngested,
 }: SimulatePunchModalProps) {
   const [employeeCode, setEmployeeCode] = useState("");
-  const [punchDateTime, setPunchDateTime] = useState(defaultNowLocal());
+  const [punchDateTime, setPunchDateTime] = useState(istDateTimeLocal);
   const [direction, setDirection] = useState<"IN" | "OUT" | "UNKNOWN">("IN");
   const [deviceIdentifier, setDeviceIdentifier] = useState("SIM-BIO-GATE-01");
   const [submitting, setSubmitting] = useState(false);
@@ -37,12 +28,13 @@ export function SimulatePunchModal({
   const [result, setResult] = useState<PunchIngestResult | null>(null);
 
   const activeEmployees = employees.filter((e) => e.is_active);
+  const outcome = result ? ingestOutcome(result) : null;
 
   useEffect(() => {
     if (!isOpen) return;
     setError("");
     setResult(null);
-    setPunchDateTime(defaultNowLocal());
+    setPunchDateTime(istDateTimeLocal());
     if (activeEmployees.length > 0 && !employeeCode) {
       setEmployeeCode(activeEmployees[0].employee_code);
     }
@@ -109,9 +101,13 @@ export function SimulatePunchModal({
             style={{
               padding: "0.75rem 0.875rem",
               borderRadius: "var(--radius)",
-              background: "var(--color-success-bg)",
-              border: "1px solid var(--color-success-border)",
-              color: "var(--color-success-fg)",
+              background:
+                outcome?.tone === "success" ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+              border:
+                outcome?.tone === "success"
+                  ? "1px solid var(--color-success-border)"
+                  : "1px solid var(--color-warning-border)",
+              color: outcome?.tone === "success" ? "var(--color-success-fg)" : "var(--color-warning-fg)",
               fontSize: "0.85rem",
               marginBottom: "1rem",
               display: "flex",
@@ -121,16 +117,12 @@ export function SimulatePunchModal({
           >
             <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
             <div>
-              <strong>
-                {result.is_duplicate
-                  ? "Duplicate Payload Suppressed"
-                  : result.duplicates_ignored > 0
-                    ? "Debounced (Rule N61)"
-                    : "Punch Accepted into Ledger"}
-              </strong>
+              <strong>{outcome?.title}</strong>
               <div style={{ marginTop: "0.15rem", fontSize: "0.8rem" }}>
-                Active: {result.active_punches} • Debounced: {result.duplicates_ignored} • Envelope:{" "}
-                <code>{result.raw_envelope_id.slice(0, 8)}</code>
+                Active: {result.active_punches} • Debounced: {result.duplicates_ignored}
+                {result.unmatched_employees.length > 0
+                  ? ` • Unmatched: ${result.unmatched_employees.join(", ")}`
+                  : ""}
               </div>
             </div>
           </div>

@@ -15,17 +15,10 @@ import { Button } from "../../components/common/Button";
 import { EmptyState } from "../../components/common/EmptyState";
 import { LoadingRow } from "../../components/common/Spinner";
 import { useAuth } from "../../context/AuthContext";
+import { ingestOutcome, istDateStamp, parseCsvPreview } from "./punchCsv";
 import { SimulatePunchModal } from "./SimulatePunchModal";
 
 type ActiveTab = "stream" | "csv";
-
-interface CsvPreviewRow {
-  line: number;
-  employee_code: string;
-  punch_time: string;
-  direction: string;
-  valid: boolean;
-}
 
 export function PunchStreamPage() {
   const { can } = useAuth();
@@ -115,7 +108,7 @@ export function PunchStreamPage() {
 
   function handleDownloadSampleCsv() {
     const sampleCode = employees[0]?.employee_code || "EMP001";
-    const today = new Date().toISOString().slice(0, 10);
+    const today = istDateStamp();
     const sample = `employee_code,punch_time,direction\n${sampleCode},${today} 09:02:15,IN\n${sampleCode},${today} 18:05:40,OUT\n`;
     const blob = new Blob([sample], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
@@ -126,40 +119,9 @@ export function PunchStreamPage() {
     URL.revokeObjectURL(url);
   }
 
-  function parseCsvPreview(text: string): CsvPreviewRow[] {
-    const lines = text
-      .split(/\r?\n/)
-      .map((l) => l.trim())
-      .filter(Boolean);
-    if (lines.length < 2) return [];
-    const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-    const codeIdx = headers.findIndex((h) =>
-      ["employee_code", "emp_code", "empcode", "code", "pin"].includes(h),
-    );
-    const timeIdx = headers.findIndex((h) =>
-      ["punch_time", "punchdate", "timestamp", "datetime", "time"].includes(h),
-    );
-    const dirIdx = headers.findIndex((h) =>
-      ["direction", "punch_direction", "type", "status"].includes(h),
-    );
-
-    return lines.slice(1).map((line, i) => {
-      const cols = line.split(",").map((c) => c.trim());
-      const code = codeIdx >= 0 ? cols[codeIdx] || "" : "";
-      const time = timeIdx >= 0 ? cols[timeIdx] || "" : "";
-      const dir = dirIdx >= 0 ? cols[dirIdx] || "UNKNOWN" : "UNKNOWN";
-      return {
-        line: i + 2,
-        employee_code: code,
-        punch_time: time,
-        direction: dir,
-        valid: Boolean(code && time),
-      };
-    });
-  }
-
   const csvRows = parseCsvPreview(csvText);
   const validCsvCount = csvRows.filter((r) => r.valid).length;
+  const csvOutcome = csvResult ? ingestOutcome(csvResult) : null;
 
   async function handleCommitCsv() {
     if (!csvText.trim()) return;
@@ -433,9 +395,18 @@ export function PunchStreamPage() {
               style={{
                 padding: "0.875rem 1rem",
                 borderRadius: "var(--radius)",
-                background: "var(--color-success-bg)",
-                border: "1px solid var(--color-success-border)",
-                color: "var(--color-success-fg)",
+                background:
+                  csvOutcome?.tone === "success"
+                    ? "var(--color-success-bg)"
+                    : "var(--color-warning-bg)",
+                border:
+                  csvOutcome?.tone === "success"
+                    ? "1px solid var(--color-success-border)"
+                    : "1px solid var(--color-warning-border)",
+                color:
+                  csvOutcome?.tone === "success"
+                    ? "var(--color-success-fg)"
+                    : "var(--color-warning-fg)",
                 marginBottom: "1rem",
                 display: "flex",
                 alignItems: "flex-start",
@@ -444,11 +415,7 @@ export function PunchStreamPage() {
             >
               <CheckCircle2 size={18} style={{ flexShrink: 0, marginTop: "2px" }} />
               <div style={{ fontSize: "0.85rem" }}>
-                <strong>
-                  {csvResult.is_duplicate
-                    ? "Duplicate CSV Envelope Skipped"
-                    : "CSV Batch Committed to Immutable Ledger"}
-                </strong>
+                <strong>{csvOutcome?.title}</strong>
                 <div style={{ marginTop: "0.2rem" }}>
                   Received: <strong>{csvResult.total_received}</strong> • Active:{" "}
                   <strong>{csvResult.active_punches}</strong> • Debounced (N61):{" "}
