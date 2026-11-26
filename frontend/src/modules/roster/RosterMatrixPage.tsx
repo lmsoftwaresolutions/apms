@@ -315,7 +315,7 @@ export function RosterMatrixPage() {
 
       {/* Unified Toolbar: View Filter Tabs + Dept/Search + Schedule Menu + Legend */}
       <div
-        className="card"
+        className="card-panel"
         style={{
           padding: "0.875rem 1rem",
           marginBottom: "1rem",
@@ -565,7 +565,7 @@ export function RosterMatrixPage() {
       {/* Tier 1 Inspection Popover Card (when a cell is clicked) */}
       {inspectedCell ? (
         <div
-          className="card"
+          className="card-panel"
           style={{
             padding: "0.875rem 1rem",
             marginBottom: "1rem",
@@ -661,63 +661,64 @@ export function RosterMatrixPage() {
       ) : null}
 
       {/* Matrix Grid */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {loading ? (
-          <table className="table">
+      {loading ? (
+        <div className="table-container">
+          <table className="data-table">
             <tbody>
               <LoadingRow cols={8} />
             </tbody>
           </table>
-        ) : visibleEmployees.length === 0 ? (
-          <EmptyState
-            icon={<CalendarDays size={36} />}
-            title="No employees in this roster view"
-            description={
-              employees.length === 0
-                ? "Add active employees first, then use Schedule Shifts to materialize their monthly roster."
-                : "No employees match your current filter tabs or search query."
-            }
-            action={
-              can("roster.instance.create") && employees.length > 0
-                ? {
-                    label: "Set Fixed Default Shift",
-                    onClick: () => openScheduleModal("fixed"),
-                  }
-                : undefined
-            }
-          />
-        ) : (
-          <div style={{ overflowX: "auto", position: "relative" }}>
-            <table
-              className="table"
-              style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 20,
-                      background: "var(--bg-subtle)",
-                      minWidth: "190px",
-                      maxWidth: "190px",
-                    }}
-                  >
-                    Employee
-                  </th>
-                  <th
-                    style={{
-                      position: "sticky",
-                      left: "190px",
-                      zIndex: 20,
-                      background: "var(--bg-subtle)",
-                      minWidth: "86px",
-                      boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
-                    }}
-                  >
-                    Sched
-                  </th>
+        </div>
+      ) : visibleEmployees.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays size={36} />}
+          title="No employees in this roster view"
+          description={
+            employees.length === 0
+              ? "Add active employees first, then use Schedule Shifts to materialize their monthly roster."
+              : "No employees match your current filter tabs or search query."
+          }
+          action={
+            can("roster.instance.create") && employees.length > 0
+              ? {
+                  label: "Set Fixed Default Shift",
+                  onClick: () => openScheduleModal("fixed"),
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <div className="table-container" style={{ position: "relative" }}>
+          <table
+            className="data-table"
+            style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 20,
+                    background: "var(--bg-subtle)",
+                    minWidth: "155px",
+                    maxWidth: "155px",
+                  }}
+                >
+                  Employee
+                </th>
+                <th
+                  style={{
+                    position: "sticky",
+                    left: "155px",
+                    zIndex: 20,
+                    background: "var(--bg-subtle)",
+                    minWidth: "78px",
+                    boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  Sched
+                </th>
                   {days.map((d) => (
                     <th
                       key={d.dateStr}
@@ -748,9 +749,9 @@ export function RosterMatrixPage() {
                           position: "sticky",
                           left: 0,
                           zIndex: 10,
-                          background: "var(--bg-card)",
-                          minWidth: "190px",
-                          maxWidth: "190px",
+                          background: "var(--bg-surface)",
+                          minWidth: "155px",
+                          maxWidth: "155px",
                         }}
                       >
                         <div style={{ fontWeight: 600, fontSize: "0.84rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
@@ -766,10 +767,10 @@ export function RosterMatrixPage() {
                       <td
                         style={{
                           position: "sticky",
-                          left: "190px",
+                          left: "155px",
                           zIndex: 10,
-                          background: "var(--bg-card)",
-                          minWidth: "86px",
+                          background: "var(--bg-surface)",
+                          minWidth: "78px",
                           boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
                         }}
                       >
@@ -874,9 +875,8 @@ export function RosterMatrixPage() {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Schedule Shifts Modal (Fixed Default 2-Step / Rotating Pattern / Bulk) */}
       <ScheduleShiftsModal

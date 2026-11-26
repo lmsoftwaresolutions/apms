@@ -338,7 +338,7 @@ export function ScheduleShiftsModal({
               <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>
                 TARGET EMPLOYEES
               </div>
-              <div style={{ display: "flex", gap: "1.25rem", marginBottom: "0.75rem" }}>
+              <div style={{ display: "flex", gap: "0.75rem 1.25rem", flexWrap: "wrap", marginBottom: "0.75rem" }}>
                 <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontSize: "0.875rem", cursor: "pointer" }}>
                   <input
                     type="radio"
@@ -413,7 +413,7 @@ export function ScheduleShiftsModal({
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "1fr 1fr",
+                gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
                 gap: "0.75rem",
                 marginBottom: "1rem",
               }}
@@ -509,7 +509,7 @@ export function ScheduleShiftsModal({
                     <div
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "1fr 1.5fr 0.8fr",
+                        gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
                         gap: "0.65rem",
                         marginBottom: "0.75rem",
                       }}
