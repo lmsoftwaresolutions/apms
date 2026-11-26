@@ -1,13 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AlertTriangle, Ban, Copy, Info } from "lucide-react";
+import { AlertTriangle, Ban, Copy } from "lucide-react";
 import { api, DatedShiftInstance, Employee, ShiftTemplate } from "../../api";
 import { Button } from "../../components/common/Button";
 import { Field } from "../../components/common/Field";
 import { Modal } from "../../components/common/Modal";
-import { formatDuration, formatTimeShort } from "../shifts/shiftUtils";
+import { formatTimeShort } from "../shifts/shiftUtils";
 import { computeRestGapHours } from "./rosterUtils";
-
-export type CellAssignMode = "single" | "fixed_autofill" | "rest_day" | "cancel";
 
 export interface CopyPayload {
   employeeId: string;
@@ -25,22 +23,14 @@ export interface CellAssignmentModalProps {
   dateStr: string;
   monthStart: string;
   monthDaysCount: number;
-  dayIndex: number; // 0-indexed within month
+  dayIndex: number;
   instance: DatedShiftInstance | undefined;
   prevInstance: DatedShiftInstance | undefined;
   templates: ShiftTemplate[];
   onSaved: (copyAfter?: CopyPayload) => Promise<void>;
 }
 
-const WEEKDAY_OPTIONS = [
-  { pyWeekday: 0, label: "Mo" },
-  { pyWeekday: 1, label: "Tu" },
-  { pyWeekday: 2, label: "We" },
-  { pyWeekday: 3, label: "Th" },
-  { pyWeekday: 4, label: "Fr" },
-  { pyWeekday: 5, label: "Sa" },
-  { pyWeekday: 6, label: "Su" },
-];
+const REST_DAY_VALUE = "__REST_DAY__";
 
 function getCompactTemplateLabel(tpl: ShiftTemplate): string {
   if (tpl.sessions.length > 0) {
@@ -57,17 +47,15 @@ export function CellAssignmentModal({
   dateStr,
   monthStart,
   monthDaysCount,
-  dayIndex,
   instance,
   prevInstance,
   templates,
   onSaved,
 }: CellAssignmentModalProps) {
-  const [mode, setMode] = useState<CellAssignMode>("single");
-  const [typeFilter, setTypeFilter] = useState<string>("ALL");
-  const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [autofillScope, setAutofillScope] = useState<"full_month" | "from_date">("full_month");
-  const [restWeekdays, setRestWeekdays] = useState<number[]>([6]); // Sunday default
+  const [applyTo, setApplyTo] = useState<"single" | "month">("single");
+  const [shiftValue, setShiftValue] = useState("");
+  const [weeklyOffPreset, setWeeklyOffPreset] = useState<"SUN" | "SAT_SUN" | "NONE">("SUN");
+  const [cancelMode, setCancelMode] = useState(false);
   const [reason, setReason] = useState("");
   const [ackRestWarning, setAckRestWarning] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -80,53 +68,42 @@ export function CellAssignmentModal({
     setError("");
     setReason("");
     setAckRestWarning(false);
-    setTypeFilter("ALL");
-    setAutofillScope("full_month");
-    setRestWeekdays([6]);
+    setCancelMode(false);
+    setApplyTo("single");
+    setWeeklyOffPreset("SUN");
 
     if (instance?.is_rest_day) {
-      setMode("rest_day");
-      setSelectedTemplateId(activeTemplates[0]?.id || "");
+      setShiftValue(REST_DAY_VALUE);
     } else {
-      setMode("single");
-      setSelectedTemplateId(instance?.shift_template_id || activeTemplates[0]?.id || "");
+      setShiftValue(instance?.shift_template_id || activeTemplates[0]?.id || "");
     }
   }, [isOpen, dateStr, instance?.id]);
 
   if (!employee) return null;
 
-  const filteredTemplates = activeTemplates.filter((t) => {
-    if (typeFilter === "ALL") return true;
-    return t.shift_type.toUpperCase() === typeFilter;
-  });
+  const isRestDaySelected = applyTo === "single" && shiftValue === REST_DAY_VALUE;
+  const chosenTemplate = !isRestDaySelected
+    ? activeTemplates.find((t) => t.id === shiftValue) || activeTemplates[0]
+    : undefined;
 
-  const chosenTemplate =
-    activeTemplates.find((t) => t.id === selectedTemplateId) || filteredTemplates[0];
-
-  const needsOverrideReason =
-    (mode === "single" && Boolean(instance)) ||
-    (mode === "rest_day" && Boolean(instance)) ||
-    mode === "cancel";
+  const needsReason = (applyTo === "single" && Boolean(instance)) || cancelMode;
 
   const restGapHours =
-    mode === "single" && chosenTemplate
+    applyTo === "single" && !cancelMode && chosenTemplate
       ? computeRestGapHours(prevInstance, chosenTemplate)
       : null;
   const hasRestGapWarning = restGapHours !== null && restGapHours < 11;
 
-  const remainingDays = Math.max(1, monthDaysCount - dayIndex);
-  const autofillDays = autofillScope === "full_month" ? monthDaysCount : remainingDays;
-
   const isSubmitDisabled =
     submitting ||
-    ((mode === "single" || mode === "fixed_autofill") && !chosenTemplate) ||
-    (needsOverrideReason && reason.trim().length < 3) ||
+    (!cancelMode && !isRestDaySelected && !chosenTemplate) ||
+    (needsReason && reason.trim().length < 3) ||
     (hasRestGapWarning && !ackRestWarning);
 
-  function toggleWeekday(pyDay: number) {
-    setRestWeekdays((prev) =>
-      prev.includes(pyDay) ? prev.filter((d) => d !== pyDay) : [...prev, pyDay],
-    );
+  function getRestWeekdays(): number[] {
+    if (weeklyOffPreset === "SUN") return [6];
+    if (weeklyOffPreset === "SAT_SUN") return [5, 6];
+    return [];
   }
 
   async function executeSave(enterCopyMode: boolean) {
@@ -137,15 +114,46 @@ export function CellAssignmentModal({
     try {
       let copyPayload: CopyPayload | undefined;
 
-      if (mode === "fixed_autofill" && chosenTemplate) {
+      if (cancelMode && instance) {
+        await api.cancelShiftInstance(instance.id, { reason: reason.trim() });
+      } else if (applyTo === "month" && chosenTemplate) {
         await api.materializeRoster({
           employee_ids: [employee.id],
-          start_date: autofillScope === "full_month" ? monthStart : dateStr,
-          days: autofillDays,
+          start_date: monthStart,
+          days: monthDaysCount,
           shift_template_id: chosenTemplate.id,
-          rest_weekdays: restWeekdays,
+          rest_weekdays: getRestWeekdays(),
         });
-      } else if (mode === "single" && chosenTemplate) {
+      } else if (isRestDaySelected) {
+        if (instance) {
+          await api.overrideShiftInstance(instance.id, {
+            shift_template_id: null,
+            is_rest_day: true,
+            reason: reason.trim(),
+          });
+        } else if (activeTemplates[0]) {
+          const [y, m, d] = dateStr.split("-").map(Number);
+          const jsDay = new Date(y, m - 1, d).getDay();
+          const pyWeekday = jsDay === 0 ? 6 : jsDay - 1;
+          await api.materializeRoster({
+            employee_ids: [employee.id],
+            start_date: dateStr,
+            days: 1,
+            shift_template_id: activeTemplates[0].id,
+            rest_weekdays: [pyWeekday],
+          });
+        }
+        if (enterCopyMode) {
+          copyPayload = {
+            employeeId: employee.id,
+            employeeName: employee.full_name,
+            shiftTemplateId: null,
+            isRestDay: true,
+            label: "OFF",
+            color: "var(--bg-active)",
+          };
+        }
+      } else if (chosenTemplate) {
         if (instance) {
           await api.overrideShiftInstance(instance.id, {
             shift_template_id: chosenTemplate.id,
@@ -170,40 +178,6 @@ export function CellAssignmentModal({
             color: chosenTemplate.color_code || "var(--color-primary)",
           };
         }
-      } else if (mode === "rest_day") {
-        if (instance) {
-          await api.overrideShiftInstance(instance.id, {
-            shift_template_id: null,
-            is_rest_day: true,
-            reason: reason.trim(),
-          });
-        } else if (activeTemplates[0]) {
-          // Materialize a clean REST_DAY on an empty cell using rest_weekdays
-          const [y, m, d] = dateStr.split("-").map(Number);
-          const jsDay = new Date(y, m - 1, d).getDay();
-          const pyWeekday = jsDay === 0 ? 6 : jsDay - 1;
-          await api.materializeRoster({
-            employee_ids: [employee.id],
-            start_date: dateStr,
-            days: 1,
-            shift_template_id: activeTemplates[0].id,
-            rest_weekdays: [pyWeekday],
-          });
-        }
-        if (enterCopyMode) {
-          copyPayload = {
-            employeeId: employee.id,
-            employeeName: employee.full_name,
-            shiftTemplateId: null,
-            isRestDay: true,
-            label: "OFF",
-            color: "var(--bg-active)",
-          };
-        }
-      } else if (mode === "cancel" && instance) {
-        await api.cancelShiftInstance(instance.id, {
-          reason: reason.trim(),
-        });
       }
 
       await onSaved(copyPayload);
@@ -224,15 +198,15 @@ export function CellAssignmentModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      size="md"
+      size="sm"
       title={`Schedule Shift — ${employee.full_name}`}
-      description={`${employee.employee_code} · ${dateStr}${instance ? " (Currently scheduled)" : " (Unscheduled)"}`}
+      description={`${employee.employee_code} · ${dateStr}`}
       footer={
         <>
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          {(mode === "single" || mode === "rest_day") ? (
+          {applyTo === "single" && !cancelMode ? (
             <Button
               type="button"
               variant="secondary"
@@ -241,21 +215,21 @@ export function CellAssignmentModal({
               loading={submitting}
               onClick={() => void executeSave(true)}
             >
-              Save &amp; Copy to Cells
+              Save &amp; Copy
             </Button>
           ) : null}
           <Button
             type="submit"
             form="cell-assign-form"
-            variant={mode === "cancel" ? "danger" : "primary"}
+            variant={cancelMode ? "danger" : "primary"}
             loading={submitting}
             disabled={isSubmitDisabled}
           >
-            {mode === "fixed_autofill"
-              ? `Auto-Fill (${autofillDays}d)`
-              : mode === "cancel"
-                ? "Confirm Cancellation"
-                : "Apply & Close"}
+            {cancelMode
+              ? "Confirm Cancel"
+              : applyTo === "month"
+                ? `Auto-Fill (${monthDaysCount}d)`
+                : "Apply"}
           </Button>
         </>
       }
@@ -267,222 +241,109 @@ export function CellAssignmentModal({
           </div>
         ) : null}
 
-        {/* Assignment Mode Selector */}
-        <div
-          style={{
-            padding: "0.75rem",
-            borderRadius: "var(--radius)",
-            background: "var(--bg-subtle)",
-            border: "1px solid var(--border-subtle)",
-            marginBottom: "1rem",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              color: "var(--text-muted)",
-              marginBottom: "0.5rem",
-            }}
-          >
-            Assignment Mode
-          </div>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(185px, 1fr))",
-              gap: "0.5rem",
-              fontSize: "0.85rem",
-            }}
-          >
-            <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="cellMode"
-                checked={mode === "single"}
-                onChange={() => setMode("single")}
-              />
-              <span>Single Day / Override</span>
-            </label>
-
-            <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="cellMode"
-                checked={mode === "fixed_autofill"}
-                onChange={() => setMode("fixed_autofill")}
-              />
-              <span>Fixed Shift (Auto-fill all cells)</span>
-            </label>
-
-            <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer" }}>
-              <input
-                type="radio"
-                name="cellMode"
-                checked={mode === "rest_day"}
-                onChange={() => setMode("rest_day")}
-              />
-              <span>Weekly Off / Rest Day (OFF)</span>
-            </label>
-
-            {instance && instance.status !== "CANCELLED_PAID" && !instance.is_rest_day ? (
-              <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  name="cellMode"
-                  checked={mode === "cancel"}
-                  onChange={() => setMode("cancel")}
-                />
-                <span>Cancel Session (N66d Paid)</span>
-              </label>
-            ) : null}
-          </div>
-        </div>
-
-        {/* Shift Type Filter + Template Selector */}
-        {mode === "single" || mode === "fixed_autofill" ? (
-          <div style={{ marginBottom: "1rem" }}>
-            <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap", marginBottom: "0.65rem" }}>
-              {[
-                { key: "ALL", label: "All" },
-                { key: "FIXED", label: "Fixed" },
-                { key: "SPLIT", label: "Split N65" },
-                { key: "OVERNIGHT", label: "Overnight" },
-              ].map((t) => (
-                <Button
-                  key={t.key}
+        {!cancelMode ? (
+          <>
+            {/* Control 1: Apply To */}
+            <div style={{ marginBottom: "1rem" }}>
+              <div className="field-label" style={{ marginBottom: "0.4rem" }}>
+                Apply to
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "0.35rem",
+                  padding: "0.25rem",
+                  borderRadius: "0.5rem",
+                  background: "var(--bg-subtle)",
+                  border: "1px solid var(--border-default)",
+                }}
+              >
+                <button
                   type="button"
-                  size="sm"
-                  variant={typeFilter === t.key ? "primary" : "secondary"}
-                  onClick={() => {
-                    setTypeFilter(t.key);
-                    const nextList = activeTemplates.filter(
-                      (tpl) => t.key === "ALL" || tpl.shift_type.toUpperCase() === t.key,
-                    );
-                    if (nextList[0]) setSelectedTemplateId(nextList[0].id);
+                  onClick={() => setApplyTo("single")}
+                  style={{
+                    padding: "0.45rem 0.6rem",
+                    borderRadius: "0.38rem",
+                    border: "none",
+                    fontSize: "0.82rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    background: applyTo === "single" ? "var(--color-primary)" : "transparent",
+                    color: applyTo === "single" ? "#ffffff" : "var(--text-secondary)",
                   }}
                 >
-                  {t.label}
-                </Button>
-              ))}
+                  Only {dateStr}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApplyTo("month");
+                    if (shiftValue === REST_DAY_VALUE && activeTemplates[0]) {
+                      setShiftValue(activeTemplates[0].id);
+                    }
+                  }}
+                  style={{
+                    padding: "0.45rem 0.6rem",
+                    borderRadius: "0.38rem",
+                    border: "none",
+                    fontSize: "0.82rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    background: applyTo === "month" ? "var(--color-primary)" : "transparent",
+                    color: applyTo === "month" ? "#ffffff" : "var(--text-secondary)",
+                  }}
+                >
+                  Entire Month (Fixed)
+                </button>
+              </div>
             </div>
 
-            <Field label="Shift Template" required>
+            {/* Control 2: Shift Dropdown */}
+            <Field label="Shift" required>
               <select
                 className="select"
-                value={chosenTemplate?.id || ""}
-                onChange={(e) => setSelectedTemplateId(e.target.value)}
+                value={applyTo === "single" ? shiftValue : chosenTemplate?.id || ""}
+                onChange={(e) => setShiftValue(e.target.value)}
                 required
               >
-                {filteredTemplates.length === 0 ? (
-                  <option value="">No templates match this type</option>
-                ) : (
-                  filteredTemplates.map((tpl) => {
-                    const s = tpl.sessions[0];
-                    const timing = s
-                      ? `${formatTimeShort(s.start_time)}–${formatTimeShort(s.end_time)}`
-                      : "";
-                    return (
-                      <option key={tpl.id} value={tpl.id}>
-                        {tpl.name} ({tpl.code}) {timing ? `· ${timing}` : ""}
-                      </option>
-                    );
-                  })
-                )}
+                {activeTemplates.map((tpl) => {
+                  const s = tpl.sessions[0];
+                  const timing = s
+                    ? `${formatTimeShort(s.start_time)}–${formatTimeShort(s.end_time)}`
+                    : "";
+                  return (
+                    <option key={tpl.id} value={tpl.id}>
+                      {tpl.name} {timing ? `· ${timing}` : ""} ({tpl.shift_type})
+                    </option>
+                  );
+                })}
+                {applyTo === "single" ? (
+                  <option value={REST_DAY_VALUE}>Weekly Off (OFF)</option>
+                ) : null}
               </select>
             </Field>
 
-            {chosenTemplate && chosenTemplate.sessions.length > 0 ? (
-              <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: "0.35rem" }}>
-                {chosenTemplate.sessions
-                  .map(
-                    (s) =>
-                      `${s.name}: ${formatTimeShort(s.start_time)}–${formatTimeShort(s.end_time)}`,
-                  )
-                  .join(" + ")}
-                {" · "}Break:{" "}
-                {formatDuration(
-                  chosenTemplate.sessions.reduce((acc, s) => acc + s.break_duration_minutes, 0),
-                )}
+            {/* Weekly Off Preset (only for Entire Month Fixed) */}
+            {applyTo === "month" ? (
+              <div style={{ marginTop: "0.875rem" }}>
+                <Field label="Weekly Off">
+                  <select
+                    className="select"
+                    value={weeklyOffPreset}
+                    onChange={(e) =>
+                      setWeeklyOffPreset(e.target.value as "SUN" | "SAT_SUN" | "NONE")
+                    }
+                  >
+                    <option value="SUN">Sunday (Su)</option>
+                    <option value="SAT_SUN">Saturday &amp; Sunday (Sa + Su)</option>
+                    <option value="NONE">None (All days working)</option>
+                  </select>
+                </Field>
               </div>
             ) : null}
-          </div>
-        ) : null}
-
-        {/* Fixed Shift Auto-Fill Scope & Weekly Offs */}
-        {mode === "fixed_autofill" ? (
-          <div
-            style={{
-              padding: "0.75rem",
-              borderRadius: "var(--radius)",
-              border: "1px solid var(--border-default)",
-              background: "var(--bg-surface)",
-              marginBottom: "1rem",
-            }}
-          >
-            <div style={{ fontSize: "0.8rem", fontWeight: 600, marginBottom: "0.5rem" }}>
-              Auto-Fill Range &amp; Weekly Offs
-            </div>
-            <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", fontSize: "0.84rem", marginBottom: "0.75rem" }}>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  checked={autofillScope === "full_month"}
-                  onChange={() => setAutofillScope("full_month")}
-                />
-                Entire Month ({monthDaysCount} days)
-              </label>
-              <label style={{ display: "flex", alignItems: "center", gap: "0.4rem", cursor: "pointer" }}>
-                <input
-                  type="radio"
-                  checked={autofillScope === "from_date"}
-                  onChange={() => setAutofillScope("from_date")}
-                />
-                From {dateStr} to Month End ({remainingDays} days)
-              </label>
-            </div>
-
-            <div style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginBottom: "0.4rem" }}>
-              Weekly Off Days (automatically marked OFF):
-            </div>
-            <div style={{ display: "flex", gap: "0.65rem", flexWrap: "wrap", fontSize: "0.82rem" }}>
-              {WEEKDAY_OPTIONS.map((w) => (
-                <label
-                  key={w.pyWeekday}
-                  style={{ display: "inline-flex", alignItems: "center", gap: "0.3rem", cursor: "pointer" }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={restWeekdays.includes(w.pyWeekday)}
-                    onChange={() => toggleWeekday(w.pyWeekday)}
-                  />
-                  {w.label}
-                </label>
-              ))}
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.4rem",
-                marginTop: "0.65rem",
-                fontSize: "0.76rem",
-                color: "var(--text-muted)",
-              }}
-            >
-              <Info size={14} color="var(--color-primary)" />
-              <span>
-                Working days receive this fixed shift; selected Weekly Off days receive clean{" "}
-                <code>OFF</code> pills.
-              </span>
-            </div>
-          </div>
-        ) : null}
-
-        {/* Cancel N66d Banner */}
-        {mode === "cancel" ? (
+          </>
+        ) : (
           <div
             style={{
               padding: "0.75rem",
@@ -493,16 +354,16 @@ export function CellAssignmentModal({
               fontSize: "0.82rem",
               display: "flex",
               gap: "0.5rem",
-              marginBottom: "1rem",
+              marginBottom: "0.875rem",
             }}
           >
             <Ban size={17} style={{ flexShrink: 0, marginTop: "2px" }} />
             <div>
-              <strong>Employer Cancellation (N66d):</strong> Marks this date as{" "}
-              <code>CANCELLED_PAID</code> with full paid attendance credit for salaried staff.
+              <strong>Cancel Session (N66d Paid):</strong> Marks {dateStr} as{" "}
+              <code>CANCELLED_PAID</code> with full paid credit.
             </div>
           </div>
-        ) : null}
+        )}
 
         {/* Statutory <11h Rest Gap Warning */}
         {hasRestGapWarning ? (
@@ -514,53 +375,57 @@ export function CellAssignmentModal({
               border: "1px solid var(--color-warning-border)",
               color: "var(--color-warning-fg)",
               fontSize: "0.82rem",
-              marginBottom: "1rem",
+              marginTop: "0.875rem",
             }}
           >
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <AlertTriangle size={17} style={{ flexShrink: 0, marginTop: "2px" }} />
               <div>
-                <strong>
-                  STATUTORY REST WARNING ({restGapHours}h gap &lt; 11h minimum)
-                </strong>
-                <div style={{ marginTop: "0.15rem" }}>
-                  Factories Act §56 requires ≥11h rest between shifts.
-                </div>
+                <strong>Rest Gap Warning ({restGapHours}h &lt; 11h minimum)</strong>
               </div>
             </div>
-            <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginTop: "0.5rem", fontWeight: 500, cursor: "pointer" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.45rem", marginTop: "0.45rem", fontWeight: 500, cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={ackRestWarning}
                 onChange={(e) => setAckRestWarning(e.target.checked)}
               />
-              I acknowledge the rest gap breach and confirm authorization.
+              I acknowledge the &lt;11h rest gap warning.
             </label>
           </div>
         ) : null}
 
-        {/* Override / Cancel Reason */}
-        {needsOverrideReason ? (
-          <Field
-            label={mode === "cancel" ? "Cancellation Reason" : "Reason for N67 Override"}
-            required
-            help="Minimum 3 characters (audited on immutable trace)."
-          >
-            <textarea
-              className="input"
-              rows={2}
-              placeholder={
-                mode === "cancel"
-                  ? "e.g. Machinery maintenance shutdown"
-                  : "e.g. Covering shift due to colleague absence"
-              }
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              required
-              minLength={3}
-              maxLength={255}
-            />
-          </Field>
+        {/* Reason (only when modifying an existing scheduled cell) */}
+        {needsReason ? (
+          <div style={{ marginTop: "0.875rem" }}>
+            <Field label="Reason" required>
+              <input
+                className="input"
+                placeholder={
+                  cancelMode ? "e.g. Machinery maintenance" : "e.g. Covering shift"
+                }
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                required
+                minLength={3}
+                maxLength={255}
+              />
+            </Field>
+          </div>
+        ) : null}
+
+        {/* Subtle Cancel Session Toggle (only on scheduled cells) */}
+        {instance && instance.status !== "CANCELLED_PAID" && !instance.is_rest_day ? (
+          <div style={{ marginTop: "0.75rem", textAlign: "right" }}>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ fontSize: "0.78rem", color: cancelMode ? "var(--text-secondary)" : "var(--color-danger)" }}
+              onClick={() => setCancelMode((v) => !v)}
+            >
+              {cancelMode ? "Back to shift change" : "Cancel this shift (N66d Paid)"}
+            </button>
+          </div>
         ) : null}
       </form>
     </Modal>
