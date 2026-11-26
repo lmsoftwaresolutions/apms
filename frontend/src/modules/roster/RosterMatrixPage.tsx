@@ -27,7 +27,7 @@ import { useAuth } from "../../context/AuthContext";
 import { formatTimeShort } from "../shifts/shiftUtils";
 import { CellAssignmentModal } from "./CellAssignmentModal";
 import { ScheduleMode, ScheduleShiftsModal } from "./ScheduleShiftsModal";
-import { formatMonthYear, getMonthDays, shiftDateStr } from "./rosterUtils";
+import { formatMonthYear, getMonthDays, pythonWeekday, shiftDateStr } from "./rosterUtils";
 
 type ViewFilter = "ALL" | "FIXED" | "ROTATING";
 
@@ -205,16 +205,24 @@ export function RosterMatrixPage() {
             shift_template_id: shiftTemplateId,
           });
         } else if (isRestDay) {
+          const fallbackTemplateId =
+            shiftTemplateId || templates.find((tpl) => tpl.is_active)?.id || null;
+          if (!fallbackTemplateId) {
+            throw new Error("Add an active shift template before copying a weekly off.");
+          }
           for (let i = minIdx; i <= maxIdx; i++) {
             const dStr = days[i].dateStr;
             const existing = instanceMap.get(`${employeeId}::${dStr}`);
-            if (existing && !existing.is_rest_day) {
-              await api.overrideShiftInstance(existing.id, {
-                shift_template_id: null,
-                is_rest_day: true,
-                reason: "Horizontal drag fill to Rest Day (OFF)",
-              });
+            if (existing?.is_rest_day || existing?.is_adhoc_modified || existing?.status === "CANCELLED_PAID") {
+              continue;
             }
+            await api.materializeRoster({
+              employee_ids: [employeeId],
+              start_date: dStr,
+              days: 1,
+              shift_template_id: fallbackTemplateId,
+              rest_weekdays: [pythonWeekday(dStr)],
+            });
           }
         }
         await loadData(true);
@@ -227,7 +235,7 @@ export function RosterMatrixPage() {
 
     window.addEventListener("mouseup", handleMouseUp);
     return () => window.removeEventListener("mouseup", handleMouseUp);
-  }, [dragFill, days]);
+  }, [dragFill, days, templates]);
 
   const baseFilteredEmployees = employees.filter((emp) => {
     if (branchFilter !== "ALL" && emp.branch_id !== branchFilter) return false;

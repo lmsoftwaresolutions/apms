@@ -577,3 +577,18 @@ async def test_materialize_fixed_with_rest_weekdays() -> None:
         assert rows["2026-11-02"]["is_rest_day"] is False
         assert rows["2026-11-02"]["status"] == "SCHEDULED"
 
+
+def test_rest_weekdays_rejected_with_roster_pattern() -> None:
+    from pydantic import ValidationError
+
+    from app.modules.roster.schemas import MaterializeRosterRequest
+
+    with pytest.raises(ValidationError, match="rest_weekdays"):
+        MaterializeRosterRequest(
+            employee_ids=[uuid4()],
+            start_date=date(2026, 11, 1),
+            days=7,
+            roster_pattern_id=uuid4(),
+            rest_weekdays=[6],
+        )
+

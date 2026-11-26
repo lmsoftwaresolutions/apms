@@ -5,7 +5,7 @@ import { Button } from "../../components/common/Button";
 import { Field } from "../../components/common/Field";
 import { Modal } from "../../components/common/Modal";
 import { formatTimeShort } from "../shifts/shiftUtils";
-import { computeRestGapHours } from "./rosterUtils";
+import { computeRestGapHours, pythonWeekday } from "./rosterUtils";
 
 export interface CellAssignmentModalProps {
   isOpen: boolean;
@@ -37,7 +37,7 @@ export function CellAssignmentModal({
 }: CellAssignmentModalProps) {
   const [applyTo, setApplyTo] = useState<"single" | "month">("single");
   const [shiftValue, setShiftValue] = useState("");
-  const [weeklyOffPreset, setWeeklyOffPreset] = useState<"SUN" | "SAT_SUN" | "NONE">("SUN");
+  const [weeklyOffPreset, setWeeklyOffPreset] = useState<"SUN" | "SAT_SUN" | "NONE">("NONE");
   const [cancelMode, setCancelMode] = useState(false);
   const [reason, setReason] = useState("");
   const [ackRestWarning, setAckRestWarning] = useState(false);
@@ -53,7 +53,7 @@ export function CellAssignmentModal({
     setAckRestWarning(false);
     setCancelMode(false);
     setApplyTo("single");
-    setWeeklyOffPreset("SUN");
+    setWeeklyOffPreset("NONE");
 
     if (instance?.is_rest_day) {
       setShiftValue(REST_DAY_VALUE);
@@ -114,16 +114,16 @@ export function CellAssignmentModal({
             reason: reason.trim(),
           });
         } else if (activeTemplates[0]) {
-          const [y, m, d] = dateStr.split("-").map(Number);
-          const jsDay = new Date(y, m - 1, d).getDay();
-          const pyWeekday = jsDay === 0 ? 6 : jsDay - 1;
           await api.materializeRoster({
             employee_ids: [employee.id],
             start_date: dateStr,
             days: 1,
             shift_template_id: activeTemplates[0].id,
-            rest_weekdays: [pyWeekday],
+            rest_weekdays: [pythonWeekday(dateStr)],
           });
+        } else {
+          setError("Add an active shift template before marking a weekly off.");
+          return;
         }
       } else if (chosenTemplate) {
         if (instance) {
@@ -280,9 +280,9 @@ export function CellAssignmentModal({
                       setWeeklyOffPreset(e.target.value as "SUN" | "SAT_SUN" | "NONE")
                     }
                   >
+                    <option value="NONE">None (all days working)</option>
                     <option value="SUN">Sunday (Su)</option>
                     <option value="SAT_SUN">Saturday &amp; Sunday (Sa + Su)</option>
-                    <option value="NONE">None (All days working)</option>
                   </select>
                 </Field>
               </div>

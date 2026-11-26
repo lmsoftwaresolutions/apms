@@ -53,6 +53,8 @@ class MaterializeRosterRequest(BaseModel):
             raise ValueError("Either shift_template_id or roster_pattern_id must be provided.")
         if self.rest_weekdays is not None and any(d < 0 or d > 6 for d in self.rest_weekdays):
             raise ValueError("rest_weekdays values must be between 0 (Monday) and 6 (Sunday).")
+        if self.rest_weekdays and self.roster_pattern_id is not None:
+            raise ValueError("rest_weekdays applies only to a fixed shift template, not a roster pattern.")
         return self
 
 

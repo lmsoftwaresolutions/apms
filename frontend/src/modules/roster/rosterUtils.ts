@@ -36,6 +36,13 @@ export function formatMonthYear(year: number, monthZeroIndexed: number): string 
   });
 }
 
+/** Python weekday: Monday is 0 and Sunday is 6. */
+export function pythonWeekday(dateStr: string): number {
+  const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
+  const jsDay = new Date(y, m - 1, d).getDay();
+  return jsDay === 0 ? 6 : jsDay - 1;
+}
+
 export function shiftDateStr(dateStr: string, deltaDays: number): string {
   const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
   const dt = new Date(y, m - 1, d + deltaDays);

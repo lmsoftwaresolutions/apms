@@ -101,8 +101,8 @@ export function ScheduleShiftsModal({
     setDayMappings(
       Array.from({ length: 7 }, (_, i) => ({
         day_index: i,
-        shift_template_id: i === 6 ? null : activeTemplates[0]?.id || null,
-        is_rest_day: i === 6,
+        shift_template_id: activeTemplates[0]?.id || null,
+        is_rest_day: false,
       })),
     );
   }, [isOpen, mode, defaultStartDate, defaultDays]);
