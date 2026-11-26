@@ -27,12 +27,61 @@ import { Button } from "../../components/common/Button";
 import { EmptyState } from "../../components/common/EmptyState";
 import { LoadingRow } from "../../components/common/Spinner";
 import { useAuth } from "../../context/AuthContext";
-import { formatDuration, formatTimeShort } from "../shifts/shiftUtils";
+import { formatTimeShort } from "../shifts/shiftUtils";
 import { ScheduleMode, ScheduleShiftsModal } from "./ScheduleShiftsModal";
 import { ShiftOverrideModal } from "./ShiftOverrideModal";
 import { formatMonthYear, getMonthDays, shiftDateStr } from "./rosterUtils";
 
 type ViewFilter = "ALL" | "FIXED" | "ROTATING";
+
+interface SelectedCell {
+  employee: Employee;
+  dateStr: string;
+  dayIndex: number;
+  instance: DatedShiftInstance | undefined;
+}
+
+interface DragFillState {
+  employeeId: string;
+  startIndex: number;
+  currentIndex: number;
+  shiftTemplateId: string | null;
+  isRestDay: boolean;
+  label: string;
+  color: string;
+}
+
+function getInitials(name: string): string {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) {
+    return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+  }
+  return name.slice(0, 2).toUpperCase();
+}
+
+function getCompactShiftLabel(
+  inst: DatedShiftInstance | undefined,
+  tpl: ShiftTemplate | null | undefined,
+): string {
+  if (!inst) return "";
+  if (inst.status === "CANCELLED_PAID") return "CXL";
+  if (inst.is_rest_day) return inst.is_adhoc_modified ? "OFF*" : "OFF";
+  if (inst.sessions.length > 0) {
+    const sorted = [...inst.sessions].sort((a, b) => a.session_order - b.session_order);
+    const sH = sorted[0].start_time.slice(0, 2);
+    const eH = sorted[sorted.length - 1].end_time.slice(0, 2);
+    return `${sH}-${eH}${inst.is_adhoc_modified ? "*" : ""}`;
+  }
+  return tpl ? `${tpl.code.slice(0, 5)}${inst.is_adhoc_modified ? "*" : ""}` : "SHF";
+}
+
+function getTemplateCompactLabel(tpl: ShiftTemplate): string {
+  if (tpl.sessions.length > 0) {
+    const sorted = [...tpl.sessions].sort((a, b) => a.session_order - b.session_order);
+    return `${sorted[0].start_time.slice(0, 2)}-${sorted[sorted.length - 1].end_time.slice(0, 2)}`;
+  }
+  return tpl.code.slice(0, 5);
+}
 
 export function RosterMatrixPage() {
   const { can } = useAuth();
@@ -40,7 +89,7 @@ export function RosterMatrixPage() {
   // Month Navigation
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth()); // 0-indexed
+  const [month, setMonth] = useState(now.getMonth());
 
   // Master & Roster Data
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -51,6 +100,7 @@ export function RosterMatrixPage() {
   const [instances, setInstances] = useState<DatedShiftInstance[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [savingFill, setSavingFill] = useState(false);
   const [error, setError] = useState("");
 
   // Filters & Toolbar State
@@ -66,11 +116,9 @@ export function RosterMatrixPage() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
 
-  // Tier 1 Inspection Popover State
-  const [inspectedCell, setInspectedCell] = useState<{
-    employee: Employee;
-    instance: DatedShiftInstance;
-  } | null>(null);
+  // Selected Cell & Excel Drag-to-Fill State
+  const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
+  const [dragFill, setDragFill] = useState<DragFillState | null>(null);
 
   // Tier 2 Override / Cancel Modal State
   const [overrideModalState, setOverrideModalState] = useState<{
@@ -90,8 +138,8 @@ export function RosterMatrixPage() {
   const monthEnd = days[days.length - 1].dateStr;
   const prevDayBeforeMonth = shiftDateStr(monthStart, -1);
 
-  async function loadData() {
-    setLoading(true);
+  async function loadData(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [branchList, deptList, empList, tplList, patternList, instanceList] =
         await Promise.all([
@@ -112,7 +160,7 @@ export function RosterMatrixPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load roster matrix");
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -121,12 +169,10 @@ export function RosterMatrixPage() {
   }, [year, month]);
 
   const activeBranches = branches.filter((b) => b.is_active);
-  const deptMap = new Map(departments.map((d) => [d.id, d]));
+  const activeTemplates = templates.filter((t) => t.is_active);
   const templateMap = new Map(templates.map((t) => [t.id, t]));
 
-  // Map: `${employee_id}::${calendar_date}` -> DatedShiftInstance
   const instanceMap = new Map<string, DatedShiftInstance>();
-  // Classify each employee as FIXED vs ROTATING based on materialized instances
   const empScheduleType = new Map<string, "FIXED" | "ROTATING" | "UNASSIGNED">();
 
   for (const inst of instances) {
@@ -141,7 +187,58 @@ export function RosterMatrixPage() {
     }
   }
 
-  // Count by schedule type (after branch/dept/search filters)
+  // Handle global mouseup to commit Excel horizontal drag-to-fill
+  useEffect(() => {
+    if (!dragFill) return;
+
+    const handleMouseUp = async () => {
+      const { employeeId, startIndex, currentIndex, shiftTemplateId, isRestDay } = dragFill;
+      setDragFill(null);
+
+      if (startIndex === currentIndex) return;
+
+      const minIdx = Math.min(startIndex, currentIndex);
+      const maxIdx = Math.max(startIndex, currentIndex);
+      const targetStartDate = days[minIdx]?.dateStr;
+      const numDays = maxIdx - minIdx + 1;
+
+      if (!targetStartDate || numDays < 2) return;
+
+      setSavingFill(true);
+      setError("");
+      try {
+        if (shiftTemplateId && !isRestDay) {
+          await api.materializeRoster({
+            employee_ids: [employeeId],
+            start_date: targetStartDate,
+            days: numDays,
+            shift_template_id: shiftTemplateId,
+          });
+        } else if (isRestDay) {
+          for (let i = minIdx; i <= maxIdx; i++) {
+            const dStr = days[i].dateStr;
+            const existing = instanceMap.get(`${employeeId}::${dStr}`);
+            if (existing && !existing.is_rest_day) {
+              await api.overrideShiftInstance(existing.id, {
+                shift_template_id: null,
+                is_rest_day: true,
+                reason: "Horizontal drag fill to Rest Day (OFF)",
+              });
+            }
+          }
+        }
+        await loadData(true);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to copy shift across cells");
+      } finally {
+        setSavingFill(false);
+      }
+    };
+
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, [dragFill, days]);
+
   const baseFilteredEmployees = employees.filter((emp) => {
     if (branchFilter !== "ALL" && emp.branch_id !== branchFilter) return false;
     if (deptFilter !== "ALL" && (emp.department_id || "") !== deptFilter) return false;
@@ -172,7 +269,7 @@ export function RosterMatrixPage() {
   });
 
   function prevMonth() {
-    setInspectedCell(null);
+    setSelectedCell(null);
     if (month === 0) {
       setYear((y) => y - 1);
       setMonth(11);
@@ -182,7 +279,7 @@ export function RosterMatrixPage() {
   }
 
   function nextMonth() {
-    setInspectedCell(null);
+    setSelectedCell(null);
     if (month === 11) {
       setYear((y) => y + 1);
       setMonth(0);
@@ -202,12 +299,51 @@ export function RosterMatrixPage() {
     employee: Employee,
     instance: DatedShiftInstance,
   ) {
-    setInspectedCell(null);
+    setSelectedCell(null);
     setOverrideModalState({
       isOpen: true,
       mode,
       employee,
       instance,
+    });
+  }
+
+  async function handleQuickAssignCell(shiftTemplateId: string) {
+    if (!selectedCell || !can("roster.instance.create")) return;
+    setSavingFill(true);
+    setError("");
+    try {
+      await api.materializeRoster({
+        employee_ids: [selectedCell.employee.id],
+        start_date: selectedCell.dateStr,
+        days: 1,
+        shift_template_id: shiftTemplateId,
+      });
+      await loadData(true);
+      setSelectedCell(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to assign shift");
+    } finally {
+      setSavingFill(false);
+    }
+  }
+
+  function startHorizontalDrag(
+    empId: string,
+    dayIndex: number,
+    inst: DatedShiftInstance | undefined,
+  ) {
+    if (!inst || !can("roster.instance.create")) return;
+    if (!inst.shift_template_id && !inst.is_rest_day) return;
+    const tpl = inst.shift_template_id ? templateMap.get(inst.shift_template_id) : null;
+    setDragFill({
+      employeeId: empId,
+      startIndex: dayIndex,
+      currentIndex: dayIndex,
+      shiftTemplateId: inst.shift_template_id,
+      isRestDay: inst.is_rest_day,
+      label: getCompactShiftLabel(inst, tpl),
+      color: tpl?.color_code || "var(--color-primary)",
     });
   }
 
@@ -218,51 +354,44 @@ export function RosterMatrixPage() {
     : undefined;
 
   return (
-    <div>
+    <div style={{ userSelect: dragFill ? "none" : undefined }}>
       {/* Header + Month Navigation + Publish Status */}
       <div
         className="card-header"
         style={{
           marginBottom: "1rem",
-          display: "flex",
           flexWrap: "wrap",
-          gap: "1rem",
-          justifyContent: "space-between",
-          alignItems: "flex-start",
+          gap: "0.75rem",
         }}
       >
         <div>
           <h2 className="card-title">Monthly Shift Roster</h2>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "0.75rem",
-              marginTop: "0.35rem",
-              fontSize: "0.825rem",
-              color: "var(--text-muted)",
-            }}
-          >
+          <div style={{ marginTop: "0.35rem" }}>
             <span
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: "0.35rem",
+                gap: "0.4rem",
+                padding: "0.2rem 0.65rem",
+                borderRadius: "999px",
+                fontSize: "0.76rem",
                 fontWeight: 500,
-                color: isPublished ? "var(--color-success-fg)" : "var(--text-secondary)",
+                background: isPublished ? "var(--color-success-bg)" : "var(--color-warning-bg)",
+                border: `1px solid ${isPublished ? "var(--color-success-border)" : "var(--color-warning-border)"}`,
+                color: isPublished ? "var(--color-success-fg)" : "var(--color-warning-fg)",
               }}
             >
               <span
                 style={{
-                  width: "8px",
-                  height: "8px",
+                  width: "7px",
+                  height: "7px",
                   borderRadius: "999px",
                   background: isPublished ? "var(--color-success)" : "var(--color-warning)",
                 }}
               />
               {isPublished
-                ? "Published — Visible to employees on ESS"
-                : "Draft — Roster visible only to managers"}
+                ? "Published · visible to employees on ESS"
+                : "Draft · visible only to managers"}
             </span>
           </div>
         </div>
@@ -274,7 +403,7 @@ export function RosterMatrixPage() {
               alignItems: "center",
               border: "1px solid var(--border-default)",
               borderRadius: "var(--radius)",
-              background: "var(--bg-card)",
+              background: "var(--bg-surface)",
               overflow: "hidden",
             }}
           >
@@ -302,7 +431,7 @@ export function RosterMatrixPage() {
             size="sm"
             onClick={() => setIsPublished((v) => !v)}
           >
-            {isPublished ? "Unlock to Draft" : "Publish Roster"}
+            {isPublished ? "Unlock to draft" : "Publish roster"}
           </Button>
         </div>
       </div>
@@ -313,52 +442,132 @@ export function RosterMatrixPage() {
         </div>
       ) : null}
 
-      {/* Unified Toolbar: View Filter Tabs + Dept/Search + Schedule Menu + Legend */}
+      {/* Sleek Filter Row (Segmented Pill Tabs + Search + Dept + Legend + Schedule Shifts) */}
       <div
-        className="card-panel"
         style={{
-          padding: "0.875rem 1rem",
-          marginBottom: "1rem",
           display: "flex",
           flexDirection: "column",
-          gap: "0.75rem",
+          gap: "0.65rem",
+          marginBottom: "0.875rem",
         }}
       >
         <div
           style={{
             display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
+            gap: "0.65rem",
             flexWrap: "wrap",
-            gap: "0.75rem",
+            alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          {/* Smart View Filter Tabs */}
-          <div style={{ display: "flex", gap: "0.35rem", flexWrap: "wrap" }}>
-            <Button
-              size="sm"
-              variant={viewFilter === "ALL" ? "primary" : "secondary"}
-              onClick={() => setViewFilter("ALL")}
-            >
-              All Employees ({baseFilteredEmployees.length})
-            </Button>
-            <Button
-              size="sm"
-              variant={viewFilter === "FIXED" ? "primary" : "secondary"}
-              onClick={() => setViewFilter("FIXED")}
-            >
-              Fixed Shifts ({fixedCount})
-            </Button>
-            <Button
-              size="sm"
-              variant={viewFilter === "ROTATING" ? "primary" : "secondary"}
-              onClick={() => setViewFilter("ROTATING")}
-            >
-              Rotating Shifts ({rotatingCount})
-            </Button>
+          {/* Segmented Pill Tabs */}
+          <div
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "0.2rem",
+              padding: "0.25rem",
+              borderRadius: "0.55rem",
+              background: "var(--bg-surface)",
+              border: "1px solid var(--border-default)",
+              flexWrap: "wrap",
+            }}
+          >
+            {(
+              [
+                { key: "ALL", label: "All employees", count: baseFilteredEmployees.length },
+                { key: "FIXED", label: "Fixed shifts", count: fixedCount },
+                { key: "ROTATING", label: "Rotating shifts", count: rotatingCount },
+              ] as const
+            ).map((tab) => {
+              const active = viewFilter === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setViewFilter(tab.key)}
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "0.4rem",
+                    padding: "0.35rem 0.7rem",
+                    borderRadius: "0.4rem",
+                    border: "none",
+                    fontSize: "0.8rem",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                    background: active ? "var(--color-primary)" : "transparent",
+                    color: active ? "#ffffff" : "var(--text-secondary)",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span>{tab.label}</span>
+                  <span
+                    style={{
+                      padding: "0.05rem 0.4rem",
+                      borderRadius: "999px",
+                      fontSize: "0.7rem",
+                      fontWeight: 600,
+                      background: active ? "rgba(255,255,255,0.22)" : "var(--bg-subtle)",
+                      color: active ? "#ffffff" : "var(--text-muted)",
+                    }}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center", position: "relative" }}>
+          {/* Search + Filters + Legend */}
+          <div style={{ display: "flex", gap: "0.55rem", flexWrap: "wrap", alignItems: "center", flex: "1 1 auto", justifyContent: "flex-end" }}>
+            <div style={{ position: "relative", flex: "1 1 200px", maxWidth: "260px" }}>
+              <Search
+                size={15}
+                color="var(--text-muted)"
+                style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)" }}
+              />
+              <input
+                className="input"
+                placeholder="Search employee name or code..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                style={{ paddingLeft: "2.15rem" }}
+              />
+            </div>
+
+            {activeBranches.length > 1 ? (
+              <select
+                className="select"
+                style={{ width: "auto", minWidth: "145px" }}
+                value={branchFilter}
+                onChange={(e) => setBranchFilter(e.target.value)}
+              >
+                <option value="ALL">All branches</option>
+                {activeBranches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            <select
+              className="select"
+              style={{ width: "auto", minWidth: "150px" }}
+              value={deptFilter}
+              onChange={(e) => setDeptFilter(e.target.value)}
+            >
+              <option value="ALL">All departments</option>
+              {departments
+                .filter((d) => d.is_active && (branchFilter === "ALL" || d.branch_id === branchFilter))
+                .map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.name}
+                  </option>
+                ))}
+            </select>
+
             <Button
               size="sm"
               variant="secondary"
@@ -367,168 +576,126 @@ export function RosterMatrixPage() {
             >
               Legend
             </Button>
-
-            {can("roster.instance.create") ? (
-              <div style={{ position: "relative" }}>
-                <Button
-                  size="sm"
-                  variant="primary"
-                  icon={<ChevronDown size={15} />}
-                  onClick={() => setIsScheduleMenuOpen((v) => !v)}
-                >
-                  Schedule Shifts
-                </Button>
-                {isScheduleMenuOpen ? (
-                  <div
-                    style={{
-                      position: "absolute",
-                      right: 0,
-                      top: "calc(100% + 6px)",
-                      width: "265px",
-                      background: "var(--bg-card)",
-                      border: "1px solid var(--border-default)",
-                      borderRadius: "var(--radius)",
-                      boxShadow: "var(--shadow-lg)",
-                      zIndex: 40,
-                      padding: "0.35rem",
-                    }}
-                  >
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      style={{
-                        width: "100%",
-                        justifyContent: "flex-start",
-                        textAlign: "left",
-                        padding: "0.55rem 0.65rem",
-                        flexDirection: "column",
-                        alignItems: "flex-start",
-                        gap: "0.15rem",
-                      }}
-                      onClick={() => openScheduleModal("pattern")}
-                    >
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
-                        <Repeat size={14} color="var(--color-primary)" />
-                        Assign Rotating Pattern
-                      </span>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        Set cyclical A/B/C rotation for shift staff
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      style={{
-                        width: "100%",
-                        justifyContent: "flex-start",
-                        textAlign: "left",
-                        padding: "0.55rem 0.65rem",
-                        flexDirection: "column",
-                        alignItems: "flex-start",
-                        gap: "0.15rem",
-                      }}
-                      onClick={() => openScheduleModal("fixed")}
-                    >
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
-                        <Sparkles size={14} color="var(--color-success)" />
-                        Set Fixed Default Shift
-                      </span>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        For office/admin staff (with impact preview)
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      className="btn btn-ghost"
-                      style={{
-                        width: "100%",
-                        justifyContent: "flex-start",
-                        textAlign: "left",
-                        padding: "0.55rem 0.65rem",
-                        flexDirection: "column",
-                        alignItems: "flex-start",
-                        gap: "0.15rem",
-                      }}
-                      onClick={() => openScheduleModal("bulk")}
-                    >
-                      <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
-                        <Layers size={14} color="var(--text-secondary)" />
-                        Bulk Assign by Date Range
-                      </span>
-                      <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                        Materialize custom dates manually
-                      </span>
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
           </div>
         </div>
 
-        {/* Search + Branch + Dept Filters */}
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "center" }}>
-          <div style={{ position: "relative", flex: "1 1 220px", maxWidth: "300px" }}>
-            <Search
-              size={15}
-              color="var(--text-muted)"
-              style={{ position: "absolute", left: "0.7rem", top: "50%", transform: "translateY(-50%)" }}
-            />
-            <input
-              className="input"
-              placeholder="Search employee name or code..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              style={{ paddingLeft: "2.15rem" }}
-            />
-          </div>
+        {/* Schedule Shifts Action + Saving Indicator */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "0.5rem" }}>
+          {can("roster.instance.create") ? (
+            <div style={{ position: "relative" }}>
+              <Button
+                size="sm"
+                variant="primary"
+                icon={<ChevronDown size={15} />}
+                onClick={() => setIsScheduleMenuOpen((v) => !v)}
+              >
+                Schedule shifts
+              </Button>
+              {isScheduleMenuOpen ? (
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 0,
+                    top: "calc(100% + 6px)",
+                    width: "265px",
+                    background: "var(--bg-surface)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: "var(--radius)",
+                    boxShadow: "var(--shadow-lg)",
+                    zIndex: 40,
+                    padding: "0.35rem",
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      textAlign: "left",
+                      padding: "0.55rem 0.65rem",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: "0.15rem",
+                    }}
+                    onClick={() => openScheduleModal("pattern")}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
+                      <Repeat size={14} color="var(--color-primary)" />
+                      Assign Rotating Pattern
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                      Set cyclical A/B/C rotation for shift staff
+                    </span>
+                  </button>
 
-          {activeBranches.length > 1 ? (
-            <select
-              className="select"
-              style={{ width: "auto", minWidth: "160px" }}
-              value={branchFilter}
-              onChange={(e) => setBranchFilter(e.target.value)}
-            >
-              <option value="ALL">All Branches</option>
-              {activeBranches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      textAlign: "left",
+                      padding: "0.55rem 0.65rem",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: "0.15rem",
+                    }}
+                    onClick={() => openScheduleModal("fixed")}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
+                      <Sparkles size={14} color="var(--color-success)" />
+                      Set Fixed Default Shift
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                      For office/admin staff (with impact preview)
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn btn-ghost"
+                    style={{
+                      width: "100%",
+                      justifyContent: "flex-start",
+                      textAlign: "left",
+                      padding: "0.55rem 0.65rem",
+                      flexDirection: "column",
+                      alignItems: "flex-start",
+                      gap: "0.15rem",
+                    }}
+                    onClick={() => openScheduleModal("bulk")}
+                  >
+                    <span style={{ display: "flex", alignItems: "center", gap: "0.4rem", fontWeight: 600, fontSize: "0.85rem" }}>
+                      <Layers size={14} color="var(--text-secondary)" />
+                      Bulk Assign by Date Range
+                    </span>
+                    <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                      Materialize custom dates manually
+                    </span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
-          <select
-            className="select"
-            style={{ width: "auto", minWidth: "180px" }}
-            value={deptFilter}
-            onChange={(e) => setDeptFilter(e.target.value)}
-          >
-            <option value="ALL">All Departments</option>
-            {departments
-              .filter((d) => d.is_active && (branchFilter === "ALL" || d.branch_id === branchFilter))
-              .map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.name} ({d.code})
-                </option>
-              ))}
-          </select>
+          <span style={{ fontSize: "0.76rem", color: "var(--text-muted)" }}>
+            {savingFill
+              ? "Saving horizontal fill..."
+              : "Click any cell to assign/edit · Drag a shift cell horizontally like Excel to copy across days"}
+          </span>
         </div>
 
         {/* Expandable Legend Panel */}
         {showLegend ? (
           <div
+            className="card-panel"
             style={{
-              padding: "0.75rem",
-              borderRadius: "var(--radius)",
-              background: "var(--bg-subtle)",
-              border: "1px solid var(--border-subtle)",
+              padding: "0.75rem 1rem",
+              marginBottom: 0,
               display: "flex",
               flexWrap: "wrap",
-              gap: "0.75rem 1.25rem",
+              gap: "0.65rem 1.25rem",
               fontSize: "0.78rem",
             }}
           >
@@ -542,8 +709,10 @@ export function RosterMatrixPage() {
                     background: tpl.color_code || "#3b82f6",
                   }}
                 />
-                <code>{tpl.code}</code>
-                <span style={{ color: "var(--text-muted)" }}>{tpl.name}</span>
+                <code>{getTemplateCompactLabel(tpl)}</code>
+                <span style={{ color: "var(--text-muted)" }}>
+                  {tpl.code} ({tpl.name})
+                </span>
               </div>
             ))}
             <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
@@ -555,21 +724,21 @@ export function RosterMatrixPage() {
               <span style={{ color: "var(--text-muted)" }}>N66d Cancelled Paid</span>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
-              <Pencil size={12} color="var(--color-primary)" />
+              <code style={{ color: "var(--color-primary)" }}>*</code>
               <span style={{ color: "var(--text-muted)" }}>N67 Override</span>
             </div>
           </div>
         ) : null}
       </div>
 
-      {/* Tier 1 Inspection Popover Card (when a cell is clicked) */}
-      {inspectedCell ? (
+      {/* Selected Cell Quick-Edit & Inspection Bar */}
+      {selectedCell ? (
         <div
           className="card-panel"
           style={{
-            padding: "0.875rem 1rem",
-            marginBottom: "1rem",
-            border: "1px solid var(--color-primary-border)",
+            padding: "0.75rem 1rem",
+            marginBottom: "0.875rem",
+            borderColor: "var(--color-primary-border)",
             background: "var(--color-primary-bg)",
             display: "flex",
             justifyContent: "space-between",
@@ -578,81 +747,83 @@ export function RosterMatrixPage() {
             gap: "0.75rem",
           }}
         >
-          <div style={{ fontSize: "0.85rem" }}>
+          <div style={{ fontSize: "0.84rem" }}>
             <div style={{ fontWeight: 600, color: "var(--text-primary)" }}>
-              {inspectedCell.employee.full_name} ({inspectedCell.employee.employee_code}) •{" "}
-              <span style={{ fontFamily: "var(--font-mono)" }}>
-                {inspectedCell.instance.calendar_date}
-              </span>
+              {selectedCell.employee.full_name} ({selectedCell.employee.employee_code}) ·{" "}
+              <span style={{ fontFamily: "var(--font-mono)" }}>{selectedCell.dateStr}</span>
             </div>
-            <div style={{ color: "var(--text-secondary)", marginTop: "0.2rem" }}>
-              {inspectedCell.instance.status === "CANCELLED_PAID" ? (
-                <span>
-                  <strong>CANCELLED_PAID (Rule N66d)</strong> — Reason:{" "}
-                  {inspectedCell.instance.modification_reason || "Employer cancelled"}
-                </span>
-              ) : inspectedCell.instance.is_rest_day ? (
-                <span>
-                  <strong>Weekly Off / Rest Day (OFF)</strong>
-                </span>
-              ) : (
-                (() => {
-                  const tpl = inspectedCell.instance.shift_template_id
-                    ? templateMap.get(inspectedCell.instance.shift_template_id)
-                    : null;
-                  const s = inspectedCell.instance.sessions[0];
-                  return (
-                    <span>
-                      <strong>{tpl ? `${tpl.code} — ${tpl.name}` : "Scheduled"}</strong>
-                      {s
-                        ? ` (${formatTimeShort(s.start_time)}–${formatTimeShort(s.end_time)})`
-                        : ""}
-                      {" • "}
-                      {inspectedCell.instance.is_adhoc_modified
-                        ? `N67 Override: ${inspectedCell.instance.modification_reason}`
-                        : inspectedCell.instance.roster_pattern_id
-                          ? "Rotating Pattern"
-                          : "Fixed Default"}
-                    </span>
-                  );
-                })()
-              )}
+            <div style={{ color: "var(--text-secondary)", fontSize: "0.78rem", marginTop: "0.15rem" }}>
+              {!selectedCell.instance
+                ? "Unscheduled — pick a shift template to assign, or drag from another cell."
+                : selectedCell.instance.status === "CANCELLED_PAID"
+                  ? `CANCELLED_PAID (N66d): ${selectedCell.instance.modification_reason || ""}`
+                  : selectedCell.instance.is_rest_day
+                    ? "Weekly Off / Rest Day (OFF)"
+                    : (() => {
+                        const tpl = selectedCell.instance.shift_template_id
+                          ? templateMap.get(selectedCell.instance.shift_template_id)
+                          : null;
+                        const s = selectedCell.instance.sessions[0];
+                        return `${tpl ? `${tpl.code} — ${tpl.name}` : "Scheduled"}${
+                          s ? ` (${formatTimeShort(s.start_time)}–${formatTimeShort(s.end_time)})` : ""
+                        }${selectedCell.instance.is_adhoc_modified ? ` · N67: ${selectedCell.instance.modification_reason}` : ""}`;
+                      })()}
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-            {can("roster.instance.update") ? (
+          <div style={{ display: "flex", gap: "0.45rem", alignItems: "center", flexWrap: "wrap" }}>
+            {can("roster.instance.create") ? (
+              <select
+                className="select"
+                style={{ width: "auto", minWidth: "170px", padding: "0.3rem 0.6rem", fontSize: "0.8rem" }}
+                value=""
+                disabled={savingFill}
+                onChange={(e) => {
+                  if (e.target.value) void handleQuickAssignCell(e.target.value);
+                }}
+              >
+                <option value="">Quick assign shift...</option>
+                {activeTemplates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>
+                    {getTemplateCompactLabel(tpl)} — {tpl.code} ({tpl.name})
+                  </option>
+                ))}
+              </select>
+            ) : null}
+
+            {selectedCell.instance && can("roster.instance.update") ? (
               <>
                 <Button
                   size="sm"
                   variant="primary"
-                  icon={<Pencil size={14} />}
+                  icon={<Pencil size={13} />}
                   onClick={() =>
-                    openOverrideModal("override", inspectedCell.employee, inspectedCell.instance)
+                    openOverrideModal("override", selectedCell.employee, selectedCell.instance!)
                   }
                 >
                   Override (N67)
                 </Button>
-                {inspectedCell.instance.status !== "CANCELLED_PAID" &&
-                !inspectedCell.instance.is_rest_day ? (
+                {selectedCell.instance.status !== "CANCELLED_PAID" &&
+                !selectedCell.instance.is_rest_day ? (
                   <Button
                     size="sm"
                     variant="secondary"
-                    icon={<Ban size={14} />}
+                    icon={<Ban size={13} />}
                     onClick={() =>
-                      openOverrideModal("cancel", inspectedCell.employee, inspectedCell.instance)
+                      openOverrideModal("cancel", selectedCell.employee, selectedCell.instance!)
                     }
                   >
-                    Cancel Session (N66d)
+                    Cancel (N66d)
                   </Button>
                 ) : null}
               </>
             ) : null}
+
             <Button
               size="sm"
               variant="ghost"
-              aria-label="Close inspection"
-              onClick={() => setInspectedCell(null)}
+              aria-label="Close selection"
+              onClick={() => setSelectedCell(null)}
             >
               <X size={15} />
             </Button>
@@ -675,7 +846,7 @@ export function RosterMatrixPage() {
           title="No employees in this roster view"
           description={
             employees.length === 0
-              ? "Add active employees first, then use Schedule Shifts to materialize their monthly roster."
+              ? "Add active employees first, then use Schedule shifts to materialize their monthly roster."
               : "No employees match your current filter tabs or search query."
           }
           action={
@@ -701,184 +872,256 @@ export function RosterMatrixPage() {
                     left: 0,
                     zIndex: 20,
                     background: "var(--bg-subtle)",
-                    minWidth: "155px",
-                    maxWidth: "155px",
+                    minWidth: "220px",
+                    maxWidth: "240px",
+                    borderRight: "1px solid var(--border-default)",
+                    boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
                   }}
                 >
                   Employee
                 </th>
-                <th
-                  style={{
-                    position: "sticky",
-                    left: "155px",
-                    zIndex: 20,
-                    background: "var(--bg-subtle)",
-                    minWidth: "78px",
-                    boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
-                  }}
-                >
-                  Sched
-                </th>
-                  {days.map((d) => (
-                    <th
-                      key={d.dateStr}
+                {days.map((d) => (
+                  <th
+                    key={d.dateStr}
+                    style={{
+                      textAlign: "center",
+                      minWidth: "56px",
+                      padding: "0.5rem 0.25rem",
+                      background: d.isWeekend ? "var(--bg-active)" : "var(--bg-subtle)",
+                      borderRight: "1px solid var(--border-subtle)",
+                      fontSize: "0.74rem",
+                    }}
+                  >
+                    <div>{d.dayNum}</div>
+                    <div style={{ color: "var(--text-muted)", fontWeight: 400, textTransform: "none" }}>
+                      {d.weekday}
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {visibleEmployees.map((emp) => {
+                const schedType = empScheduleType.get(emp.id) || "UNASSIGNED";
+
+                return (
+                  <tr key={emp.id}>
+                    {/* Single Pinned Employee Cell (Avatar + Name + Code + Inline Type Pill) */}
+                    <td
                       style={{
-                        textAlign: "center",
-                        minWidth: "56px",
-                        padding: "0.5rem 0.25rem",
-                        background: d.isWeekend ? "var(--bg-active)" : "var(--bg-subtle)",
-                        fontSize: "0.75rem",
+                        position: "sticky",
+                        left: 0,
+                        zIndex: 10,
+                        background: "var(--bg-surface)",
+                        minWidth: "220px",
+                        maxWidth: "240px",
+                        padding: "0.55rem 0.75rem",
+                        borderRight: "1px solid var(--border-default)",
+                        boxShadow: "2px 0 6px rgba(0,0,0,0.08)",
                       }}
                     >
-                      <div>{d.dayNum}</div>
-                      <div style={{ color: "var(--text-muted)", fontWeight: 400 }}>{d.weekday}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {visibleEmployees.map((emp) => {
-                  const dept = emp.department_id ? deptMap.get(emp.department_id) : null;
-                  const schedType = empScheduleType.get(emp.id) || "UNASSIGNED";
-
-                  return (
-                    <tr key={emp.id}>
-                      {/* Pinned Employee Column */}
-                      <td
-                        style={{
-                          position: "sticky",
-                          left: 0,
-                          zIndex: 10,
-                          background: "var(--bg-surface)",
-                          minWidth: "155px",
-                          maxWidth: "155px",
-                        }}
-                      >
-                        <div style={{ fontWeight: 600, fontSize: "0.84rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                          {emp.full_name}
-                        </div>
-                        <div style={{ fontSize: "0.74rem", color: "var(--text-muted)" }}>
-                          {emp.employee_code}
-                          {dept ? ` • ${dept.name}` : ""}
-                        </div>
-                      </td>
-
-                      {/* Pinned Schedule Type Column */}
-                      <td
-                        style={{
-                          position: "sticky",
-                          left: "155px",
-                          zIndex: 10,
-                          background: "var(--bg-surface)",
-                          minWidth: "78px",
-                          boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
-                        }}
-                      >
-                        {schedType === "ROTATING" ? (
-                          <Badge variant="info">⟳ Rotat</Badge>
-                        ) : schedType === "FIXED" ? (
-                          <Badge variant="neutral">● Fixed</Badge>
-                        ) : (
-                          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>—</span>
-                        )}
-                      </td>
-
-                      {/* Calendar Day Cells */}
-                      {days.map((d) => {
-                        const inst = instanceMap.get(`${emp.id}::${d.dateStr}`);
-                        const tpl =
-                          inst && inst.shift_template_id
-                            ? templateMap.get(inst.shift_template_id)
-                            : null;
-                        const isSelected =
-                          inspectedCell?.employee.id === emp.id &&
-                          inspectedCell?.instance.calendar_date === d.dateStr;
-
-                        return (
-                          <td
-                            key={d.dateStr}
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "0.5rem" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", minWidth: 0 }}>
+                          <div
                             style={{
-                              textAlign: "center",
-                              padding: "0.35rem 0.2rem",
-                              background: isSelected
+                              width: "30px",
+                              height: "30px",
+                              borderRadius: "999px",
+                              background: "var(--bg-active)",
+                              color: "var(--text-secondary)",
+                              fontSize: "0.72rem",
+                              fontWeight: 600,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              flexShrink: 0,
+                            }}
+                          >
+                            {getInitials(emp.full_name)}
+                          </div>
+                          <div style={{ minWidth: 0 }}>
+                            <div
+                              style={{
+                                fontWeight: 600,
+                                fontSize: "0.82rem",
+                                whiteSpace: "nowrap",
+                                overflow: "hidden",
+                                textOverflow: "ellipsis",
+                              }}
+                            >
+                              {emp.full_name}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: "0.7rem",
+                                color: "var(--text-muted)",
+                                fontFamily: "var(--font-mono)",
+                              }}
+                            >
+                              {emp.employee_code}
+                            </div>
+                          </div>
+                        </div>
+
+                        {schedType === "FIXED" ? (
+                          <Badge variant="info">Fixed</Badge>
+                        ) : schedType === "ROTATING" ? (
+                          <Badge variant="warning">Rotat</Badge>
+                        ) : null}
+                      </div>
+                    </td>
+
+                    {/* Calendar Day Cells with Click-to-Select + Excel Horizontal Drag-Fill */}
+                    {days.map((d, dayIdx) => {
+                      const inst = instanceMap.get(`${emp.id}::${d.dateStr}`);
+                      const tpl =
+                        inst && inst.shift_template_id
+                          ? templateMap.get(inst.shift_template_id)
+                          : null;
+                      const isSelected =
+                        selectedCell?.employee.id === emp.id &&
+                        selectedCell?.dateStr === d.dateStr;
+
+                      const isInDragRange =
+                        dragFill !== null &&
+                        dragFill.employeeId === emp.id &&
+                        dayIdx >= Math.min(dragFill.startIndex, dragFill.currentIndex) &&
+                        dayIdx <= Math.max(dragFill.startIndex, dragFill.currentIndex);
+
+                      const compactLabel = getCompactShiftLabel(inst, tpl);
+
+                      return (
+                        <td
+                          key={d.dateStr}
+                          onMouseEnter={() => {
+                            if (dragFill && dragFill.employeeId === emp.id) {
+                              setDragFill((prev) =>
+                                prev ? { ...prev, currentIndex: dayIdx } : null,
+                              );
+                            }
+                          }}
+                          onClick={() => {
+                            if (dragFill) return;
+                            setSelectedCell({
+                              employee: emp,
+                              dateStr: d.dateStr,
+                              dayIndex: dayIdx,
+                              instance: inst,
+                            });
+                          }}
+                          style={{
+                            position: "relative",
+                            textAlign: "center",
+                            padding: "0.4rem 0.2rem",
+                            cursor: "pointer",
+                            borderRight: "1px solid var(--border-subtle)",
+                            background: isInDragRange
+                              ? "rgba(37, 99, 235, 0.16)"
+                              : isSelected
                                 ? "var(--color-primary-bg)"
                                 : d.isWeekend
                                   ? "var(--bg-subtle)"
                                   : undefined,
-                            }}
-                          >
-                            {!inst ? (
-                              <span style={{ color: "var(--text-muted)", fontSize: "0.75rem" }}>
-                                —
-                              </span>
-                            ) : (
-                              <button
-                                type="button"
-                                onClick={() => setInspectedCell({ employee: emp, instance: inst })}
-                                title={
+                            outline: isInDragRange
+                              ? "2px dashed var(--color-primary)"
+                              : isSelected
+                                ? "2px solid var(--color-primary)"
+                                : undefined,
+                            outlineOffset: "-2px",
+                          }}
+                        >
+                          {inst ? (
+                            <span
+                              onMouseDown={(e) => {
+                                if (e.button !== 0) return;
+                                startHorizontalDrag(emp.id, dayIdx, inst);
+                              }}
+                              title={`${tpl?.code || "SHIFT"} — ${tpl?.name || "Scheduled"} (Drag horizontally to copy)`}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minWidth: "44px",
+                                padding: "0.24rem 0.35rem",
+                                borderRadius: "6px",
+                                fontSize: "0.72rem",
+                                fontWeight: 600,
+                                fontFamily: "var(--font-mono)",
+                                cursor: can("roster.instance.create") ? "grab" : "pointer",
+                                background:
                                   inst.status === "CANCELLED_PAID"
-                                    ? `Cancelled Paid (N66d): ${inst.modification_reason}`
+                                    ? "var(--color-warning-bg)"
                                     : inst.is_rest_day
-                                      ? "Rest Day (OFF)"
-                                      : `${tpl?.code || "SHIFT"} (${tpl?.name || ""})${inst.is_adhoc_modified ? " — N67 Override" : ""}`
-                                }
-                                style={{
-                                  display: "inline-flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  gap: "2px",
-                                  minWidth: "46px",
-                                  padding: "0.2rem 0.3rem",
-                                  borderRadius: "5px",
-                                  fontSize: "0.7rem",
-                                  fontWeight: 600,
-                                  fontFamily: "var(--font-mono)",
-                                  cursor: "pointer",
-                                  border: inst.is_adhoc_modified
-                                    ? "1.5px solid var(--color-primary)"
-                                    : schedType === "FIXED" && !inst.is_rest_day
-                                      ? `1px solid ${tpl?.color_code || "var(--border-strong)"}`
-                                      : "1px solid transparent",
-                                  background:
-                                    inst.status === "CANCELLED_PAID"
-                                      ? "var(--color-warning-bg)"
-                                      : inst.is_rest_day
-                                        ? "var(--bg-active)"
-                                        : schedType === "FIXED"
-                                          ? "transparent"
-                                          : tpl?.color_code || "var(--color-primary)",
-                                  color:
-                                    inst.status === "CANCELLED_PAID"
-                                      ? "var(--color-warning-fg)"
-                                      : inst.is_rest_day
-                                        ? "var(--text-muted)"
-                                        : schedType === "FIXED"
-                                          ? "var(--text-primary)"
-                                          : "#ffffff",
-                                }}
-                              >
-                                <span>
-                                  {inst.status === "CANCELLED_PAID"
-                                    ? "CXL"
+                                      ? "var(--bg-active)"
+                                      : tpl?.color_code || "var(--color-primary)",
+                                color:
+                                  inst.status === "CANCELLED_PAID"
+                                    ? "var(--color-warning-fg)"
                                     : inst.is_rest_day
-                                      ? "OFF"
-                                      : tpl?.code.slice(0, 5) || "SHF"}
-                                </span>
-                                {inst.is_adhoc_modified ? <span>*</span> : null}
-                              </button>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                                      ? "var(--text-secondary)"
+                                      : "#ffffff",
+                                border: inst.is_adhoc_modified
+                                  ? "1px solid rgba(255,255,255,0.45)"
+                                  : "1px solid transparent",
+                              }}
+                            >
+                              {compactLabel}
+                            </span>
+                          ) : isInDragRange && dragFill ? (
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                minWidth: "44px",
+                                padding: "0.24rem 0.35rem",
+                                borderRadius: "6px",
+                                fontSize: "0.72rem",
+                                fontWeight: 600,
+                                fontFamily: "var(--font-mono)",
+                                opacity: 0.6,
+                                background: dragFill.color,
+                                color: "#ffffff",
+                              }}
+                            >
+                              {dragFill.label}
+                            </span>
+                          ) : null}
+
+                          {/* Excel-style Bottom-Right Fill Handle on Selected Scheduled Cell */}
+                          {isSelected && inst && can("roster.instance.create") ? (
+                            <div
+                              onMouseDown={(e) => {
+                                e.stopPropagation();
+                                startHorizontalDrag(emp.id, dayIdx, inst);
+                              }}
+                              title="Drag horizontally to copy shift to adjacent days"
+                              style={{
+                                position: "absolute",
+                                right: "1px",
+                                bottom: "1px",
+                                width: "8px",
+                                height: "8px",
+                                background: "var(--color-primary)",
+                                border: "1px solid #ffffff",
+                                borderRadius: "1px",
+                                cursor: "ew-resize",
+                                zIndex: 15,
+                              }}
+                            />
+                          ) : null}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
-      {/* Schedule Shifts Modal (Fixed Default 2-Step / Rotating Pattern / Bulk) */}
+      {/* Schedule Shifts Modal */}
       <ScheduleShiftsModal
         isOpen={scheduleModalOpen}
         onClose={() => setScheduleModalOpen(false)}
@@ -890,7 +1133,7 @@ export function RosterMatrixPage() {
         templates={templates}
         patterns={patterns}
         existingInstances={instances}
-        onSaved={loadData}
+        onSaved={() => loadData(true)}
       />
 
       {/* N67 Override / N66d Cancel Modal */}
@@ -904,7 +1147,7 @@ export function RosterMatrixPage() {
         prevInstance={prevInstanceForModal}
         employee={overrideModalState.employee}
         templates={templates}
-        onSaved={loadData}
+        onSaved={() => loadData(true)}
       />
     </div>
   );
