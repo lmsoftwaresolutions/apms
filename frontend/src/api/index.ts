@@ -82,6 +82,85 @@ export type ShiftTemplateUpdateInput = {
   sessions?: ShiftSessionInput[] | null;
 };
 
+export type RosterDayMapping = {
+  day_index: number;
+  shift_template_id?: string | null;
+  is_rest_day: boolean;
+};
+
+export type RosterPattern = {
+  id: string;
+  tenant_id: string;
+  code: string;
+  name: string;
+  cycle_length_days: number;
+  cycle_anchor_date: string;
+  day_shift_mapping: RosterDayMapping[];
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RosterPatternCreateInput = {
+  code: string;
+  name: string;
+  cycle_length_days: number;
+  cycle_anchor_date: string;
+  day_shift_mapping: RosterDayMapping[];
+};
+
+export type MaterializeRosterInput = {
+  employee_ids: string[];
+  start_date: string;
+  days: number;
+  shift_template_id?: string | null;
+  roster_pattern_id?: string | null;
+  rest_weekdays?: number[] | null;
+};
+
+export type MaterializeRosterResponse = {
+  total_materialized: number;
+  employees_count: number;
+  start_date: string;
+  end_date: string;
+};
+
+export type DatedShiftInstance = {
+  id: string;
+  tenant_id: string;
+  employee_id: string;
+  calendar_date: string;
+  shift_template_id: string | null;
+  roster_pattern_id: string | null;
+  status: string;
+  resolution_mode: string;
+  sessions: Array<{
+    session_order: number;
+    name: string;
+    start_time: string;
+    end_time: string;
+    break_duration_minutes?: number;
+    is_overnight?: boolean;
+  }>;
+  is_rest_day: boolean;
+  is_adhoc_modified: boolean;
+  modified_by_user_id: string | null;
+  modification_reason: string | null;
+  modified_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdHocOverrideInput = {
+  shift_template_id?: string | null;
+  is_rest_day: boolean;
+  reason: string;
+};
+
+export type CancelShiftInput = {
+  reason: string;
+};
+
 export type Department = {
   id: string;
   branch_id: string;
@@ -435,4 +514,33 @@ export const api = {
     }),
   deleteShiftTemplate: (id: string) =>
     request<void>(`/api/v1/shifts/templates/${id}`, { method: "DELETE" }),
+  rosterPatterns: () => request<RosterPattern[]>("/api/v1/roster/patterns"),
+  createRosterPattern: (payload: RosterPatternCreateInput) =>
+    request<RosterPattern>("/api/v1/roster/patterns", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  materializeRoster: (payload: MaterializeRosterInput) =>
+    request<MaterializeRosterResponse>("/api/v1/roster/materialize", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  rosterInstances: (params?: { employee_id?: string; start_date?: string; end_date?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.employee_id) query.set("employee_id", params.employee_id);
+    if (params?.start_date) query.set("start_date", params.start_date);
+    if (params?.end_date) query.set("end_date", params.end_date);
+    const qs = query.toString();
+    return request<DatedShiftInstance[]>(`/api/v1/roster/instances${qs ? `?${qs}` : ""}`);
+  },
+  overrideShiftInstance: (id: string, payload: AdHocOverrideInput) =>
+    request<DatedShiftInstance>(`/api/v1/roster/instances/${id}/override`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  cancelShiftInstance: (id: string, payload: CancelShiftInput) =>
+    request<DatedShiftInstance>(`/api/v1/roster/instances/${id}/cancel`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    }),
 };

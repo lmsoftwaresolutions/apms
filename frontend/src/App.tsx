@@ -10,6 +10,7 @@ import { UsersPage } from "./modules/iam/UsersPage";
 import { EmployeesPage } from "./modules/employees/EmployeesPage";
 import { PendingActionsPage } from "./modules/actions/PendingActionsPage";
 import { ShiftTemplatesPage } from "./modules/shifts/ShiftTemplatesPage";
+import { RosterMatrixPage } from "./modules/roster/RosterMatrixPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -79,16 +80,8 @@ export function App() {
           {/* Scheduling */}
           <Route path="/shifts" element={<ShiftTemplatesPage />} />
           <Route path="/shifts/templates" element={<Navigate to="/shifts" replace />} />
-          <Route
-            path="/roster"
-            element={
-              <PlaceholderPage
-                title="Roster Matrix"
-                moduleName="Scheduling"
-                description="Dated employee shift assignment grid, bulk rota publish, and swap workflows coming soon."
-              />
-            }
-          />
+          <Route path="/roster" element={<RosterMatrixPage />} />
+          <Route path="/shifts/roster" element={<Navigate to="/roster" replace />} />
           <Route
             path="/policies"
             element={
