@@ -75,6 +75,7 @@ export type ShiftTemplateCreateInput = {
 
 export type ShiftTemplateUpdateInput = {
   name?: string | null;
+  shift_type?: string | null;
   is_active?: boolean | null;
   color_code?: string | null;
   policy_id?: string | null;

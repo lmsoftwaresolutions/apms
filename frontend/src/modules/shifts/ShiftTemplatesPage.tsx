@@ -223,7 +223,11 @@ export function ShiftTemplatesPage() {
     if (sorted.length === 0) return "—";
     const totalBreak = sorted.reduce((acc, s) => acc + s.break_duration_minutes, 0);
     if (sorted.length > 1) {
-      const gap = computeGapMinutes(sorted[0].end_time, sorted[1].start_time);
+      let gap = 0;
+      for (let index = 1; index < sorted.length; index += 1) {
+        const part = computeGapMinutes(sorted[index - 1].end_time, sorted[index].start_time);
+        if (part > 0) gap += part;
+      }
       const gapText = gap > 0 ? `${formatDuration(gap)} N65 Gap` : "Split";
       return totalBreak > 0 ? `${gapText} + ${totalBreak}m` : gapText;
     }
@@ -336,7 +340,7 @@ export function ShiftTemplatesPage() {
             onChange={(e) => setPolicyFilter(e.target.value)}
           >
             <option value="ALL">All policies</option>
-            <option value="">Default only</option>
+            <option value="">Unlinked</option>
             {policies.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -454,7 +458,7 @@ export function ShiftTemplatesPage() {
                       </td>
                       <td>
                         <Badge variant="neutral">
-                          {linkedPolicy ? linkedPolicy.name : "Default"}
+                          {linkedPolicy ? linkedPolicy.name : "Unlinked"}
                         </Badge>
                       </td>
                       <td>

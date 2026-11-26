@@ -22,6 +22,22 @@ from app.modules.shifts.schemas import (
     ShiftTemplateUpdate,
 )
 
+_SHIFT_TYPES = frozenset({"FIXED", "FLEXI", "OVERNIGHT", "SPLIT", "CONTINUOUS"})
+
+
+def _normalize_shift_type(raw: str, *, is_overnight: bool) -> str:
+    shift_type = raw.strip().upper()
+    if shift_type not in _SHIFT_TYPES:
+        raise ProblemError(
+            422,
+            "Invalid shift type",
+            "Shift type must be FIXED, FLEXI, OVERNIGHT, SPLIT, or CONTINUOUS.",
+        )
+    # A split keeps its type. Overnight is also stored on is_overnight.
+    if is_overnight and shift_type not in {"OVERNIGHT", "SPLIT"}:
+        return "OVERNIGHT"
+    return shift_type
+
 
 def _validate_and_build_sessions(
     tenant_id: UUID,
@@ -113,9 +129,7 @@ async def create_template(
         sessions_in=payload.sessions,
     )
 
-    shift_type = payload.shift_type.upper()
-    if is_overnight and shift_type != "OVERNIGHT":
-        shift_type = "OVERNIGHT"
+    shift_type = _normalize_shift_type(payload.shift_type, is_overnight=is_overnight)
 
     if payload.policy_id is not None:
         from app.modules.policies.repository import get_policy
@@ -200,6 +214,8 @@ async def update_template(
     updates: dict[str, Any] = {"updated_at": datetime.now(timezone.utc)}
     if payload.name is not None:
         updates["name"] = payload.name
+    if payload.shift_type is not None:
+        updates["shift_type"] = payload.shift_type
     if payload.is_active is not None:
         updates["is_active"] = payload.is_active
     if "color_code" in payload.model_fields_set:
@@ -239,6 +255,12 @@ async def update_template(
             sessions_in=payload.sessions,
         )
         updates["is_overnight"] = is_overnight
+
+    if "shift_type" in updates or "is_overnight" in updates:
+        updates["shift_type"] = _normalize_shift_type(
+            str(updates.get("shift_type", template.shift_type)),
+            is_overnight=bool(updates.get("is_overnight", template.is_overnight)),
+        )
 
     updated = await update_shift_template(
         session, tenant_id, template, updates, new_session_models

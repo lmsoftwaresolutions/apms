@@ -3,6 +3,7 @@ import { AlertTriangle, Clock, Info, Layers, Moon, Sun } from "lucide-react";
 import {
   api,
   PolicySummary,
+  ShiftSession,
   ShiftSessionInput,
   ShiftTemplate,
   ShiftTemplateCreateInput,
@@ -91,12 +92,12 @@ export function ShiftTemplateModal({
 
   // Orthogonal axes: Session Architecture vs Special Operational Flags
   const [isSplit, setIsSplit] = useState(false);
-  const [isOvernightFlag, setIsOvernightFlag] = useState(false);
   const [isContinuousFlag, setIsContinuousFlag] = useState(false);
   const [isFlexiFlag, setIsFlexiFlag] = useState(false);
 
   const [s1, setS1] = useState<SessionDraft>(DEFAULT_S1);
   const [s2, setS2] = useState<SessionDraft>(DEFAULT_SPLIT_S2);
+  const [extraSessions, setExtraSessions] = useState<ShiftSession[]>([]);
   const [showAdvanced, setShowAdvanced] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
@@ -118,9 +119,9 @@ export function ShiftTemplateModal({
       );
       const split = sorted.length > 1 || editingTemplate.shift_type === "SPLIT";
       setIsSplit(split);
-      setIsOvernightFlag(editingTemplate.is_overnight || editingTemplate.shift_type === "OVERNIGHT");
       setIsContinuousFlag(editingTemplate.shift_type === "CONTINUOUS");
       setIsFlexiFlag(editingTemplate.shift_type === "FLEXI");
+      setExtraSessions(sorted.slice(2));
 
       if (sorted[0]) {
         setS1({
@@ -159,11 +160,11 @@ export function ShiftTemplateModal({
       setPolicyId("");
       setColorCode("#3b82f6");
       setIsSplit(false);
-      setIsOvernightFlag(false);
       setIsContinuousFlag(false);
       setIsFlexiFlag(false);
       setS1(DEFAULT_S1);
       setS2(DEFAULT_SPLIT_S2);
+      setExtraSessions([]);
     }
   }, [isOpen, editingTemplate]);
 
@@ -172,7 +173,7 @@ export function ShiftTemplateModal({
     parseTimeToMinutes(s1.end_time) < parseTimeToMinutes(s1.start_time);
   const s2CrossesMidnight =
     isSplit && parseTimeToMinutes(s2.end_time) < parseTimeToMinutes(s2.start_time);
-  const effectiveOvernight = isOvernightFlag || s1CrossesMidnight || s2CrossesMidnight;
+  const effectiveOvernight = s1CrossesMidnight || s2CrossesMidnight;
 
   const s1Duration = computeSessionDurationMinutes(s1.start_time, s1.end_time);
   const s2Duration = isSplit ? computeSessionDurationMinutes(s2.start_time, s2.end_time) : 0;
@@ -256,6 +257,20 @@ export function ShiftTemplateModal({
         min_presence_ratio: s2.min_presence_ratio,
         break_duration_minutes: s2.break_duration_minutes,
       });
+      extraSessions.forEach((session, index) => {
+        sessionsPayload.push({
+          session_order: index + 3,
+          name: session.name,
+          start_time: toApiTime(session.start_time),
+          end_time: toApiTime(session.end_time),
+          pre_window_minutes: session.pre_window_minutes,
+          post_window_minutes: session.post_window_minutes,
+          grace_period_late_minutes: session.grace_period_late_minutes,
+          grace_period_early_minutes: session.grace_period_early_minutes,
+          min_presence_ratio: session.min_presence_ratio,
+          break_duration_minutes: session.break_duration_minutes,
+        });
+      });
     }
 
     setSubmitting(true);
@@ -265,6 +280,7 @@ export function ShiftTemplateModal({
       if (editingTemplate) {
         const updatePayload: ShiftTemplateUpdateInput = {
           name: trimmedName,
+          shift_type: resolveShiftType(),
           color_code: colorCode,
           policy_id: policyId || null,
           sessions: sessionsPayload,
@@ -371,13 +387,13 @@ export function ShiftTemplateModal({
             />
           </Field>
 
-          <Field label="Linked Policy Master" help="Grace & OT rules (M06)">
+          <Field label="Linked Policy Master" help="Unlinked days use the ratio bands. There is no tenant default policy.">
             <select
               className="select"
               value={policyId}
               onChange={(e) => setPolicyId(e.target.value)}
             >
-              <option value="">— Tenant Default Policy —</option>
+              <option value="">— No linked policy —</option>
               {policies
                 .filter((p) => p.is_active || p.id === policyId)
                 .map((p) => (
@@ -457,10 +473,24 @@ export function ShiftTemplateModal({
                 <input
                   type="checkbox"
                   checked={effectiveOvernight}
-                  onChange={(e) => setIsOvernightFlag(e.target.checked)}
+                  readOnly
+                  disabled
+                  title="Set when a session ends earlier than it starts"
                 />
                 <Moon size={14} color="var(--text-muted)" />
                 Cross-Midnight Overnight (+1d roll)
+              </label>
+              <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", cursor: isSplit ? "default" : "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={isFlexiFlag}
+                  disabled={isSplit}
+                  onChange={(e) => {
+                    setIsFlexiFlag(e.target.checked);
+                    if (e.target.checked) setIsContinuousFlag(false);
+                  }}
+                />
+                Flexi hours
               </label>
               <label style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.875rem", cursor: "pointer" }}>
                 <input
@@ -572,7 +602,16 @@ export function ShiftTemplateModal({
               crossesMidnight={s2CrossesMidnight}
               showAdvanced={showAdvanced}
             />
+            {extraSessions.length > 0 ? (
+              <p style={{ margin: "0.65rem 0 0", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                {extraSessions.length} later {extraSessions.length === 1 ? "session stays" : "sessions stay"} on this template and {extraSessions.length === 1 ? "is" : "are"} saved unchanged.
+              </p>
+            ) : null}
           </>
+        ) : extraSessions.length > 0 ? (
+          <p style={{ margin: "0.65rem 0 0", fontSize: "0.8rem", color: "var(--color-warning-fg, var(--text-muted))" }}>
+            Saving a single session removes {extraSessions.length} later {extraSessions.length === 1 ? "session" : "sessions"}.
+          </p>
         ) : null}
 
         <div style={{ marginTop: "0.5rem", marginBottom: "1rem", textAlign: "right" }}>

@@ -135,6 +135,51 @@ async def test_overnight_shift_auto_detection() -> None:
 
 
 @pytest.mark.asyncio
+async def test_update_keeps_split_type_and_replaces_every_session() -> None:
+    transport = ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        login_resp = await client.post(
+            "/api/v1/auth/login",
+            json={"email": "admin@northmill.example", "password": "ChangeMe-Admin-1"},
+        )
+        headers = {"Authorization": f"Bearer {login_resp.json()['access_token']}"}
+        code = f"UPD_{uuid4().hex[:6].upper()}"
+        create_resp = await client.post(
+            "/api/v1/shifts/templates",
+            headers={**headers, "Idempotency-Key": str(uuid4())},
+            json={
+                "code": code,
+                "name": "Day shift",
+                "shift_type": "FIXED",
+                "sessions": [
+                    {"session_order": 1, "name": "Day", "start_time": "09:00:00", "end_time": "18:00:00"}
+                ],
+            },
+        )
+        assert create_resp.status_code == 201, create_resp.text
+        template_id = create_resp.json()["id"]
+
+        update_resp = await client.put(
+            f"/api/v1/shifts/templates/{template_id}",
+            headers=headers,
+            json={
+                "shift_type": "SPLIT",
+                "sessions": [
+                    {"session_order": 1, "name": "Morning", "start_time": "08:00:00", "end_time": "12:00:00"},
+                    {"session_order": 2, "name": "Evening", "start_time": "16:00:00", "end_time": "20:00:00"},
+                    {"session_order": 3, "name": "Night", "start_time": "22:00:00", "end_time": "06:00:00"},
+                ],
+            },
+        )
+        assert update_resp.status_code == 200, update_resp.text
+        updated = update_resp.json()
+        assert updated["shift_type"] == "SPLIT"
+        assert updated["is_overnight"] is True
+        assert [session["name"] for session in updated["sessions"]] == ["Morning", "Evening", "Night"]
+        assert updated["sessions"][2]["is_overnight"] is True
+
+
+@pytest.mark.asyncio
 async def test_split_shift_validation() -> None:
     transport = ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:

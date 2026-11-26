@@ -43,6 +43,7 @@ class ShiftTemplateCreate(ShiftTemplateBase):
 
 class ShiftTemplateUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
+    shift_type: str | None = None
     is_active: bool | None = None
     color_code: str | None = None
     policy_id: UUID | None = None
