@@ -94,7 +94,7 @@ export function TraceInspectorModal({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(4, 1fr)",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
           gap: "0.65rem",
           marginBottom: "1rem",
         }}

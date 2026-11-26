@@ -220,7 +220,7 @@ export function DailyAttendancePage() {
           marginBottom: "1rem",
         }}
       >
-        <div className="card" style={{ padding: "0.875rem 1rem" }}>
+        <div className="card-panel" style={{ padding: "0.875rem 1rem", marginBottom: 0 }}>
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
             Present
           </div>
@@ -228,7 +228,7 @@ export function DailyAttendancePage() {
             {presentCount}
           </div>
         </div>
-        <div className="card" style={{ padding: "0.875rem 1rem" }}>
+        <div className="card-panel" style={{ padding: "0.875rem 1rem", marginBottom: 0 }}>
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
             Half Day
           </div>
@@ -236,7 +236,7 @@ export function DailyAttendancePage() {
             {halfDayCount}
           </div>
         </div>
-        <div className="card" style={{ padding: "0.875rem 1rem" }}>
+        <div className="card-panel" style={{ padding: "0.875rem 1rem", marginBottom: 0 }}>
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
             Absent
           </div>
@@ -244,7 +244,7 @@ export function DailyAttendancePage() {
             {absentCount}
           </div>
         </div>
-        <div className="card" style={{ padding: "0.875rem 1rem" }}>
+        <div className="card-panel" style={{ padding: "0.875rem 1rem", marginBottom: 0 }}>
           <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textTransform: "uppercase" }}>
             Single Punch / Anomaly
           </div>
@@ -256,7 +256,7 @@ export function DailyAttendancePage() {
 
       {/* Filter Bar */}
       <div
-        className="card"
+        className="card-panel"
         style={{
           padding: "0.875rem 1rem",
           marginBottom: "1rem",
@@ -332,30 +332,31 @@ export function DailyAttendancePage() {
       </div>
 
       {/* Rollup Table */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {loading ? (
-          <table className="table">
+      {loading ? (
+        <div className="table-container">
+          <table className="data-table">
             <tbody>
               <LoadingRow cols={7} />
             </tbody>
           </table>
-        ) : filteredRecords.length === 0 ? (
-          <EmptyState
-            icon={<CalendarCheck size={36} />}
-            title="No attendance records found"
-            description="No evaluated daily attendance records match this date range or filter. Use Recalculate Day or Run Cutoff to evaluate scheduled shifts."
-            action={
-              can("attendance.daily.recalculate")
-                ? {
-                    label: "Recalculate Day",
-                    onClick: () => setIsRecalcOpen(true),
-                  }
-                : undefined
-            }
-          />
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            <table className="table">
+        </div>
+      ) : filteredRecords.length === 0 ? (
+        <EmptyState
+          icon={<CalendarCheck size={36} />}
+          title="No attendance records found"
+          description="No evaluated daily attendance records match this date range or filter. Use Recalculate Day or Run Cutoff to evaluate scheduled shifts."
+          action={
+            can("attendance.daily.recalculate")
+              ? {
+                  label: "Recalculate Day",
+                  onClick: () => setIsRecalcOpen(true),
+                }
+              : undefined
+          }
+        />
+      ) : (
+        <div className="table-container">
+          <table className="data-table">
               <thead>
                 <tr>
                   <th>Date</th>
@@ -467,9 +468,8 @@ export function DailyAttendancePage() {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Explanation Trace Inspector Modal */}
       <TraceInspectorModal
