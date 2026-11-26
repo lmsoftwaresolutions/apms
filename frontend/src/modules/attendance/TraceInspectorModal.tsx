@@ -115,7 +115,7 @@ export function TraceInspectorModal({
               variant={
                 record.status === "PRESENT"
                   ? "success"
-                  : record.status === "HALF_DAY"
+                  : record.status === "HALF_DAY" || record.status === "NEEDS_REVIEW"
                     ? "warning"
                     : record.status === "ABSENT"
                       ? "danger"
@@ -196,7 +196,10 @@ export function TraceInspectorModal({
             }}
           >
             <span>IMMUTABLE JSON EXPLANATION TRACE</span>
-            <span>Evaluated: {new Date(trace.evaluated_at).toLocaleString("en-IN")}</span>
+            <span>
+              Evaluated:{" "}
+              {new Date(trace.evaluated_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
+            </span>
           </div>
           <pre
             style={{

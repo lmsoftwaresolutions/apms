@@ -18,15 +18,24 @@ import { formatDuration } from "../shifts/shiftUtils";
 import { RecalculateModal } from "./RecalculateModal";
 import { TraceInspectorModal } from "./TraceInspectorModal";
 
+function istToday(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
 function getMonthBounds(): { start: string; end: string } {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = now.getMonth();
-  const mm = String(m + 1).padStart(2, "0");
-  const lastDay = String(new Date(y, m + 1, 0).getDate()).padStart(2, "0");
+  const today = istToday();
+  const [yearText, monthText] = today.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  const lastDay = String(new Date(year, month, 0).getDate()).padStart(2, "0");
   return {
-    start: `${y}-${mm}-01`,
-    end: `${y}-${mm}-${lastDay}`,
+    start: `${yearText}-${monthText}-01`,
+    end: `${yearText}-${monthText}-${lastDay}`,
   };
 }
 
@@ -54,6 +63,12 @@ export function DailyAttendancePage() {
   const [isRecalcOpen, setIsRecalcOpen] = useState(false);
 
   async function loadData() {
+    if (startDate > endDate) {
+      setRecords([]);
+      setError("Start date must be on or before the end date.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const [recList, empList, deptList] = await Promise.all([
@@ -126,9 +141,9 @@ export function DailyAttendancePage() {
 
   function statusBadgeVariant(status: string): "success" | "warning" | "danger" | "info" | "neutral" {
     if (status === "PRESENT") return "success";
-    if (status === "HALF_DAY") return "warning";
+    if (status === "HALF_DAY" || status === "NEEDS_REVIEW") return "warning";
     if (status === "ABSENT") return "danger";
-    if (status === "REST_DAY" || status === "CANCELLED_PAID") return "info";
+    if (status === "REST_DAY") return "info";
     return "neutral";
   }
 
@@ -310,7 +325,6 @@ export function DailyAttendancePage() {
           <option value="HALF_DAY">HALF_DAY</option>
           <option value="ABSENT">ABSENT</option>
           <option value="REST_DAY">REST_DAY</option>
-          <option value="CANCELLED_PAID">CANCELLED_PAID</option>
           <option value="NEEDS_REVIEW">NEEDS_REVIEW</option>
         </select>
 
@@ -410,9 +424,11 @@ export function DailyAttendancePage() {
                               background:
                                 rec.status === "PRESENT"
                                   ? "var(--color-success)"
-                                  : rec.status === "HALF_DAY"
+                                  : rec.status === "HALF_DAY" || rec.status === "NEEDS_REVIEW"
                                     ? "var(--color-warning)"
-                                    : "var(--color-danger)",
+                                    : rec.status === "ABSENT"
+                                      ? "var(--color-danger)"
+                                      : "var(--border-strong)",
                             }}
                           />
                         </div>
@@ -484,7 +500,7 @@ export function DailyAttendancePage() {
         isOpen={isRecalcOpen}
         onClose={() => setIsRecalcOpen(false)}
         employees={employees}
-        defaultDate={new Date().toISOString().slice(0, 10)}
+        defaultDate={istToday()}
         onRecalculated={loadData}
       />
     </div>
