@@ -13,7 +13,6 @@ import { api, Employee, PunchEvent, PunchIngestResult } from "../../api";
 import { Badge } from "../../components/common/Badge";
 import { Button } from "../../components/common/Button";
 import { EmptyState } from "../../components/common/EmptyState";
-import { Modal } from "../../components/common/Modal";
 import { LoadingRow } from "../../components/common/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { SimulatePunchModal } from "./SimulatePunchModal";
@@ -41,7 +40,6 @@ export function PunchStreamPage() {
   const [employeeFilter, setEmployeeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [isSimModalOpen, setIsSimModalOpen] = useState(false);
-  const [metaTarget, setMetaTarget] = useState<PunchEvent | null>(null);
 
   // CSV Ingestion State
   const [csvText, setCsvText] = useState("");
@@ -308,7 +306,7 @@ export function PunchStreamPage() {
             <div className="table-container">
               <table className="data-table">
                 <tbody>
-                  <LoadingRow cols={6} />
+                  <LoadingRow cols={5} />
                 </tbody>
               </table>
             </div>
@@ -337,7 +335,6 @@ export function PunchStreamPage() {
                       <th>Source / Device</th>
                       <th>Direction</th>
                       <th>Status</th>
-                      <th style={{ textAlign: "right" }}>Envelope</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -386,15 +383,6 @@ export function PunchStreamPage() {
                             >
                               {p.status}
                             </Badge>
-                          </td>
-                          <td style={{ textAlign: "right" }}>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => setMetaTarget(p)}
-                            >
-                              View JSON
-                            </Button>
                           </td>
                         </tr>
                       );
@@ -590,46 +578,6 @@ export function PunchStreamPage() {
         employees={employees}
         onIngested={() => loadData(true)}
       />
-
-      {/* Envelope / Metadata Inspector Modal */}
-      <Modal
-        isOpen={Boolean(metaTarget)}
-        onClose={() => setMetaTarget(null)}
-        size="md"
-        title="Punch Event & Envelope Metadata"
-        footer={
-          <Button variant="secondary" onClick={() => setMetaTarget(null)}>
-            Close
-          </Button>
-        }
-      >
-        {metaTarget ? (
-          <pre
-            style={{
-              margin: 0,
-              padding: "0.875rem",
-              borderRadius: "var(--radius)",
-              background: "var(--bg-subtle)",
-              fontSize: "0.8rem",
-              overflowX: "auto",
-            }}
-          >
-            {JSON.stringify(
-              {
-                punch_event_id: metaTarget.id,
-                raw_envelope_id: metaTarget.raw_envelope_id,
-                source: metaTarget.source,
-                direction: metaTarget.punch_direction,
-                status: metaTarget.status,
-                punch_time: metaTarget.punch_time,
-                location_meta: metaTarget.location_meta,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        ) : null}
-      </Modal>
     </div>
   );
 }
