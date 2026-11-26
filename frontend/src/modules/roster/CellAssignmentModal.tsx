@@ -1,20 +1,11 @@
 import { FormEvent, useEffect, useState } from "react";
-import { AlertTriangle, Ban, Copy } from "lucide-react";
+import { AlertTriangle, Ban } from "lucide-react";
 import { api, DatedShiftInstance, Employee, ShiftTemplate } from "../../api";
 import { Button } from "../../components/common/Button";
 import { Field } from "../../components/common/Field";
 import { Modal } from "../../components/common/Modal";
 import { formatTimeShort } from "../shifts/shiftUtils";
 import { computeRestGapHours } from "./rosterUtils";
-
-export interface CopyPayload {
-  employeeId: string;
-  employeeName: string;
-  shiftTemplateId: string | null;
-  isRestDay: boolean;
-  label: string;
-  color: string;
-}
 
 export interface CellAssignmentModalProps {
   isOpen: boolean;
@@ -27,18 +18,10 @@ export interface CellAssignmentModalProps {
   instance: DatedShiftInstance | undefined;
   prevInstance: DatedShiftInstance | undefined;
   templates: ShiftTemplate[];
-  onSaved: (copyAfter?: CopyPayload) => Promise<void>;
+  onSaved: () => Promise<void>;
 }
 
 const REST_DAY_VALUE = "__REST_DAY__";
-
-function getCompactTemplateLabel(tpl: ShiftTemplate): string {
-  if (tpl.sessions.length > 0) {
-    const sorted = [...tpl.sessions].sort((a, b) => a.session_order - b.session_order);
-    return `${sorted[0].start_time.slice(0, 2)}-${sorted[sorted.length - 1].end_time.slice(0, 2)}`;
-  }
-  return tpl.code.slice(0, 5);
-}
 
 export function CellAssignmentModal({
   isOpen,
@@ -106,14 +89,13 @@ export function CellAssignmentModal({
     return [];
   }
 
-  async function executeSave(enterCopyMode: boolean) {
+  async function handleFormSubmit(e: FormEvent) {
+    e.preventDefault();
     if (isSubmitDisabled || !employee) return;
     setSubmitting(true);
     setError("");
 
     try {
-      let copyPayload: CopyPayload | undefined;
-
       if (cancelMode && instance) {
         await api.cancelShiftInstance(instance.id, { reason: reason.trim() });
       } else if (applyTo === "month" && chosenTemplate) {
@@ -143,16 +125,6 @@ export function CellAssignmentModal({
             rest_weekdays: [pyWeekday],
           });
         }
-        if (enterCopyMode) {
-          copyPayload = {
-            employeeId: employee.id,
-            employeeName: employee.full_name,
-            shiftTemplateId: null,
-            isRestDay: true,
-            label: "OFF",
-            color: "var(--bg-active)",
-          };
-        }
       } else if (chosenTemplate) {
         if (instance) {
           await api.overrideShiftInstance(instance.id, {
@@ -168,30 +140,15 @@ export function CellAssignmentModal({
             shift_template_id: chosenTemplate.id,
           });
         }
-        if (enterCopyMode) {
-          copyPayload = {
-            employeeId: employee.id,
-            employeeName: employee.full_name,
-            shiftTemplateId: chosenTemplate.id,
-            isRestDay: false,
-            label: getCompactTemplateLabel(chosenTemplate),
-            color: chosenTemplate.color_code || "var(--color-primary)",
-          };
-        }
       }
 
-      await onSaved(copyPayload);
+      await onSaved();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update cell schedule");
     } finally {
       setSubmitting(false);
     }
-  }
-
-  function handleFormSubmit(e: FormEvent) {
-    e.preventDefault();
-    void executeSave(false);
   }
 
   return (
@@ -206,18 +163,6 @@ export function CellAssignmentModal({
           <Button variant="secondary" onClick={onClose} disabled={submitting}>
             Cancel
           </Button>
-          {applyTo === "single" && !cancelMode ? (
-            <Button
-              type="button"
-              variant="secondary"
-              icon={<Copy size={14} />}
-              disabled={isSubmitDisabled}
-              loading={submitting}
-              onClick={() => void executeSave(true)}
-            >
-              Save &amp; Copy
-            </Button>
-          ) : null}
           <Button
             type="submit"
             form="cell-assign-form"

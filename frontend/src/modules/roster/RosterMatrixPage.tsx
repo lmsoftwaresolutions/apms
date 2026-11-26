@@ -4,13 +4,11 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
-  Copy,
   HelpCircle,
   Layers,
   Repeat,
   Search,
   Sparkles,
-  X,
 } from "lucide-react";
 import {
   api,
@@ -27,7 +25,7 @@ import { EmptyState } from "../../components/common/EmptyState";
 import { LoadingRow } from "../../components/common/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { formatTimeShort } from "../shifts/shiftUtils";
-import { CellAssignmentModal, CopyPayload } from "./CellAssignmentModal";
+import { CellAssignmentModal } from "./CellAssignmentModal";
 import { ScheduleMode, ScheduleShiftsModal } from "./ScheduleShiftsModal";
 import { formatMonthYear, getMonthDays, shiftDateStr } from "./rosterUtils";
 
@@ -115,10 +113,9 @@ export function RosterMatrixPage() {
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>("fixed");
 
-  // Selected Cell, Modal, Copy Mode & Excel Drag-to-Fill State
+  // Selected Cell, Modal & Excel Drag-to-Fill State
   const [selectedCell, setSelectedCell] = useState<SelectedCell | null>(null);
   const [cellModalOpen, setCellModalOpen] = useState(false);
-  const [copyMode, setCopyMode] = useState<CopyPayload | null>(null);
   const [dragFill, setDragFill] = useState<DragFillState | null>(null);
   const didDragRef = useRef(false);
 
@@ -285,46 +282,6 @@ export function RosterMatrixPage() {
     setIsScheduleMenuOpen(false);
     setScheduleMode(mode);
     setScheduleModalOpen(true);
-  }
-
-  async function handlePasteCell(dateStr: string, inst: DatedShiftInstance | undefined) {
-    if (!copyMode || !can("roster.instance.create")) return;
-    setSavingFill(true);
-    setError("");
-    try {
-      if (copyMode.shiftTemplateId && !copyMode.isRestDay) {
-        await api.materializeRoster({
-          employee_ids: [copyMode.employeeId],
-          start_date: dateStr,
-          days: 1,
-          shift_template_id: copyMode.shiftTemplateId,
-        });
-      } else if (copyMode.isRestDay) {
-        if (inst) {
-          await api.overrideShiftInstance(inst.id, {
-            shift_template_id: null,
-            is_rest_day: true,
-            reason: "Copy mode paste Rest Day (OFF)",
-          });
-        } else if (activeTemplates[0]) {
-          const [y, m, d] = dateStr.split("-").map(Number);
-          const jsDay = new Date(y, m - 1, d).getDay();
-          const pyWeekday = jsDay === 0 ? 6 : jsDay - 1;
-          await api.materializeRoster({
-            employee_ids: [copyMode.employeeId],
-            start_date: dateStr,
-            days: 1,
-            shift_template_id: activeTemplates[0].id,
-            rest_weekdays: [pyWeekday],
-          });
-        }
-      }
-      await loadData(true);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to paste shift");
-    } finally {
-      setSavingFill(false);
-    }
   }
 
   function startHorizontalDrag(
@@ -729,40 +686,6 @@ export function RosterMatrixPage() {
         ) : null}
       </div>
 
-      {/* Copy Mode Banner (after Save & Copy to Cells) */}
-      {copyMode ? (
-        <div
-          className="card-panel"
-          style={{
-            padding: "0.75rem 1rem",
-            marginBottom: "0.875rem",
-            borderColor: "var(--color-primary-border)",
-            background: "var(--color-primary-bg)",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            flexWrap: "wrap",
-            gap: "0.75rem",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", fontSize: "0.85rem" }}>
-            <Copy size={16} color="var(--color-primary)" />
-            <span>
-              Copying <strong>{copyMode.label}</strong> for{" "}
-              <strong>{copyMode.employeeName}</strong> — click/tap any cells in this row or drag horizontally to paste.
-            </span>
-          </div>
-          <Button
-            size="sm"
-            variant="primary"
-            icon={<X size={14} />}
-            onClick={() => setCopyMode(null)}
-          >
-            Done Copying
-          </Button>
-        </div>
-      ) : null}
-
       {/* Matrix Grid */}
       {loading ? (
         <div className="table-container">
@@ -934,11 +857,6 @@ export function RosterMatrixPage() {
                           }}
                           onClick={() => {
                             if (dragFill || didDragRef.current) return;
-                            if (copyMode && copyMode.employeeId === emp.id) {
-                              void handlePasteCell(d.dateStr, inst);
-                              return;
-                            }
-                            setCopyMode(null);
                             setSelectedCell({
                               employee: emp,
                               dateStr: d.dateStr,
@@ -1090,12 +1008,7 @@ export function RosterMatrixPage() {
         }
         prevInstance={prevInstanceForCellModal}
         templates={templates}
-        onSaved={async (copyAfter) => {
-          await loadData(true);
-          if (copyAfter) {
-            setCopyMode(copyAfter);
-          }
-        }}
+        onSaved={() => loadData(true)}
       />
     </div>
   );
