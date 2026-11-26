@@ -12,10 +12,9 @@ import {
   api,
   Branch,
   Department,
-  Employee,
   MusterExportFormat,
   MusterExportTemplate,
-  MusterLine,
+  MusterRegisterEmployee,
 } from "../../api";
 import { Button } from "../../components/common/Button";
 import { EmptyState } from "../../components/common/EmptyState";
@@ -23,131 +22,39 @@ import { LoadingRow } from "../../components/common/Spinner";
 import { useAuth } from "../../context/AuthContext";
 import { formatMonthYear, getMonthDays } from "../roster/rosterUtils";
 
-interface CellRender {
-  code: string;
-  bg: string;
-  fg: string;
-  pInc: number;
-  hdInc: number;
-  aInc: number;
-  woInc: number;
-  lvInc: number;
+function istYearMonth(): { year: number; month: number } {
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+  const [yearText, monthText] = today.split("-");
+  return { year: Number(yearText), month: Number(monthText) - 1 };
 }
 
-function classifyCell(line: MusterLine | undefined): CellRender {
-  if (!line) {
-    return { code: "—", bg: "transparent", fg: "var(--text-muted)", pInc: 0, hdInc: 0, aInc: 0, woInc: 0, lvInc: 0 };
+function markStyle(mark: string): { bg: string; fg: string } {
+  if (mark === "P") return { bg: "var(--color-success-bg)", fg: "var(--color-success-fg)" };
+  if (mark === "HD" || mark === "NR") return { bg: "var(--color-warning-bg)", fg: "var(--color-warning-fg)" };
+  if (mark === "A") return { bg: "var(--color-danger-bg)", fg: "var(--color-danger-fg)" };
+  if (mark === "H" || (mark !== "WO" && mark !== "-" && mark !== "—")) {
+    return { bg: "var(--color-info-bg)", fg: "var(--color-info-fg)" };
   }
-  if (line.leave_type_code && line.leave_portion === "FULL") {
-    const lv = parseFloat(line.leave_days || "1") || 1;
-    return {
-      code: line.leave_type_code.slice(0, 3),
-      bg: "var(--color-info-bg)",
-      fg: "var(--color-info-fg)",
-      pInc: 0,
-      hdInc: 0,
-      aInc: 0,
-      woInc: 0,
-      lvInc: lv,
-    };
-  }
-  if (line.leave_type_code) {
-    const hasWork =
-      line.attendance_status === "PRESENT" ||
-      line.attendance_status === "HALF_DAY" ||
-      line.worked_minutes > 0;
-    return {
-      code: "HD",
-      bg: "var(--color-warning-bg)",
-      fg: "var(--color-warning-fg)",
-      pInc: hasWork ? 0.5 : 0,
-      hdInc: 1,
-      aInc: hasWork ? 0 : 0.5,
-      woInc: 0,
-      lvInc: 0.5,
-    };
-  }
-  switch (line.attendance_status) {
-    case "PRESENT":
-    case "CANCELLED_PAID":
-      return {
-        code: "P",
-        bg: "var(--color-success-bg)",
-        fg: "var(--color-success-fg)",
-        pInc: 1,
-        hdInc: 0,
-        aInc: 0,
-        woInc: 0,
-        lvInc: 0,
-      };
-    case "HALF_DAY":
-      return {
-        code: "HD",
-        bg: "var(--color-warning-bg)",
-        fg: "var(--color-warning-fg)",
-        pInc: 0.5,
-        hdInc: 1,
-        aInc: 0.5,
-        woInc: 0,
-        lvInc: 0,
-      };
-    case "REST_DAY":
-    case "WEEKLY_OFF":
-      return {
-        code: "WO",
-        bg: "var(--bg-active)",
-        fg: "var(--text-muted)",
-        pInc: 0,
-        hdInc: 0,
-        aInc: 0,
-        woInc: 1,
-        lvInc: 0,
-      };
-    case "HOLIDAY":
-    case "H":
-      return {
-        code: "H",
-        bg: "var(--color-info-bg)",
-        fg: "var(--color-info-fg)",
-        pInc: 0,
-        hdInc: 0,
-        aInc: 0,
-        woInc: 1,
-        lvInc: 0,
-      };
-    case "ABSENT":
-      return {
-        code: "A",
-        bg: "var(--color-danger-bg)",
-        fg: "var(--color-danger-fg)",
-        pInc: 0,
-        hdInc: 0,
-        aInc: 1,
-        woInc: 0,
-        lvInc: 0,
-      };
-    default:
-      return {
-        code: "NR",
-        bg: "var(--color-warning-bg)",
-        fg: "var(--color-warning-fg)",
-        pInc: 0,
-        hdInc: 0,
-        aInc: 0,
-        woInc: 0,
-        lvInc: 0,
-      };
-  }
+  return { bg: "var(--bg-active)", fg: "var(--text-muted)" };
+}
+
+function formatCount(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, "");
 }
 
 export function MusterRollPage() {
   const { can } = useAuth();
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth()); // 0-indexed
+  const initialMonth = istYearMonth();
+  const [year, setYear] = useState(initialMonth.year);
+  const [month, setMonth] = useState(initialMonth.month);
 
-  const [lines, setLines] = useState<MusterLine[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [registerEmployees, setRegisterEmployees] = useState<MusterRegisterEmployee[]>([]);
+  const [factoryName, setFactoryName] = useState("");
+  const [registrationNumber, setRegistrationNumber] = useState("");
   const [branches, setBranches] = useState<Branch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,19 +74,19 @@ export function MusterRollPage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [lineList, empList, branchList, deptList] = await Promise.all([
-        api.musterLines({
+      const [register, branchList, deptList] = await Promise.all([
+        api.musterRegister({
           year,
           month: apiMonth,
           branch_id: branchFilter !== "ALL" ? branchFilter : undefined,
           department_id: deptFilter !== "ALL" ? deptFilter : undefined,
         }),
-        employees.length > 0 ? Promise.resolve(employees) : api.employeesList(),
         branches.length > 0 ? Promise.resolve(branches) : api.branches(),
         departments.length > 0 ? Promise.resolve(departments) : api.departments(),
       ]);
-      setLines(lineList);
-      if (employees.length === 0) setEmployees(empList);
+      setRegisterEmployees(register.employees);
+      setFactoryName(register.meta.factory_name || "");
+      setRegistrationNumber(register.meta.registration_number || "");
       if (branches.length === 0) setBranches(branchList);
       if (departments.length === 0) setDepartments(deptList);
       setError("");
@@ -223,6 +130,7 @@ export function MusterRollPage() {
         format,
         template: exportTemplate,
         department_id: deptFilter !== "ALL" ? deptFilter : undefined,
+        branch_id: branchFilter !== "ALL" ? branchFilter : undefined,
       });
       setExportNotice(`Downloaded ${filename}`);
     } catch (err) {
@@ -233,25 +141,10 @@ export function MusterRollPage() {
   }
 
   const activeBranches = branches.filter((b) => b.is_active);
-  const lineMap = new Map<string, MusterLine>();
-  for (const l of lines) {
-    lineMap.set(`${l.employee_id}::${l.calendar_date}`, l);
-  }
-
-  const filteredEmployees = employees.filter((emp) => {
-    if (!emp.is_active) return false;
-    if (branchFilter !== "ALL" && emp.branch_id !== branchFilter) return false;
-    if (deptFilter !== "ALL" && (emp.department_id || "") !== deptFilter) return false;
-    if (search.trim()) {
-      const q = search.trim().toLowerCase();
-      if (
-        !emp.full_name.toLowerCase().includes(q) &&
-        !emp.employee_code.toLowerCase().includes(q)
-      ) {
-        return false;
-      }
-    }
-    return true;
+  const filteredEmployees = registerEmployees.filter((emp) => {
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    return emp.employee_name.toLowerCase().includes(q) || emp.employee_code.toLowerCase().includes(q);
   });
 
   return (
@@ -272,6 +165,8 @@ export function MusterRollPage() {
           <h2 className="card-title">Statutory Muster Roll (Form 25 / Form II)</h2>
           <p style={{ margin: "0.25rem 0 0", fontSize: "0.875rem", color: "var(--text-muted)" }}>
             Wage-free statutory monthly attendance and leave register (ANA-01 / ANA-03).
+            {factoryName ? ` ${factoryName}.` : ""}
+            {registrationNumber ? ` Registration ${registrationNumber}.` : ""}
           </p>
         </div>
 
@@ -505,27 +400,18 @@ export function MusterRollPage() {
               </thead>
               <tbody>
                 {filteredEmployees.map((emp) => {
-                  let pTotal = 0;
-                  let hdTotal = 0;
-                  let aTotal = 0;
-                  let woTotal = 0;
-                  let lvTotal = 0;
-
+                  let halfDayCount = 0;
+                  let weeklyOffCount = 0;
                   const renderedCells = days.map((d) => {
-                    const line = lineMap.get(`${emp.id}::${d.dateStr}`);
-                    const c = classifyCell(line);
-                    pTotal += c.pInc;
-                    hdTotal += c.hdInc;
-                    aTotal += c.aInc;
-                    woTotal += c.woInc;
-                    lvTotal += c.lvInc;
-                    return { d, c };
+                    const mark = emp.daily_status[String(Number(d.dayNum))] || "—";
+                    if (mark === "HD") halfDayCount += 1;
+                    if (mark === "WO") weeklyOffCount += 1;
+                    return { d, mark, style: markStyle(mark) };
                   });
-
-                  const paidTotal = pTotal + woTotal + lvTotal;
+                  const paidTotal = emp.summary.total_present + weeklyOffCount + emp.summary.total_leave;
 
                   return (
-                    <tr key={emp.id}>
+                    <tr key={emp.employee_id}>
                       <td
                         style={{
                           position: "sticky",
@@ -536,13 +422,13 @@ export function MusterRollPage() {
                           boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
                         }}
                       >
-                        <div style={{ fontWeight: 600, fontSize: "0.82rem" }}>{emp.full_name}</div>
+                        <div style={{ fontWeight: 600, fontSize: "0.82rem" }}>{emp.employee_name}</div>
                         <div style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
                           {emp.employee_code}
                         </div>
                       </td>
 
-                      {renderedCells.map(({ d, c }) => (
+                      {renderedCells.map(({ d, mark, style }) => (
                         <td
                           key={d.dateStr}
                           style={{
@@ -559,29 +445,29 @@ export function MusterRollPage() {
                               minWidth: "26px",
                               padding: "0.15rem 0.2rem",
                               borderRadius: "4px",
-                              background: c.bg,
-                              color: c.fg,
+                              background: style.bg,
+                              color: style.fg,
                             }}
                           >
-                            {c.code}
+                            {mark}
                           </span>
                         </td>
                       ))}
 
                       <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                        {pTotal.toFixed(1).replace(/\.0$/, "")}
+                        {formatCount(emp.summary.total_present)}
                       </td>
                       <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                        {hdTotal}
+                        {halfDayCount}
                       </td>
                       <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                        {aTotal.toFixed(1).replace(/\.0$/, "")}
+                        {formatCount(emp.summary.total_absent)}
                       </td>
                       <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                        {woTotal}
+                        {weeklyOffCount}
                       </td>
                       <td style={{ textAlign: "right", fontFamily: "var(--font-mono)", fontSize: "0.8rem" }}>
-                        {lvTotal.toFixed(1).replace(/\.0$/, "")}
+                        {formatCount(emp.summary.total_leave)}
                       </td>
                       <td
                         style={{
@@ -620,6 +506,7 @@ export function MusterRollPage() {
         <span><strong>H:</strong> Holiday</span>
         <span><strong>CL / EL / SL:</strong> Approved Leave</span>
         <span><strong>NR:</strong> Needs Review</span>
+        <span><strong>-:</strong> Before joining</span>
         <span><strong>PAID:</strong> P + WO + LV (Wage-Free Payable Days)</span>
       </div>
     </div>

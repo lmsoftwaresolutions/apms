@@ -85,6 +85,7 @@ async def fetch_muster(
     year: int,
     month: int,
     department_id: UUID | None = None,
+    branch_id: UUID | None = None,
 ) -> dict[str, Any]:
     """Fetch structured muster roll data for statutory export without wages.
 
@@ -117,6 +118,8 @@ async def fetch_muster(
     stmt = select(Employee).where(Employee.tenant_id == tenant_id, Employee.is_active.is_(True))
     if department_id is not None:
         stmt = stmt.where(Employee.department_id == department_id)
+    if branch_id is not None:
+        stmt = stmt.where(Employee.branch_id == branch_id)
     stmt = stmt.order_by(Employee.employee_code)
     employees = (await session.scalars(stmt)).all()
     employee_ids = {e.id for e in employees}

@@ -228,6 +228,35 @@ export type RollupFailure = {
   created_at: string;
 };
 
+export type MusterRegisterEmployee = {
+  employee_id: string;
+  employee_code: string;
+  employee_name: string;
+  department: string;
+  designation: string;
+  branch: string;
+  daily_status: Record<string, string>;
+  summary: {
+    total_days: number;
+    total_present: number;
+    total_absent: number;
+    total_leave: number;
+    worked_hours: number;
+    ot_hours: number;
+  };
+};
+
+export type MusterRegister = {
+  meta: {
+    registration_number?: string;
+    factory_name?: string;
+    month_name?: string;
+    year?: number;
+  };
+  days: number[];
+  employees: MusterRegisterEmployee[];
+};
+
 export type MusterLine = {
   employee_id: string;
   employee_code: string;
@@ -668,6 +697,20 @@ export const api = {
     }),
   attendanceRollupFailures: () =>
     request<RollupFailure[]>("/api/v1/attendance/rollup/failures"),
+  musterRegister: (params: {
+    year: number;
+    month: number;
+    branch_id?: string;
+    department_id?: string;
+  }) => {
+    const query = new URLSearchParams({
+      year: String(params.year),
+      month: String(params.month),
+    });
+    if (params.branch_id) query.set("branch_id", params.branch_id);
+    if (params.department_id) query.set("department_id", params.department_id);
+    return request<MusterRegister>(`/api/v1/muster/register?${query.toString()}`);
+  },
   musterLines: (params: {
     year: number;
     month: number;
@@ -688,6 +731,7 @@ export const api = {
     format: MusterExportFormat;
     template?: MusterExportTemplate;
     department_id?: string;
+    branch_id?: string;
   }): Promise<string> => {
     const query = new URLSearchParams({
       year: String(params.year),
@@ -696,6 +740,7 @@ export const api = {
       template: params.template || "standard",
     });
     if (params.department_id) query.set("department_id", params.department_id);
+    if (params.branch_id) query.set("branch_id", params.branch_id);
 
     const token = loadToken();
     const headers = new Headers();

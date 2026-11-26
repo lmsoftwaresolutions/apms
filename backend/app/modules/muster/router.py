@@ -71,6 +71,30 @@ async def muster_lines(
     )
 
 
+@router.get("/register")
+async def muster_register(
+    session: SessionDep,
+    current: Annotated[CurrentUser, Depends(require_permission("muster.export.read"))],
+    year: Annotated[int, Query(ge=1900, le=2100)],
+    month: Annotated[int, Query(ge=1, le=12)],
+    branch_id: Annotated[UUID | None, Query()] = None,
+    department_id: Annotated[UUID | None, Query()] = None,
+) -> dict[str, object]:
+    """Classified month used by the statutory export, including empty days."""
+    data = await fetch_muster(
+        session,
+        current.tenant_id,
+        year,
+        month,
+        department_id=department_id,
+        branch_id=branch_id,
+    )
+    for employee in data["employees"]:
+        status = employee["daily_status"]
+        employee["daily_status"] = {str(day): mark for day, mark in status.items()}
+    return data
+
+
 @router.get("/export")
 async def export_muster_endpoint(
     session: SessionDep,
@@ -79,6 +103,7 @@ async def export_muster_endpoint(
     month: Annotated[int, Query(ge=1, le=12)],
     format: Annotated[Literal["xlsx", "csv", "pdf"], Query()] = "xlsx",
     department_id: Annotated[UUID | None, Query()] = None,
+    branch_id: Annotated[UUID | None, Query()] = None,
     template: Annotated[Literal["standard", "form_25", "form_ii", "form_t"], Query()] = "standard",
 ) -> StreamingResponse:
     content, media_type, filename = await export_muster_file(
@@ -89,6 +114,7 @@ async def export_muster_endpoint(
         export_format=format,
         department_id=department_id,
         template=template,
+        branch_id=branch_id,
     )
 
     headers = {
