@@ -379,7 +379,7 @@ export function MusterRollPage() {
 
       {/* Filter Bar */}
       <div
-        className="card"
+        className="card-panel"
         style={{
           padding: "0.875rem 1rem",
           marginBottom: "1rem",
@@ -438,39 +438,40 @@ export function MusterRollPage() {
       </div>
 
       {/* Muster Matrix */}
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        {loading ? (
-          <table className="table">
+      {loading ? (
+        <div className="table-container">
+          <table className="data-table">
             <tbody>
               <LoadingRow cols={8} />
             </tbody>
           </table>
-        ) : filteredEmployees.length === 0 ? (
-          <EmptyState
-            icon={<FileSpreadsheet size={36} />}
-            title="No employees in muster register"
-            description="No active employees match the current filters."
-          />
-        ) : (
-          <div style={{ overflowX: "auto", position: "relative" }}>
-            <table
-              className="table"
-              style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}
-            >
-              <thead>
-                <tr>
-                  <th
-                    style={{
-                      position: "sticky",
-                      left: 0,
-                      zIndex: 20,
-                      background: "var(--bg-subtle)",
-                      minWidth: "180px",
-                      boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
-                    }}
-                  >
-                    Employee
-                  </th>
+        </div>
+      ) : filteredEmployees.length === 0 ? (
+        <EmptyState
+          icon={<FileSpreadsheet size={36} />}
+          title="No employees in muster register"
+          description="No active employees match the current filters."
+        />
+      ) : (
+        <div className="table-container" style={{ position: "relative" }}>
+          <table
+            className="data-table"
+            style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: "100%" }}
+          >
+            <thead>
+              <tr>
+                <th
+                  style={{
+                    position: "sticky",
+                    left: 0,
+                    zIndex: 20,
+                    background: "var(--bg-subtle)",
+                    minWidth: "155px",
+                    boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
+                  }}
+                >
+                  Employee
+                </th>
                   {days.map((d) => (
                     <th
                       key={d.dateStr}
@@ -530,8 +531,8 @@ export function MusterRollPage() {
                           position: "sticky",
                           left: 0,
                           zIndex: 10,
-                          background: "var(--bg-card)",
-                          minWidth: "180px",
+                          background: "var(--bg-surface)",
+                          minWidth: "155px",
                           boxShadow: "2px 0 4px rgba(0,0,0,0.06)",
                         }}
                       >
@@ -598,9 +599,8 @@ export function MusterRollPage() {
                 })}
               </tbody>
             </table>
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Statutory Code Legend */}
       <div
