@@ -161,6 +161,35 @@ export type CancelShiftInput = {
   reason: string;
 };
 
+export type PunchEvent = {
+  id: string;
+  tenant_id: string;
+  raw_envelope_id: string;
+  employee_id: string;
+  punch_time: string;
+  punch_direction: "IN" | "OUT" | "UNKNOWN" | string;
+  source: string;
+  status: "ACTIVE" | "DUPLICATE_IGNORED" | "CONSENT_WITHDRAWN" | string;
+  location_meta: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type PunchIngestInput = {
+  source: string;
+  device_identifier?: string | null;
+  raw_payload: Record<string, unknown> | string;
+};
+
+export type PunchIngestResult = {
+  raw_envelope_id: string;
+  source: string;
+  total_received: number;
+  active_punches: number;
+  duplicates_ignored: number;
+  unmatched_employees: string[];
+  is_duplicate: boolean;
+};
+
 export type Department = {
   id: string;
   branch_id: string;
@@ -541,6 +570,29 @@ export const api = {
   cancelShiftInstance: (id: string, payload: CancelShiftInput) =>
     request<DatedShiftInstance>(`/api/v1/roster/instances/${id}/cancel`, {
       method: "PUT",
+      body: JSON.stringify(payload),
+    }),
+  punches: (params?: {
+    employee_id?: string;
+    start_time?: string;
+    end_time?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.employee_id) query.set("employee_id", params.employee_id);
+    if (params?.start_time) query.set("start_time", params.start_time);
+    if (params?.end_time) query.set("end_time", params.end_time);
+    if (params?.status) query.set("status", params.status);
+    if (params?.limit !== undefined) query.set("limit", String(params.limit));
+    if (params?.offset !== undefined) query.set("offset", String(params.offset));
+    const qs = query.toString();
+    return request<PunchEvent[]>(`/api/v1/punches${qs ? `?${qs}` : ""}`);
+  },
+  ingestPunches: (payload: PunchIngestInput) =>
+    request<PunchIngestResult>("/api/v1/punches/ingest", {
+      method: "POST",
       body: JSON.stringify(payload),
     }),
 };
