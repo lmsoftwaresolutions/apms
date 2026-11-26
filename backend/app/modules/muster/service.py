@@ -48,7 +48,7 @@ def classify_muster_cell(
         present = 0.5 if attendance_status in {"PRESENT", "HALF_DAY"} or worked_minutes > 0 else 0.0
         absent = 0.0 if present else 0.5
         return "HD", present, absent, 0.5
-    if attendance_status == "PRESENT":
+    if attendance_status in {"PRESENT", "POST_DUTY_REST"}:
         return "P", 1.0, 0.0, 0.0
     if attendance_status == "HALF_DAY":
         return "HD", 0.5, 0.5, 0.0

@@ -66,8 +66,9 @@ This document serves as the **single source of truth** for all business logic, m
 ### BR-ATT-15: Continuous Multi-Day Duty Attribution (>24h / 36h / 48h)
 - For continuous duty windows spanning across 2 or 3 calendar dates (e.g. 36h or 48h emergency medical calls):
   - The entire worked duration is attributed to the **shift start calendar date** ($D$).
-  - Calendar dates $D+1$ and $D+2$ covered by the duty window or mandatory post-duty recovery rest are marked `POST_DUTY_REST` with full attendance credit (1.0).
-  - Continuous duty exceeding 16 hours automatically qualifies for Long-Duty Allowance.
+  - The template stores the tour as 24, 36, or 48 hours. Calendar dates after $D$ that the tour touches, plus the next recovery day, are marked `POST_DUTY_REST` with full attendance credit (1.0) and no punches. A 24h or 36h tour that finishes on $D+1$ therefore rests $D+1$ and $D+2$.
+  - A punch that falls inside an earlier overnight or continuous tour is paired to that tour's start date. It is not a new check-in on the later date.
+  - Continuous duty exceeding 16 hours is eligible for long-duty allowance review. The attendance engine does not calculate an allowance amount.
 
 ### BR-ATT-16: Lone-Punch Guardrails
 - Under no circumstances may a lone punch calculate overtime or unearned full-day pay.
