@@ -228,6 +228,51 @@ export type RollupFailure = {
   created_at: string;
 };
 
+export type MusterRegisterEmployee = {
+  employee_id: string;
+  employee_code: string;
+  employee_name: string;
+  department: string;
+  designation: string;
+  branch: string;
+  daily_status: Record<string, string>;
+  summary: {
+    total_days: number;
+    total_present: number;
+    total_absent: number;
+    total_leave: number;
+    worked_hours: number;
+    ot_hours: number;
+  };
+};
+
+export type MusterRegister = {
+  meta: {
+    registration_number?: string;
+    factory_name?: string;
+    month_name?: string;
+    year?: number;
+  };
+  days: number[];
+  employees: MusterRegisterEmployee[];
+};
+
+export type MusterLine = {
+  employee_id: string;
+  employee_code: string;
+  calendar_date: string;
+  attendance_status: string | null;
+  worked_minutes: number;
+  overtime_minutes: number;
+  anomaly_code: string | null;
+  leave_type_code: string | null;
+  leave_days: string | null;
+  leave_portion: string | null;
+};
+
+export type MusterExportFormat = "xlsx" | "csv" | "pdf";
+export type MusterExportTemplate = "standard" | "form_25" | "form_ii" | "form_t";
+
 export type Department = {
   id: string;
   branch_id: string;
@@ -652,4 +697,75 @@ export const api = {
     }),
   attendanceRollupFailures: () =>
     request<RollupFailure[]>("/api/v1/attendance/rollup/failures"),
+  musterRegister: (params: {
+    year: number;
+    month: number;
+    branch_id?: string;
+    department_id?: string;
+  }) => {
+    const query = new URLSearchParams({
+      year: String(params.year),
+      month: String(params.month),
+    });
+    if (params.branch_id) query.set("branch_id", params.branch_id);
+    if (params.department_id) query.set("department_id", params.department_id);
+    return request<MusterRegister>(`/api/v1/muster/register?${query.toString()}`);
+  },
+  musterLines: (params: {
+    year: number;
+    month: number;
+    branch_id?: string;
+    department_id?: string;
+  }) => {
+    const query = new URLSearchParams({
+      year: String(params.year),
+      month: String(params.month),
+    });
+    if (params.branch_id) query.set("branch_id", params.branch_id);
+    if (params.department_id) query.set("department_id", params.department_id);
+    return request<MusterLine[]>(`/api/v1/muster/lines?${query.toString()}`);
+  },
+  downloadMusterExport: async (params: {
+    year: number;
+    month: number;
+    format: MusterExportFormat;
+    template?: MusterExportTemplate;
+    department_id?: string;
+    branch_id?: string;
+  }): Promise<string> => {
+    const query = new URLSearchParams({
+      year: String(params.year),
+      month: String(params.month),
+      format: params.format,
+      template: params.template || "standard",
+    });
+    if (params.department_id) query.set("department_id", params.department_id);
+    if (params.branch_id) query.set("branch_id", params.branch_id);
+
+    const token = loadToken();
+    const headers = new Headers();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+
+    const response = await fetch(`/api/v1/muster/export?${query.toString()}`, { headers });
+    if (!response.ok) {
+      await readError(response);
+    }
+
+    const disposition = response.headers.get("Content-Disposition") || "";
+    const match = disposition.match(/filename="?([^";]+)"?/i);
+    const filename =
+      match?.[1] ||
+      `muster_${params.year}_${String(params.month).padStart(2, "0")}.${params.format}`;
+
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return filename;
+  },
 };

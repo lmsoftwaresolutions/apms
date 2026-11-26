@@ -514,3 +514,35 @@ async def test_export_muster_forwards_department_filter(monkeypatch):
     )
     assert rows == []
     assert seen["department_id"] == department_id
+
+
+@pytest.mark.asyncio
+async def test_export_file_forwards_branch_filter(monkeypatch):
+    seen: dict[str, object] = {}
+    branch_id = uuid4()
+    department_id = uuid4()
+
+    async def fake_fetch(session, tenant_id, year, month, department_id=None, branch_id=None):
+        seen["branch_id"] = branch_id
+        seen["department_id"] = department_id
+        return {"meta": {}, "days": [], "employees": []}
+
+    monkeypatch.setattr("app.modules.muster.export.service.fetch_muster", fake_fetch)
+    monkeypatch.setattr(
+        "app.modules.muster.export.service.generate_muster_xlsx",
+        lambda *args, **kwargs: io.BytesIO(b"xlsx"),
+    )
+    from app.modules.muster.export.service import export_muster_file
+
+    _content, _media, filename = await export_muster_file(
+        None,
+        uuid4(),
+        2026,
+        11,
+        export_format="xlsx",
+        department_id=department_id,
+        branch_id=branch_id,
+    )
+    assert filename == "muster_roll_2026_11_standard.xlsx"
+    assert seen["branch_id"] == branch_id
+    assert seen["department_id"] == department_id

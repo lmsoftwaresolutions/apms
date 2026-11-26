@@ -30,6 +30,7 @@ async def export_muster_file(
     export_format: str = "xlsx",
     department_id: UUID | None = None,
     template: str = "standard",
+    branch_id: UUID | None = None,
 ) -> tuple[AsyncIterator[str] | io.BytesIO, str, str]:
     """Fetch muster data and generate the requested statutory export.
 
@@ -48,7 +49,14 @@ async def export_muster_file(
             f"Supported templates: standard, form_25, form_ii, form_t. Got: {template}",
         )
 
-    data = await fetch_muster(session, tenant_id, year, month, department_id=department_id)
+    data = await fetch_muster(
+        session,
+        tenant_id,
+        year,
+        month,
+        department_id=department_id,
+        branch_id=branch_id,
+    )
     tenant_meta = data["meta"]
     filename = f"muster_roll_{year}_{month:02d}_{tpl}.{fmt}"
     media_type = MEDIA_TYPES[fmt]
