@@ -19,6 +19,7 @@ export function DesignationsPage() {
   const [designations, setDesignations] = useState<Designation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
 
   // Add / Edit Designation Modal
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -59,9 +60,28 @@ export function DesignationsPage() {
     void loadData();
   }, []);
 
-  const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
+  const departmentById = new Map(departments.map((d) => [d.id, d]));
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
   const activeDepartments = departments.filter((d) => d.is_active);
+  const severalBranches = branches.length > 1;
+
+  function departmentLabel(departmentId: string): string {
+    const department = departmentById.get(departmentId);
+    if (!department) return departmentId.slice(0, 8);
+    const branch = branchNameById.get(department.branch_id);
+    const title = `${department.name} (${department.code})`;
+    return severalBranches && branch ? `${title} — ${branch}` : title;
+  }
+
+  const needle = query.trim().toLowerCase();
+  const visibleDesignations = needle
+    ? designations.filter((desig) => {
+        const haystack = [desig.name, desig.code, desig.description || "", departmentLabel(desig.department_id)]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(needle);
+      })
+    : designations;
 
   function openCreateModal() {
     setEditingDesig(null);
@@ -171,7 +191,17 @@ export function DesignationsPage() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          {designations.length > 0 ? (
+            <input
+              className="input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search title, code, or department"
+              aria-label="Search designations"
+              style={{ width: "16rem", maxWidth: "100%" }}
+            />
+          ) : null}
           {can("org.designation.create") ? (
             <Button
               variant="primary"
@@ -249,16 +279,20 @@ export function DesignationsPage() {
             <tbody>
               {loading ? (
                 <LoadingRow cols={6} rows={4} />
+              ) : visibleDesignations.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ color: "var(--text-muted)" }}>
+                    No designations match “{query.trim()}”.
+                  </td>
+                </tr>
               ) : (
-                designations.map((desig) => (
+                visibleDesignations.map((desig) => (
                   <tr key={desig.id}>
                     <td>
                       <code style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{desig.code}</code>
                     </td>
                     <td style={{ fontWeight: 550 }}>{desig.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>
-                      {deptNameById.get(desig.department_id) || desig.department_id.slice(0, 8)}
-                    </td>
+                    <td style={{ color: "var(--text-secondary)" }}>{departmentLabel(desig.department_id)}</td>
                     <td style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                       {desig.description || "—"}
                     </td>
@@ -316,7 +350,7 @@ export function DesignationsPage() {
         title={editingDesig ? "Edit Designation" : "Add Designation"}
         description={
           editingDesig
-            ? `Update title, code, or description for ${editingDesig.name} in ${deptNameById.get(editingDesig.department_id) || "department"}.`
+            ? `Update title, code, or description for ${editingDesig.name} in ${departmentLabel(editingDesig.department_id)}.`
             : "Add a new job title to a department."
         }
         footer={
@@ -361,21 +395,18 @@ export function DesignationsPage() {
                 <option value="" disabled>
                   Select a department
                 </option>
-                {activeDepartments.map((dept) => {
-                  const branch = branchNameById.get(dept.branch_id);
-                  return (
-                    <option key={dept.id} value={dept.id}>
-                      {dept.name} ({dept.code}){branches.length > 1 && branch ? ` — ${branch}` : ""}
-                    </option>
-                  );
-                })}
+                {activeDepartments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {departmentLabel(dept.id)}
+                  </option>
+                ))}
               </select>
             </Field>
           ) : (
             <Field label="Department">
               <input
                 className="input"
-                value={deptNameById.get(editingDesig.department_id) || "—"}
+                value={departmentLabel(editingDesig.department_id)}
                 disabled
                 readOnly
               />
