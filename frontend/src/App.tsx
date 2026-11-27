@@ -14,6 +14,7 @@ import { RosterMatrixPage } from "./modules/roster/RosterMatrixPage";
 import { PunchStreamPage } from "./modules/punches/PunchStreamPage";
 import { DailyAttendancePage } from "./modules/attendance/DailyAttendancePage";
 import { MusterRollPage } from "./modules/muster/MusterRollPage";
+import { EssPortalPage } from "./modules/ess/EssPortalPage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -29,6 +30,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/org/departments" replace />} />
 
           {/* Operations */}
+          <Route path="/ess" element={<EssPortalPage />} />
           <Route path="/attendance" element={<DailyAttendancePage />} />
           <Route path="/attendance/daily" element={<Navigate to="/attendance" replace />} />
           <Route path="/punches" element={<PunchStreamPage />} />
