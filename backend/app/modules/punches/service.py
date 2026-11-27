@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 from app.adapters.base import BasePunchAdapter, CanonicalPunch
 from app.adapters.csv_bulk import CSVBulkAdapter
 from app.adapters.etimeoffice import ETimeOfficeAdapter
+from app.adapters.mobile_geo import MobileGeoAdapter
 from app.adapters.zkteco import ZKTecoADMSAdapter
 from app.models.punch import PunchEvent, RawEnvelope
 from app.modules.attendance.cutoff import record_rollup_failure
@@ -47,6 +48,8 @@ def get_adapter_for_source(source: str) -> BasePunchAdapter:
         return ZKTecoADMSAdapter()
     elif src in ("CSV_BULK", "CSV", "EXCEL"):
         return CSVBulkAdapter()
+    elif src in ("MOBILE_GEO", "ESS_MOBILE"):
+        return MobileGeoAdapter()
     # Default to eTime if JSON, CSV otherwise
     return ETimeOfficeAdapter()
 

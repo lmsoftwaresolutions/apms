@@ -8,7 +8,17 @@ export type Me = {
   permissions: string[];
 };
 
-export type Branch = { id: string; name: string; code: string; is_active: boolean };
+export type Branch = {
+  id: string;
+  name: string;
+  code: string;
+  registration_number?: string | null;
+  geofence_latitude?: number | null;
+  geofence_longitude?: number | null;
+  geofence_radius_m?: number | null;
+  allowed_bssids?: string[] | null;
+  is_active: boolean;
+};
 
 export type PolicySummary = {
   id: string;
@@ -58,6 +68,7 @@ export type ShiftTemplate = {
   color_code: string | null;
   policy_id: string | null;
   is_overnight: boolean;
+  continuous_duty_hours: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -70,6 +81,7 @@ export type ShiftTemplateCreateInput = {
   shift_type: string;
   color_code?: string | null;
   policy_id?: string | null;
+  continuous_duty_hours?: number | null;
   sessions: ShiftSessionInput[];
 };
 
@@ -79,6 +91,7 @@ export type ShiftTemplateUpdateInput = {
   is_active?: boolean | null;
   color_code?: string | null;
   policy_id?: string | null;
+  continuous_duty_hours?: number | null;
   sessions?: ShiftSessionInput[] | null;
 };
 
@@ -572,8 +585,22 @@ export const api = {
       headers: { "Idempotency-Key": crypto.randomUUID() },
       body: JSON.stringify({ name, code }),
     }),
-  updateBranch: (id: string, body: Partial<Pick<Branch, "name" | "code" | "is_active">>) =>
-    request<Branch>(`/api/v1/branches/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  updateBranch: (
+    id: string,
+    body: Partial<
+      Pick<
+        Branch,
+        | "name"
+        | "code"
+        | "registration_number"
+        | "geofence_latitude"
+        | "geofence_longitude"
+        | "geofence_radius_m"
+        | "allowed_bssids"
+        | "is_active"
+      >
+    >,
+  ) => request<Branch>(`/api/v1/branches/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
   deleteBranch: (id: string) => request(`/api/v1/branches/${id}`, { method: "DELETE" }),
   departments: (branchId?: string) =>
     request<Department[]>(branchId ? `/api/v1/departments?branch_id=${encodeURIComponent(branchId)}` : "/api/v1/departments"),
@@ -895,6 +922,52 @@ export const api = {
     reason: string;
   }) =>
     request<RegularizationItem>("/api/v1/attendance/regularizations", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  essMobilePunchContext: () =>
+    request<{
+      employee_id: string;
+      employee_code: string;
+      full_name: string;
+      branch: {
+        id: string;
+        name: string;
+        code: string;
+        geofence_latitude: number | null;
+        geofence_longitude: number | null;
+        geofence_radius_m: number | null;
+      } | null;
+      today_punches: Array<{
+        id: string;
+        punch_time: string;
+        punch_direction: string;
+        source: string;
+        status: string;
+        location_meta?: Record<string, unknown> | null;
+      }>;
+    }>("/api/v1/ess/mobile-punch/context"),
+  essMobilePunch: (payload: {
+    punch_direction: "IN" | "OUT";
+    latitude: number;
+    longitude: number;
+    accuracy_m?: number | null;
+  }) =>
+    request<{
+      punch_time: string;
+      punch_direction: string;
+      distance_m: number | null;
+      branch_radius_m: number | null;
+      geofence_verified: boolean;
+      ingest: {
+        raw_envelope_id: string;
+        source: string;
+        total_received: number;
+        active_punches: number;
+        duplicates_ignored: number;
+        is_duplicate: boolean;
+      };
+    }>("/api/v1/ess/mobile-punch", {
       method: "POST",
       body: JSON.stringify(payload),
     }),

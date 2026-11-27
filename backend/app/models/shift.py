@@ -32,6 +32,7 @@ class ShiftTemplate(Base):
     name: Mapped[str]
     shift_type: Mapped[str] = mapped_column(default="FIXED")  # FIXED, FLEXI, OVERNIGHT, SPLIT, CONTINUOUS
     is_overnight: Mapped[bool] = mapped_column(default=False)
+    continuous_duty_hours: Mapped[int | None] = mapped_column(default=None)
     is_active: Mapped[bool] = mapped_column(default=True)
     color_code: Mapped[str | None] = mapped_column(default=None)
     created_at: Mapped[datetime]

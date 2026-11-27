@@ -34,9 +34,21 @@ def _normalize_shift_type(raw: str, *, is_overnight: bool) -> str:
             "Shift type must be FIXED, FLEXI, OVERNIGHT, SPLIT, or CONTINUOUS.",
         )
     # A split keeps its type. Overnight is also stored on is_overnight.
-    if is_overnight and shift_type not in {"OVERNIGHT", "SPLIT"}:
+    if is_overnight and shift_type not in {"OVERNIGHT", "SPLIT", "CONTINUOUS"}:
         return "OVERNIGHT"
     return shift_type
+
+
+def _duty_hours(shift_type: str, hours: int | None) -> int | None:
+    if shift_type != "CONTINUOUS":
+        return None
+    if hours not in {24, 36, 48}:
+        raise ProblemError(
+            422,
+            "Continuous duty length required",
+            "A continuous tour must be 24, 36, or 48 hours.",
+        )
+    return hours
 
 
 def _validate_and_build_sessions(
@@ -130,6 +142,7 @@ async def create_template(
     )
 
     shift_type = _normalize_shift_type(payload.shift_type, is_overnight=is_overnight)
+    duty_hours = _duty_hours(shift_type, payload.continuous_duty_hours)
 
     if payload.policy_id is not None:
         from app.modules.policies.repository import get_policy
@@ -155,6 +168,7 @@ async def create_template(
         name=payload.name,
         shift_type=shift_type,
         is_overnight=is_overnight,
+        continuous_duty_hours=duty_hours,
         is_active=True,
         color_code=payload.color_code,
         created_at=now,
@@ -216,6 +230,8 @@ async def update_template(
         updates["name"] = payload.name
     if payload.shift_type is not None:
         updates["shift_type"] = payload.shift_type
+    if "continuous_duty_hours" in payload.model_fields_set:
+        updates["continuous_duty_hours"] = payload.continuous_duty_hours
     if payload.is_active is not None:
         updates["is_active"] = payload.is_active
     if "color_code" in payload.model_fields_set:
@@ -261,6 +277,10 @@ async def update_template(
             str(updates.get("shift_type", template.shift_type)),
             is_overnight=bool(updates.get("is_overnight", template.is_overnight)),
         )
+    if "shift_type" in updates or "continuous_duty_hours" in updates or "is_overnight" in updates:
+        next_type = str(updates.get("shift_type", template.shift_type))
+        requested = updates.get("continuous_duty_hours", template.continuous_duty_hours)
+        updates["continuous_duty_hours"] = _duty_hours(next_type, requested if isinstance(requested, int) or requested is None else None)
 
     updated = await update_shift_template(
         session, tenant_id, template, updates, new_session_models

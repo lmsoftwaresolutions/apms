@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import ProblemError
 from app.models.attendance import AttendanceDailyRecord, AttendanceExplanationTrace
 from app.modules.attendance.engine.contracts import SessionWindow, ShiftInstanceContract
-from app.modules.attendance.engine.pairing import pair_punches_for_shift
+from app.modules.attendance.engine.pairing import (
+    pair_punches_for_shift,
+    post_duty_rest_dates,
+    punch_claimed_by_shift,
+)
+from app.modules.attendance.engine.rollup import DailyRollupDecision
 from app.modules.attendance.engine.rollup import evaluate_daily_rollup
 from app.modules.attendance.engine.trace import build_explanation_trace
 from app.modules.attendance.repository import (
@@ -22,10 +27,13 @@ from app.modules.attendance.repository import (
 from app.modules.punches.repository import list_punches_for_employee
 
 
-def punch_search_window(calendar_date: date) -> tuple[datetime, datetime]:
-    """UTC window the daily rollup searches: 6 hours before the date through 14 hours after it."""
+def punch_search_window(calendar_date: date, extra_hours: int = 0) -> tuple[datetime, datetime]:
+    """UTC window the daily rollup searches: 6 hours before the date through 14 hours after it.
+
+    Continuous tours add their duty length so a 36h or 48h out punch is still visible.
+    """
     start = datetime.combine(calendar_date, time(0, 0), tzinfo=UTC) - timedelta(hours=6)
-    end = datetime.combine(calendar_date, time(23, 59, 59), tzinfo=UTC) + timedelta(hours=14)
+    end = datetime.combine(calendar_date, time(23, 59, 59), tzinfo=UTC) + timedelta(hours=14 + extra_hours)
     return start, end
 
 
@@ -110,6 +118,9 @@ async def calculate_and_save_daily_attendance(
                 from app.modules.policies.repository import get_policy
                 policy = await get_policy(session, tenant_id, tpl.policy_id)
             shift_contract.policy = policy
+        if tpl is not None:
+            shift_contract.shift_type = tpl.shift_type
+            shift_contract.continuous_duty_hours = tpl.continuous_duty_hours
 
     # 0.05 Resolve Cascading Effective Policy (M12)
     from app.modules.policies.resolver import resolve_effective_policy
@@ -122,8 +133,11 @@ async def calculate_and_save_daily_attendance(
     approved_modes = await list_approved_work_modes(session, tenant_id, employee_id, calendar_date)
     work_mode_code, session_target = work_mode_coverage(approved_modes)
 
-    # 1. Fetch punches for 36-hour window covering the calendar date + overnight margin
-    start_search, end_search = punch_search_window(calendar_date)
+    cover = await _post_duty_cover(session, tenant_id, employee_id, calendar_date)
+
+    # 1. Fetch punches for the calendar date, overnight margin, and any continuous tour
+    extra_hours = 0 if cover is not None else (shift_contract.continuous_duty_hours or 0)
+    start_search, end_search = punch_search_window(calendar_date, extra_hours)
 
     punches = list(
         await list_punches_for_employee(
@@ -134,19 +148,38 @@ async def calculate_and_save_daily_attendance(
             end_time=end_search,
         )
     )
+    punches = await _drop_punches_claimed_by_earlier_shift(session, tenant_id, employee_id, calendar_date, punches)
 
     # 2. Pair punches chronologically (BR-ATT-01, N65)
-    pairing = pair_punches_for_shift(shift_contract, punches, policy=effective_policy)
+    pairing = pair_punches_for_shift(shift_contract, [] if cover is not None else punches, policy=effective_policy)
 
     # 3. Rollup decisions (N66a, N66b, Q4, BR-ATT-17, BR-OTC-01)
-    decision = evaluate_daily_rollup(
-        pairing,
-        theta_present,
-        theta_half_day,
-        policy=effective_policy,
-        work_mode=work_mode_code,
-        session_target=session_target,
-    )
+    if cover is not None:
+        commenced, duty_hours = cover
+        decision = DailyRollupDecision(
+            status="POST_DUTY_REST",
+            worked_ratio=1.0,
+            worked_minutes=0,
+            scheduled_minutes=0,
+            late_minutes=0,
+            early_exit_minutes=0,
+            overtime_minutes=0,
+            is_single_punch=False,
+            anomaly_code=None,
+            explanation=(
+                f"Post-duty rest after the {duty_hours}h continuous tour that started {commenced.isoformat()}. "
+                "Full attendance credit without punches (BR-ATT-15)."
+            ),
+        )
+    else:
+        decision = evaluate_daily_rollup(
+            pairing,
+            theta_present,
+            theta_half_day,
+            policy=effective_policy,
+            work_mode=work_mode_code,
+            session_target=session_target,
+        )
 
     # 3.1 Monthly Late Count & Penalty Action (BR-ATT-18 / Issue #39)
     late_penalty_info = None
@@ -191,6 +224,16 @@ async def calculate_and_save_daily_attendance(
     wfh_needs_supervisor = work_mode_code == "WFH" and getattr(
         effective_policy, "wfh_ot_requires_approval", True
     ) is not False
+    if (
+        shift_contract.shift_type == "CONTINUOUS"
+        and (shift_contract.continuous_duty_hours or 0) > 16
+        and cover is None
+    ):
+        decision.explanation += (
+            " The whole tour stays on this start date and is eligible for long-duty allowance review."
+            " No allowance amount is calculated here."
+        )
+
     if wfh_needs_supervisor and candidate_ot_mins > 0:
         decision.overtime_minutes = 0
         if "supervisor authorizes overtime" not in decision.explanation:
@@ -325,4 +368,130 @@ async def calculate_and_save_daily_attendance(
         existing_ot.raw_overtime_minutes = 0
         existing_ot.updated_at = now
 
+    if cover is None:
+        await _write_post_duty_rest_days(session, tenant_id, employee_id, calendar_date, shift_contract, now)
+
     return record, trace
+
+
+def _contract_from_roster(instance: Any, template: Any) -> ShiftInstanceContract | None:
+    if instance is None or template is None:
+        return None
+    windows: list[SessionWindow] = []
+    for raw in instance.sessions or []:
+        start_value = raw["start_time"]
+        end_value = raw["end_time"]
+        windows.append(
+            SessionWindow(
+                session_order=raw.get("session_order", 1),
+                start_time=time.fromisoformat(start_value) if isinstance(start_value, str) else start_value,
+                end_time=time.fromisoformat(end_value) if isinstance(end_value, str) else end_value,
+                pre_window_minutes=raw.get("pre_window_minutes", 60),
+                post_window_minutes=raw.get("post_window_minutes", 120),
+                min_presence_ratio=float(raw.get("min_presence_ratio", 0.50)),
+                break_duration_minutes=raw.get("break_duration_minutes", 0),
+                is_overnight=raw.get("is_overnight", False),
+                name=raw.get("name", "Session"),
+            )
+        )
+    return ShiftInstanceContract(
+        calendar_date=instance.calendar_date,
+        shift_type=template.shift_type,
+        continuous_duty_hours=template.continuous_duty_hours,
+        is_rest_day=bool(instance.is_rest_day or instance.status == "REST_DAY"),
+        is_cancelled_paid=instance.status == "CANCELLED_PAID",
+        sessions=windows,
+    )
+
+
+async def _earlier_contracts(session: AsyncSession, tenant_id: UUID, employee_id: UUID, calendar_date: date):
+    from app.modules.roster.repository import get_dated_shift_instance_by_employee_and_date
+    from app.modules.shifts.repository import get_shift_template_by_id
+
+    found: list[ShiftInstanceContract] = []
+    for days_back in range(1, 4):
+        instance = await get_dated_shift_instance_by_employee_and_date(
+            session, tenant_id, employee_id, calendar_date - timedelta(days=days_back)
+        )
+        if instance is None or instance.shift_template_id is None:
+            continue
+        template = await get_shift_template_by_id(session, tenant_id, instance.shift_template_id)
+        contract = _contract_from_roster(instance, template)
+        if contract is not None and contract.sessions:
+            found.append(contract)
+    return found
+
+
+async def _post_duty_cover(
+    session: AsyncSession,
+    tenant_id: UUID,
+    employee_id: UUID,
+    calendar_date: date,
+) -> tuple[date, int] | None:
+    for earlier in await _earlier_contracts(session, tenant_id, employee_id, calendar_date):
+        hours = earlier.continuous_duty_hours
+        if earlier.shift_type != "CONTINUOUS" or not hours or len(earlier.sessions) != 1:
+            continue
+        if calendar_date in post_duty_rest_dates(earlier.calendar_date, earlier.sessions[0].start_time, hours):
+            return earlier.calendar_date, hours
+    return None
+
+
+async def _drop_punches_claimed_by_earlier_shift(session, tenant_id, employee_id, calendar_date, punches):
+    earlier = await _earlier_contracts(session, tenant_id, employee_id, calendar_date)
+    if not earlier:
+        return punches
+    return [punch for punch in punches if not any(punch_claimed_by_shift(punch.punch_time, shift) for shift in earlier)]
+
+
+async def _write_post_duty_rest_days(session, tenant_id, employee_id, calendar_date, shift_contract, now):
+    hours = shift_contract.continuous_duty_hours
+    if shift_contract.shift_type != "CONTINUOUS" or not hours or len(shift_contract.sessions) != 1:
+        return
+    for rest_date in post_duty_rest_dates(calendar_date, shift_contract.sessions[0].start_time, hours):
+        existing = await find_attendance_record(session, tenant_id, employee_id, rest_date)
+        if existing is not None and existing.status != "ABSENT":
+            continue
+        explanation = (
+            f"Post-duty rest after the {hours}h continuous tour that started {calendar_date.isoformat()}. "
+            "Full attendance credit without punches (BR-ATT-15)."
+        )
+        if existing is None:
+            existing = AttendanceDailyRecord(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                employee_id=employee_id,
+                calendar_date=rest_date,
+                dated_shift_instance_id=None,
+                status="POST_DUTY_REST",
+                worked_duration_minutes=0,
+                scheduled_duration_minutes=0,
+                worked_ratio=Decimal("1.0000"),
+                late_minutes=0,
+                early_departure_minutes=0,
+                overtime_minutes=0,
+                is_single_punch=False,
+                anomaly_code=None,
+                created_at=now,
+                updated_at=now,
+            )
+            await save_attendance_record(session, existing)
+        else:
+            existing.status = "POST_DUTY_REST"
+            existing.worked_ratio = Decimal("1.0000")
+            existing.overtime_minutes = 0
+            existing.is_single_punch = False
+            existing.anomaly_code = None
+            existing.updated_at = now
+        await save_explanation_trace(
+            session,
+            AttendanceExplanationTrace(
+                id=uuid4(),
+                tenant_id=tenant_id,
+                attendance_record_id=existing.id,
+                employee_id=employee_id,
+                calendar_date=rest_date,
+                trace_payload={"rule": "BR-ATT-15", "status": "POST_DUTY_REST", "explanation": explanation},
+                evaluated_at=now,
+            ),
+        )
