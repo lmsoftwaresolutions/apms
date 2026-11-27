@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, Briefcase, Trash2, Power, Filter, UserCheck, ArrowRight, Pencil } from "lucide-react";
-import { api, Branch, Department, Designation, EmployeeRow } from "../../api";
+import { Plus, Briefcase, Trash2, Power, ArrowRight, Pencil } from "lucide-react";
+import { api, Branch, Department, Designation } from "../../api";
 import { useAuth } from "../../context/AuthContext";
 import { Button } from "../../components/common/Button";
 import { Badge } from "../../components/common/Badge";
@@ -17,15 +17,14 @@ export function DesignationsPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [designations, setDesignations] = useState<Designation[]>([]);
-  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
-  const [selectedBranchId, setSelectedBranchId] = useState("");
-  const [selectedDeptId, setSelectedDeptId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
 
   // Add / Edit Designation Modal
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingDesig, setEditingDesig] = useState<Designation | null>(null);
+  const [formDeptId, setFormDeptId] = useState("");
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [description, setDescription] = useState("");
@@ -38,47 +37,17 @@ export function DesignationsPage() {
   const [deactivateTarget, setDeactivateTarget] = useState<Designation | null>(null);
   const [deactivateSubmitting, setDeactivateSubmitting] = useState(false);
 
-  async function loadData(targetBranchId?: string, targetDeptId?: string) {
+  async function loadData() {
     setLoading(true);
     try {
-      const branchList = await api.branches();
+      const [branchList, deptList, desigList] = await Promise.all([
+        api.branches(),
+        api.departments(),
+        api.designations(),
+      ]);
       setBranches(branchList);
-      const activeBranches = branchList.filter((b) => b.is_active);
-      const defaultBranch = activeBranches[0] || branchList[0];
-      const activeBranchId =
-        targetBranchId !== undefined && activeBranches.some((b) => b.id === targetBranchId)
-          ? targetBranchId
-          : selectedBranchId && activeBranches.some((b) => b.id === selectedBranchId)
-            ? selectedBranchId
-            : defaultBranch?.id || "";
-      setSelectedBranchId(activeBranchId);
-
-      const deptList = await api.departments(activeBranchId || undefined);
       setDepartments(deptList);
-
-      const activeDepts = deptList.filter((d) => d.is_active);
-      const defaultDept = activeDepts[0] || deptList[0];
-      const activeDeptId =
-        targetDeptId !== undefined && targetDeptId !== "" && activeDepts.some((d) => d.id === targetDeptId)
-          ? targetDeptId
-          : selectedDeptId && activeDepts.some((d) => d.id === selectedDeptId)
-            ? selectedDeptId
-            : defaultDept?.id || "";
-      setSelectedDeptId(activeDeptId);
-
-      if (activeDeptId) {
-        const desigList = await api.designations(activeDeptId);
-        setDesignations(desigList);
-        if (can("employee.employee.read")) {
-          const empList = await api.employees(activeDeptId, true);
-          setEmployees(empList);
-        } else {
-          setEmployees([]);
-        }
-      } else {
-        setDesignations([]);
-        setEmployees([]);
-      }
+      setDesignations(desigList);
       setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load designations");
@@ -89,21 +58,34 @@ export function DesignationsPage() {
 
   useEffect(() => {
     void loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function handleBranchChange(newBranchId: string) {
-    setSelectedBranchId(newBranchId);
-    await loadData(newBranchId, "");
+  const departmentById = new Map(departments.map((d) => [d.id, d]));
+  const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
+  const activeDepartments = departments.filter((d) => d.is_active);
+  const severalBranches = branches.length > 1;
+
+  function departmentLabel(departmentId: string): string {
+    const department = departmentById.get(departmentId);
+    if (!department) return departmentId.slice(0, 8);
+    const branch = branchNameById.get(department.branch_id);
+    const title = `${department.name} (${department.code})`;
+    return severalBranches && branch ? `${title} — ${branch}` : title;
   }
 
-  async function handleDeptChange(newDeptId: string) {
-    setSelectedDeptId(newDeptId);
-    await loadData(selectedBranchId, newDeptId);
-  }
+  const needle = query.trim().toLowerCase();
+  const visibleDesignations = needle
+    ? designations.filter((desig) => {
+        const haystack = [desig.name, desig.code, desig.description || "", departmentLabel(desig.department_id)]
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(needle);
+      })
+    : designations;
 
   function openCreateModal() {
     setEditingDesig(null);
+    setFormDeptId(activeDepartments[0]?.id || "");
     setName("");
     setCode("");
     setDescription("");
@@ -113,6 +95,7 @@ export function DesignationsPage() {
 
   function openEditModal(desig: Designation) {
     setEditingDesig(desig);
+    setFormDeptId(desig.department_id);
     setName(desig.name);
     setCode(desig.code);
     setDescription(desig.description || "");
@@ -123,6 +106,7 @@ export function DesignationsPage() {
   function closeFormModal() {
     setIsFormOpen(false);
     setEditingDesig(null);
+    setFormDeptId("");
     setFormError("");
   }
 
@@ -132,7 +116,8 @@ export function DesignationsPage() {
     const trimmedCode = code.trim().toUpperCase();
     const trimmedDesc = description.trim();
     if (!trimmedName || trimmedCode.length < 2) return;
-    if (!editingDesig && !selectedDeptId) return;
+    if (!editingDesig && !formDeptId) return;
+
     setFormSubmitting(true);
     setFormError("");
     try {
@@ -143,13 +128,10 @@ export function DesignationsPage() {
           description: trimmedDesc || null,
         });
       } else {
-        await api.createDesignation(selectedDeptId, trimmedName, trimmedCode, trimmedDesc || null);
+        await api.createDesignation(formDeptId, trimmedName, trimmedCode, trimmedDesc || null);
       }
-      setName("");
-      setCode("");
-      setDescription("");
       closeFormModal();
-      await loadData(selectedBranchId, selectedDeptId);
+      await loadData();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : `Failed to ${editingDesig ? "update" : "create"} designation`);
     } finally {
@@ -164,7 +146,7 @@ export function DesignationsPage() {
     }
     try {
       await api.updateDesignation(desig.id, { is_active: true });
-      await loadData(selectedBranchId, selectedDeptId);
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to update designation status");
     }
@@ -176,7 +158,7 @@ export function DesignationsPage() {
     try {
       await api.updateDesignation(deactivateTarget.id, { is_active: false });
       setDeactivateTarget(null);
-      await loadData(selectedBranchId, selectedDeptId);
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to deactivate designation");
     } finally {
@@ -190,30 +172,13 @@ export function DesignationsPage() {
     try {
       await api.deleteDesignation(deleteTarget.id);
       setDeleteTarget(null);
-      await loadData(selectedBranchId, selectedDeptId);
+      await loadData();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete designation");
     } finally {
       setDeleteSubmitting(false);
     }
   }
-
-  async function handleAssignEmployee(employeeId: string, designationId: string | null) {
-    try {
-      await api.assignDesignation(employeeId, designationId);
-      await loadData(selectedBranchId, selectedDeptId);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign employee designation");
-    }
-  }
-
-  const deptNameById = new Map(departments.map((d) => [d.id, d.name]));
-  const selectedBranch = branches.find((b) => b.id === selectedBranchId);
-  const selectedDept = departments.find((d) => d.id === selectedDeptId);
-  const canCreateUnderSelection =
-    Boolean(selectedDeptId) &&
-    (selectedBranch ? selectedBranch.is_active : true) &&
-    (selectedDept ? selectedDept.is_active : true);
 
   return (
     <div>
@@ -226,58 +191,24 @@ export function DesignationsPage() {
           </p>
         </div>
 
-        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-          {/* Branch & Dept Filters */}
-          {branches.filter((b) => b.is_active).length > 1 ? (
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-              <Filter size={16} color="var(--text-muted)" />
-              <select
-                className="select"
-                style={{ width: "auto", minWidth: "160px", padding: "0.45rem 0.75rem" }}
-                value={selectedBranchId}
-                onChange={(e) => void handleBranchChange(e.target.value)}
-              >
-                {branches
-                  .filter((b) => b.is_active)
-                  .map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.code})
-                    </option>
-                  ))}
-              </select>
-            </div>
+        <div style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+          {designations.length > 0 ? (
+            <input
+              className="input"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search title, code, or department"
+              aria-label="Search designations"
+              style={{ width: "16rem", maxWidth: "100%" }}
+            />
           ) : null}
-
-          {departments.filter((d) => d.is_active).length > 0 ? (
-            <select
-              className="select"
-              style={{ width: "auto", minWidth: "160px", padding: "0.45rem 0.75rem" }}
-              value={selectedDeptId}
-              onChange={(e) => void handleDeptChange(e.target.value)}
-            >
-              {departments
-                .filter((d) => d.is_active)
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    {d.name} ({d.code})
-                  </option>
-                ))}
-            </select>
-          ) : null}
-
           {can("org.designation.create") ? (
             <Button
               variant="primary"
               icon={<Plus size={16} />}
               onClick={openCreateModal}
-              disabled={!canCreateUnderSelection}
-              title={
-                !selectedDeptId
-                  ? "Please create or select a department first"
-                  : !canCreateUnderSelection
-                    ? "Cannot add designations under a deactivated branch or department"
-                    : undefined
-              }
+              disabled={activeDepartments.length === 0}
+              title={activeDepartments.length === 0 ? "Create an active department first" : undefined}
             >
               Add Designation
             </Button>
@@ -305,13 +236,9 @@ export function DesignationsPage() {
         <EmptyState
           icon={<Briefcase size={24} />}
           title="No departments found"
-          description={
-            selectedBranch && !selectedBranch.is_active
-              ? "This branch is deactivated. Switch to an active branch to create departments and designations."
-              : "Designations belong to a department. Create a department first under this branch to begin adding job positions."
-          }
+          description="Designations belong to a department. Create a department first to begin adding job positions."
           action={
-            can("org.department.create") && (!selectedBranch || selectedBranch.is_active)
+            can("org.department.create")
               ? {
                   label: "Create Department",
                   onClick: () => navigate("/org/departments"),
@@ -324,14 +251,10 @@ export function DesignationsPage() {
       ) : !loading && designations.length === 0 ? (
         <EmptyState
           icon={<Briefcase size={24} />}
-          title="No designations in this department"
-          description={
-            !canCreateUnderSelection
-              ? "This branch or department is deactivated. Re-activate it or select an active department to add designations."
-              : "Add job designations (e.g., Spinning Operator, Line Supervisor, QA Inspector)."
-          }
+          title="No designations found"
+          description="Add job designations (e.g., Spinning Operator, Line Supervisor, QA Inspector)."
           action={
-            can("org.designation.create") && canCreateUnderSelection
+            can("org.designation.create") && activeDepartments.length > 0
               ? {
                   label: "Add Designation",
                   onClick: openCreateModal,
@@ -356,16 +279,20 @@ export function DesignationsPage() {
             <tbody>
               {loading ? (
                 <LoadingRow cols={6} rows={4} />
+              ) : visibleDesignations.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ color: "var(--text-muted)" }}>
+                    No designations match “{query.trim()}”.
+                  </td>
+                </tr>
               ) : (
-                designations.map((desig) => (
+                visibleDesignations.map((desig) => (
                   <tr key={desig.id}>
                     <td>
                       <code style={{ fontSize: "0.8125rem", fontWeight: 600 }}>{desig.code}</code>
                     </td>
                     <td style={{ fontWeight: 550 }}>{desig.name}</td>
-                    <td style={{ color: "var(--text-secondary)" }}>
-                      {deptNameById.get(desig.department_id) || desig.department_id.slice(0, 8)}
-                    </td>
+                    <td style={{ color: "var(--text-secondary)" }}>{departmentLabel(desig.department_id)}</td>
                     <td style={{ color: "var(--text-muted)", fontSize: "0.8125rem" }}>
                       {desig.description || "—"}
                     </td>
@@ -416,65 +343,6 @@ export function DesignationsPage() {
         </div>
       )}
 
-      {/* Employee Assignment Section */}
-      {can("employee.employee.update") && employees.length > 0 ? (
-        <div className="card-panel">
-          <div className="card-header" style={{ marginBottom: "1rem" }}>
-            <div>
-              <h3 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 600 }}>
-                Assign Designations to Employees
-              </h3>
-              <p style={{ margin: "0.25rem 0 0", fontSize: "0.8125rem", color: "var(--text-muted)" }}>
-                Map active designations to employees in this department.
-              </p>
-            </div>
-            <Badge variant="info">
-              {employees.length} employee{employees.length !== 1 ? "s" : ""}
-            </Badge>
-          </div>
-
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))", gap: "1rem" }}>
-            {employees.map((emp) => (
-              <div
-                key={emp.id}
-                style={{
-                  padding: "0.875rem 1rem",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "0.375rem",
-                  backgroundColor: "var(--bg-subtle)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "0.5rem",
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <span style={{ fontWeight: 600, fontSize: "0.875rem" }}>{emp.full_name}</span>
-                  <code style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{emp.employee_code}</code>
-                </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  <UserCheck size={16} color="var(--text-muted)" />
-                  <select
-                    className="select"
-                    style={{ fontSize: "0.8125rem", padding: "0.375rem 0.5rem" }}
-                    value={emp.designation_id || ""}
-                    onChange={(e) => void handleAssignEmployee(emp.id, e.target.value || null)}
-                  >
-                    <option value="">No Designation</option>
-                    {designations
-                      .filter((d) => d.is_active || d.id === emp.designation_id)
-                      .map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.name} ({d.code}){!d.is_active ? " (Inactive)" : ""}
-                        </option>
-                      ))}
-                  </select>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
       {/* Add / Edit Designation Modal */}
       <Modal
         isOpen={isFormOpen}
@@ -482,8 +350,8 @@ export function DesignationsPage() {
         title={editingDesig ? "Edit Designation" : "Add Designation"}
         description={
           editingDesig
-            ? `Update title, code, or scope for ${editingDesig.name} in ${deptNameById.get(editingDesig.department_id) || "department"}.`
-            : `Add a job title to ${deptNameById.get(selectedDeptId) || "the department"}.`
+            ? `Update title, code, or description for ${editingDesig.name} in ${departmentLabel(editingDesig.department_id)}.`
+            : "Add a new job title to a department."
         }
         footer={
           <>
@@ -494,7 +362,7 @@ export function DesignationsPage() {
               variant="primary"
               onClick={(e) => handleFormSubmit(e as unknown as FormEvent)}
               loading={formSubmitting}
-              disabled={!name.trim() || code.trim().length < 2 || (!editingDesig && !selectedDeptId)}
+              disabled={!name.trim() || code.trim().length < 2 || (!editingDesig && !formDeptId)}
             >
               {editingDesig ? "Save Changes" : "Create Designation"}
             </Button>
@@ -515,6 +383,35 @@ export function DesignationsPage() {
               {formError}
             </div>
           ) : null}
+
+          {!editingDesig ? (
+            <Field label="Department" required help="Select the department this designation belongs to">
+              <select
+                className="select"
+                value={formDeptId}
+                onChange={(e) => setFormDeptId(e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  Select a department
+                </option>
+                {activeDepartments.map((dept) => (
+                  <option key={dept.id} value={dept.id}>
+                    {departmentLabel(dept.id)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          ) : (
+            <Field label="Department">
+              <input
+                className="input"
+                value={departmentLabel(editingDesig.department_id)}
+                disabled
+                readOnly
+              />
+            </Field>
+          )}
 
           <Field label="Designation Title" required help="e.g. Spinning Operator, Quality Assurance Inspector">
             <input
