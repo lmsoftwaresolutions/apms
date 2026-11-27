@@ -32,6 +32,11 @@ async def update_branch_fields(
     is_active: bool | None,
     registration_number: str | None = None,
     update_registration: bool = False,
+    geofence_latitude: float | None = None,
+    geofence_longitude: float | None = None,
+    geofence_radius_m: int | None = None,
+    allowed_bssids: list[str] | None = None,
+    update_geofence_fields: set[str] | None = None,
 ) -> Branch:
     if name is not None:
         branch.name = name
@@ -41,6 +46,15 @@ async def update_branch_fields(
         branch.is_active = is_active
     if update_registration:
         branch.registration_number = registration_number
+    fields = update_geofence_fields or set()
+    if "geofence_latitude" in fields:
+        branch.geofence_latitude = geofence_latitude
+    if "geofence_longitude" in fields:
+        branch.geofence_longitude = geofence_longitude
+    if "geofence_radius_m" in fields:
+        branch.geofence_radius_m = geofence_radius_m
+    if "allowed_bssids" in fields:
+        branch.allowed_bssids = allowed_bssids
     await session.flush()
     return branch
 

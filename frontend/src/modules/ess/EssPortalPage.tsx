@@ -5,6 +5,7 @@ import {
   CalendarDays,
   Clock,
   Laptop,
+  MapPin,
   RefreshCw,
   UserCheck,
 } from "lucide-react";
@@ -316,6 +317,28 @@ export function EssPortalPage() {
             <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Remote / Client Site</div>
           </div>
         </button>
+
+        <Link
+          to="/ess/mobile-punch"
+          className="card-panel"
+          style={{
+            padding: "1rem",
+            marginBottom: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            cursor: "pointer",
+            textAlign: "left",
+            textDecoration: "none",
+            color: "inherit",
+          }}
+        >
+          <MapPin size={20} color="var(--color-primary)" />
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "0.9rem" }}>Mobile Punch</div>
+            <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>GPS Geofence (M19)</div>
+          </div>
+        </Link>
       </div>
 
       {/* Navigation Tabs */}

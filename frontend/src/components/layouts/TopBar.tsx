@@ -22,6 +22,8 @@ const ROUTE_TITLES: Record<string, { title: string; category: string }> = {
   "/requests": { title: "Leaves & Regularization", category: "Approvals" },
   "/employees": { title: "Employee Directory", category: "People" },
   "/admin/branches": { title: "Company Locations", category: "Administration" },
+  "/admin/branches/geofence": { title: "Branch Geofence Registry", category: "Administration" },
+  "/ess/mobile-punch": { title: "Mobile Geo Punch", category: "Self Service" },
   "/org/branches": { title: "Company Locations", category: "Administration" },
   "/org/departments": { title: "Departments", category: "People" },
   "/org/designations": { title: "Designations", category: "People" },
