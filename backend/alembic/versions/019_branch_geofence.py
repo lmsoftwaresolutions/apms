@@ -1,14 +1,14 @@
 """Branch geofence coordinates, radius, and allowed Wi-Fi BSSIDs.
 
-Revision ID: 018_branch_geofence
-Revises: 017_branch_registration_number
+Revision ID: 019_branch_geofence
+Revises: 018_continuous_duty_hours
 Create Date: 2026-11-27
 """
 
 from alembic import op
 
-revision = "018_branch_geofence"
-down_revision = "017_branch_registration_number"
+revision = "019_branch_geofence"
+down_revision = "018_continuous_duty_hours"
 branch_labels = None
 depends_on = None
 
