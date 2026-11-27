@@ -93,6 +93,7 @@ export function ShiftTemplateModal({
   // Orthogonal axes: Session Architecture vs Special Operational Flags
   const [isSplit, setIsSplit] = useState(false);
   const [isContinuousFlag, setIsContinuousFlag] = useState(false);
+  const [dutyHours, setDutyHours] = useState<24 | 36 | 48>(24);
   const [isFlexiFlag, setIsFlexiFlag] = useState(false);
 
   const [s1, setS1] = useState<SessionDraft>(DEFAULT_S1);
@@ -120,6 +121,8 @@ export function ShiftTemplateModal({
       const split = sorted.length > 1 || editingTemplate.shift_type === "SPLIT";
       setIsSplit(split);
       setIsContinuousFlag(editingTemplate.shift_type === "CONTINUOUS");
+      const storedHours = editingTemplate.continuous_duty_hours;
+      setDutyHours(storedHours === 36 || storedHours === 48 ? storedHours : 24);
       setIsFlexiFlag(editingTemplate.shift_type === "FLEXI");
       setExtraSessions(sorted.slice(2));
 
@@ -161,6 +164,7 @@ export function ShiftTemplateModal({
       setColorCode("#3b82f6");
       setIsSplit(false);
       setIsContinuousFlag(false);
+      setDutyHours(24);
       setIsFlexiFlag(false);
       setS1(DEFAULT_S1);
       setS2(DEFAULT_SPLIT_S2);
@@ -283,6 +287,7 @@ export function ShiftTemplateModal({
           shift_type: resolveShiftType(),
           color_code: colorCode,
           policy_id: policyId || null,
+          continuous_duty_hours: resolveShiftType() === "CONTINUOUS" ? dutyHours : null,
           sessions: sessionsPayload,
         };
         await api.updateShiftTemplate(editingTemplate.id, updatePayload);
@@ -293,6 +298,7 @@ export function ShiftTemplateModal({
           shift_type: resolveShiftType(),
           color_code: colorCode,
           policy_id: policyId || null,
+          continuous_duty_hours: resolveShiftType() === "CONTINUOUS" ? dutyHours : null,
           sessions: sessionsPayload,
         };
         await api.createShiftTemplate(createPayload);
@@ -505,6 +511,20 @@ export function ShiftTemplateModal({
                 <Clock size={14} color="var(--text-muted)" />
                 Continuous Multi-Day Duty (&gt;24h)
               </label>
+              {isContinuousFlag && !isSplit ? (
+                <label style={{ display: "flex", flexDirection: "column", gap: "0.25rem", fontSize: "0.8rem" }}>
+                  Tour length
+                  <select
+                    value={dutyHours}
+                    onChange={(e) => setDutyHours(Number(e.target.value) as 24 | 36 | 48)}
+                    style={{ padding: "0.35rem 0.5rem" }}
+                  >
+                    <option value={24}>24 hours</option>
+                    <option value={36}>36 hours</option>
+                    <option value={48}>48 hours</option>
+                  </select>
+                </label>
+              ) : null}
             </div>
           </div>
 

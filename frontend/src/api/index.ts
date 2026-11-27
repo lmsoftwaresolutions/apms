@@ -58,6 +58,7 @@ export type ShiftTemplate = {
   color_code: string | null;
   policy_id: string | null;
   is_overnight: boolean;
+  continuous_duty_hours: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -70,6 +71,7 @@ export type ShiftTemplateCreateInput = {
   shift_type: string;
   color_code?: string | null;
   policy_id?: string | null;
+  continuous_duty_hours?: number | null;
   sessions: ShiftSessionInput[];
 };
 
@@ -79,6 +81,7 @@ export type ShiftTemplateUpdateInput = {
   is_active?: boolean | null;
   color_code?: string | null;
   policy_id?: string | null;
+  continuous_duty_hours?: number | null;
   sessions?: ShiftSessionInput[] | null;
 };
 

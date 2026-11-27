@@ -43,6 +43,55 @@ class DailyPairingResult:
     has_single_punch: bool = False
 
 
+def post_duty_rest_dates(calendar_date, start: time, duty_hours: int) -> list:
+    """Calendar dates after the start date that a continuous tour covers, plus one recovery day.
+
+    A 24h or 36h tour that begins on D and finishes on D+1 yields D+1 and D+2.
+    A 48h tour that finishes on D+2 also keeps the following recovery day.
+    """
+    start_utc = _combine_date_time_utc(calendar_date, start)
+    end_utc = start_utc + timedelta(hours=duty_hours)
+    last_duty_date = end_utc.astimezone(IST).date()
+    dates = []
+    cursor = calendar_date + timedelta(days=1)
+    while cursor <= last_duty_date:
+        dates.append(cursor)
+        cursor += timedelta(days=1)
+    recovery = last_duty_date + timedelta(days=1)
+    if recovery != calendar_date and recovery not in dates:
+        dates.append(recovery)
+    return dates
+
+
+def shift_span_end(shift: ShiftInstanceContract) -> datetime | None:
+    if not shift.sessions:
+        return None
+    first = shift.sessions[0]
+    start_utc = _combine_date_time_utc(shift.calendar_date, first.start_time)
+    if shift.shift_type == "CONTINUOUS" and shift.continuous_duty_hours and len(shift.sessions) == 1:
+        return start_utc + timedelta(hours=shift.continuous_duty_hours)
+    last = shift.sessions[-1]
+    overnight = last.is_overnight or last.end_time < last.start_time
+    return _combine_date_time_utc(shift.calendar_date, last.end_time, is_next_day=overnight)
+
+
+def punch_claimed_by_shift(punch_time: datetime, shift: ShiftInstanceContract) -> bool:
+    """True when this punch belongs to an earlier tour that crosses into this calendar date."""
+    if shift.is_rest_day or shift.is_cancelled_paid or not shift.sessions:
+        return False
+    end = shift_span_end(shift)
+    if end is None or end.astimezone(IST).date() <= shift.calendar_date:
+        return False
+    first = shift.sessions[0]
+    last = shift.sessions[-1]
+    window_start = _combine_date_time_utc(shift.calendar_date, first.start_time) - timedelta(
+        minutes=first.pre_window_minutes
+    )
+    window_end = end + timedelta(minutes=last.post_window_minutes)
+    moment = punch_time.astimezone(UTC)
+    return window_start <= moment <= window_end
+
+
 def _combine_date_time_utc(d, t: time, is_next_day: bool = False) -> datetime:
     base_date = d + timedelta(days=1) if is_next_day else d
     dt_local = datetime.combine(base_date, t, tzinfo=IST)
@@ -118,12 +167,20 @@ def pair_punches_for_shift(
     all_matched_punches = set()
 
     sorted_sessions = sorted(shift.sessions, key=lambda s: s.session_order)
+    continuous_hours = (
+        shift.continuous_duty_hours
+        if shift.shift_type == "CONTINUOUS" and len(sorted_sessions) == 1 and shift.continuous_duty_hours
+        else None
+    )
 
     for idx, s in enumerate(sorted_sessions):
         # Scheduled Start & End
         sched_start_utc = _combine_date_time_utc(cal_date, s.start_time)
-        is_end_next_day = s.is_overnight or (s.end_time < s.start_time)
-        sched_end_utc = _combine_date_time_utc(cal_date, s.end_time, is_next_day=is_end_next_day)
+        if continuous_hours:
+            sched_end_utc = sched_start_utc + timedelta(hours=continuous_hours)
+        else:
+            is_end_next_day = s.is_overnight or (s.end_time < s.start_time)
+            sched_end_utc = _combine_date_time_utc(cal_date, s.end_time, is_next_day=is_end_next_day)
 
         sched_mins = max(0, int((sched_end_utc - sched_start_utc).total_seconds() / 60) - s.break_duration_minutes)
         total_sched += sched_mins

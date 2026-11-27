@@ -25,5 +25,6 @@ class ShiftInstanceContract:
     dated_shift_instance_id: UUID | None = None
     is_rest_day: bool = False
     is_cancelled_paid: bool = False  # N66d
+    continuous_duty_hours: int | None = None
     sessions: list[SessionWindow] = field(default_factory=list)
     policy: Any | None = None
