@@ -195,6 +195,7 @@ export function DepartmentsPage() {
 
   const branchNameById = new Map(branches.map((b) => [b.id, b.name]));
   const departmentById = new Map(allDepartments.map((dept) => [dept.id, dept]));
+  const hasParentUnit = departments.some((d) => Boolean(d.parent_dept_id));
 
   function parentLabel(parentDeptId: string | null | undefined) {
     if (!parentDeptId) return "—";
@@ -295,14 +296,14 @@ export function DepartmentsPage() {
                 <th style={{ width: "120px" }}>Code</th>
                 <th>Department Name</th>
                 {branches.length > 1 ? <th>Branch</th> : null}
-                <th>Parent Unit</th>
+                {hasParentUnit ? <th>Parent Unit</th> : null}
                 <th style={{ width: "120px" }}>Status</th>
                 <th style={{ width: "260px", textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
-                <LoadingRow cols={branches.length > 1 ? 6 : 5} rows={4} />
+                <LoadingRow cols={4 + (branches.length > 1 ? 1 : 0) + (hasParentUnit ? 1 : 0)} rows={4} />
               ) : (
                 departments.map((dept) => (
                   <tr key={dept.id}>
@@ -315,7 +316,9 @@ export function DepartmentsPage() {
                         {branchNameById.get(dept.branch_id) || dept.branch_id.slice(0, 8)}
                       </td>
                     ) : null}
-                    <td style={{ color: "var(--text-secondary)" }}>{parentLabel(dept.parent_dept_id)}</td>
+                    {hasParentUnit ? (
+                      <td style={{ color: "var(--text-secondary)" }}>{parentLabel(dept.parent_dept_id)}</td>
+                    ) : null}
                     <td>
                       <Badge variant={dept.is_active ? "success" : "neutral"}>
                         {dept.is_active ? "Active" : "Inactive"}
