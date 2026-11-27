@@ -937,7 +937,6 @@ export const api = {
         geofence_latitude: number | null;
         geofence_longitude: number | null;
         geofence_radius_m: number | null;
-        allowed_bssids: string[];
       } | null;
       today_punches: Array<{
         id: string;
@@ -953,7 +952,6 @@ export const api = {
     latitude: number;
     longitude: number;
     accuracy_m?: number | null;
-    bssid?: string | null;
   }) =>
     request<{
       punch_time: string;

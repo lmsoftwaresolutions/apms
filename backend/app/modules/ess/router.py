@@ -183,7 +183,30 @@ class MobilePunchRequest(BaseModel):
     latitude: float = Field(ge=-90.0, le=90.0)
     longitude: float = Field(ge=-180.0, le=180.0)
     accuracy_m: float | None = Field(default=None, ge=0.0)
-    bssid: str | None = Field(default=None, max_length=64)
+
+
+def _require_inside_geofence(branch: object | None, latitude: float, longitude: float) -> tuple[float, int]:
+    """Accept a mobile punch only when the server's own distance is inside the saved radius."""
+    latitude_value = getattr(branch, "geofence_latitude", None)
+    longitude_value = getattr(branch, "geofence_longitude", None)
+    radius_m = getattr(branch, "geofence_radius_m", None)
+    if latitude_value is None or longitude_value is None or radius_m is None:
+        raise ProblemError(
+            422,
+            "Geofence is not configured",
+            "This branch has no geofence coordinates and radius. A mobile punch cannot be recorded.",
+        )
+    distance_m = round(
+        _haversine_distance_m(latitude, longitude, float(latitude_value), float(longitude_value)),
+        2,
+    )
+    if distance_m > radius_m:
+        raise ProblemError(
+            422,
+            "Outside the branch geofence",
+            f"This punch is {distance_m} m from the branch. The allowed radius is {radius_m} m.",
+        )
+    return distance_m, int(radius_m)
 
 
 @router.get("/mobile-punch/context")
@@ -217,7 +240,6 @@ async def ess_mobile_punch_context(
             "geofence_latitude": branch.geofence_latitude,
             "geofence_longitude": branch.geofence_longitude,
             "geofence_radius_m": branch.geofence_radius_m,
-            "allowed_bssids": branch.allowed_bssids or [],
         },
         "today_punches": [
             {
@@ -246,27 +268,7 @@ async def ess_mobile_punch(
         else None
     )
 
-    distance_m: float | None = None
-    geofence_verified = False
-    branch_radius_m = branch.geofence_radius_m if branch else None
-
-    if branch and branch.geofence_latitude is not None and branch.geofence_longitude is not None:
-        distance_m = round(
-            _haversine_distance_m(
-                payload.latitude,
-                payload.longitude,
-                branch.geofence_latitude,
-                branch.geofence_longitude,
-            ),
-            2,
-        )
-        radius = branch.geofence_radius_m or 150
-        geofence_verified = distance_m <= radius
-        if not geofence_verified and payload.bssid and branch.allowed_bssids:
-            normalized_bssid = payload.bssid.strip().upper()
-            allowed_upper = {b.strip().upper() for b in branch.allowed_bssids}
-            if normalized_bssid in allowed_upper:
-                geofence_verified = True
+    distance_m, branch_radius_m = _require_inside_geofence(branch, payload.latitude, payload.longitude)
 
     punch_time = datetime.now(UTC)
     raw_payload = {
@@ -276,9 +278,8 @@ async def ess_mobile_punch(
         "latitude": payload.latitude,
         "longitude": payload.longitude,
         "accuracy_m": payload.accuracy_m,
-        "bssid": payload.bssid,
         "distance_m": distance_m,
-        "geofence_verified": geofence_verified,
+        "geofence_verified": True,
         "branch_id": str(branch.id) if branch else None,
         "branch_radius_m": branch_radius_m,
     }
@@ -294,7 +295,7 @@ async def ess_mobile_punch(
         "punch_direction": payload.punch_direction,
         "distance_m": distance_m,
         "branch_radius_m": branch_radius_m,
-        "geofence_verified": geofence_verified,
+        "geofence_verified": True,
         "ingest": ingest_res.model_dump(mode="json"),
     }
 

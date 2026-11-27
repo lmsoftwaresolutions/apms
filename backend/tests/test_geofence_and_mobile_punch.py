@@ -109,6 +109,7 @@ async def test_branch_geofence_and_mobile_punch():
         assert ctx_data["employee_id"] == str(emp_id)
         assert ctx_data["branch"]["id"] == str(branch_id)
         assert ctx_data["branch"]["geofence_radius_m"] == 250
+        assert "allowed_bssids" not in ctx_data["branch"]
 
         # 3. Test Punch IN within geofence (< 250m)
         punch_in_res = await client.post(
@@ -128,7 +129,7 @@ async def test_branch_geofence_and_mobile_punch():
         assert in_data["distance_m"] < 50
         assert in_data["ingest"]["active_punches"] == 1
 
-        # 4. Test Punch OUT outside geofence without matching BSSID (> 250m)
+        # 4. A punch outside the saved radius is refused and not stored.
         punch_out_far = await client.post(
             "/api/v1/ess/mobile-punch",
             json={
@@ -139,12 +140,10 @@ async def test_branch_geofence_and_mobile_punch():
             },
             headers=headers,
         )
-        assert punch_out_far.status_code == 200, punch_out_far.text
-        out_far_data = punch_out_far.json()
-        assert out_far_data["geofence_verified"] is False
-        assert out_far_data["distance_m"] > 1000
+        assert punch_out_far.status_code == 422, punch_out_far.text
+        assert punch_out_far.json()["title"] == "Outside the branch geofence"
 
-        # 5. Test Punch OUT outside GPS geofence but matching allowed Wi-Fi BSSID
+        # 5. A posted BSSID does not authorize an outside punch.
         punch_out_wifi = await client.post(
             "/api/v1/ess/mobile-punch",
             json={
@@ -155,6 +154,20 @@ async def test_branch_geofence_and_mobile_punch():
             },
             headers=headers,
         )
-        assert punch_out_wifi.status_code == 200, punch_out_wifi.text
-        out_wifi_data = punch_out_wifi.json()
-        assert out_wifi_data["geofence_verified"] is True
+        assert punch_out_wifi.status_code == 422, punch_out_wifi.text
+
+        # 6. The generic ingest path cannot bypass the geofence check.
+        ingest_res = await client.post(
+            "/api/v1/punches/ingest",
+            json={
+                "source": "MOBILE_GEO",
+                "raw_payload": {
+                    "employee_code": ctx_data["employee_code"],
+                    "latitude": 18.5500,
+                    "longitude": 73.8568,
+                    "geofence_verified": True,
+                },
+            },
+            headers=headers,
+        )
+        assert ingest_res.status_code == 422, ingest_res.text

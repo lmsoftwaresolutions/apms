@@ -10,7 +10,6 @@ import {
   RefreshCw,
   LogIn,
   LogOut,
-  Wifi,
   ShieldCheck,
 } from "lucide-react";
 import { api } from "../../api";
@@ -109,12 +108,14 @@ export function MobileGeoPunchPage() {
   }, [context?.branch?.id]);
 
   const branch = context?.branch;
-  const radius = branch?.geofence_radius_m || 150;
-  const isInside = distanceM !== null && distanceM <= radius;
+  const radius = branch?.geofence_radius_m ?? null;
+  const fenceReady =
+    branch?.geofence_latitude != null && branch?.geofence_longitude != null && radius != null;
+  const isInside = fenceReady && distanceM !== null && distanceM <= radius;
 
   async function handlePunch(direction: "IN" | "OUT") {
-    if (!coords) {
-      setActionError("GPS coordinates required. Please click 'Refresh GPS' first.");
+    if (!isInside || !coords) {
+      setActionError("A punch is recorded only when this device is inside the branch geofence.");
       return;
     }
 
@@ -131,8 +132,7 @@ export function MobileGeoPunchPage() {
       });
 
       const timeFormatted = new Date(res.punch_time).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-      const verifiedText = res.geofence_verified ? "within verified geofence" : "outside boundary zone";
-      setActionSuccess(`Punch ${direction} recorded successfully at ${timeFormatted} (${verifiedText}).`);
+      setActionSuccess(`Punch ${direction} recorded at ${timeFormatted} inside the branch geofence.`);
 
       // Refresh today's punches
       await loadContext();
@@ -222,7 +222,7 @@ export function MobileGeoPunchPage() {
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>Assigned Branch</div>
               <div style={{ fontWeight: 600, marginTop: "0.25rem" }}>{branch.name} ({branch.code})</div>
               <div style={{ fontSize: "0.75rem", color: "var(--text-secondary)", marginTop: "0.25rem" }}>
-                Allowed Radius: <strong>{radius}m</strong>
+                Allowed Radius: <strong>{fenceReady ? `${radius}m` : "Not configured"}</strong>
               </div>
             </div>
 
@@ -247,15 +247,15 @@ export function MobileGeoPunchPage() {
             <div style={{ padding: "0.75rem", background: "var(--bg-subtle)", borderRadius: "6px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
               <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", fontWeight: 600, textTransform: "uppercase" }}>Validation Status</div>
               <div style={{ marginTop: "0.25rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                {distanceM !== null ? (
+                {fenceReady && distanceM !== null ? (
                   <>
                     <Badge variant={isInside ? "success" : "danger"}>
                       {isInside ? "WITHIN GEOFENCE ✓" : "OUTSIDE ZONE ⚠️"}
                     </Badge>
                     <span style={{ fontSize: "0.85rem", fontWeight: 600 }}>{distanceM}m away</span>
                   </>
-                ) : branch.geofence_latitude == null ? (
-                  <Badge variant="warning">No Branch Coords Set</Badge>
+                ) : !fenceReady ? (
+                  <Badge variant="warning">Geofence not configured</Badge>
                 ) : (
                   <span style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Calculating...</span>
                 )}
@@ -287,7 +287,7 @@ export function MobileGeoPunchPage() {
             variant="primary"
             size="md"
             onClick={() => void handlePunch("IN")}
-            disabled={submittingPunch !== null || gpsLoading || !coords}
+            disabled={submittingPunch !== null || gpsLoading || !isInside}
             style={{
               padding: "1.25rem 1rem",
               fontSize: "1.1rem",
@@ -308,7 +308,7 @@ export function MobileGeoPunchPage() {
             variant="secondary"
             size="md"
             onClick={() => void handlePunch("OUT")}
-            disabled={submittingPunch !== null || gpsLoading || !coords}
+            disabled={submittingPunch !== null || gpsLoading || !isInside}
             style={{
               padding: "1.25rem 1rem",
               fontSize: "1.1rem",
