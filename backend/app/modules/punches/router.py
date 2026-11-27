@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Response, status
 
 from app.api.deps import CurrentUser, SessionDep, require_permission
+from app.core.errors import ProblemError
 from app.modules.punches.repository import list_punch_events
 from app.modules.punches.schemas import (
     PunchEventRead,
@@ -28,6 +29,12 @@ async def ingest_punches_endpoint(
     response: Response,
     current: Annotated[CurrentUser, Depends(require_permission("capture.punch.ingest"))],
 ) -> PunchIngestResult:
+    if body.source.strip().upper() in {"MOBILE_GEO", "ESS_MOBILE"}:
+        raise ProblemError(
+            422,
+            "Use the mobile punch endpoint",
+            "Mobile geofence punches must be submitted through the employee punch endpoint.",
+        )
     result = await process_and_ingest_punches(
         session=session,
         tenant_id=current.tenant_id,

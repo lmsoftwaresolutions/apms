@@ -15,6 +15,8 @@ import { PunchStreamPage } from "./modules/punches/PunchStreamPage";
 import { DailyAttendancePage } from "./modules/attendance/DailyAttendancePage";
 import { MusterRollPage } from "./modules/muster/MusterRollPage";
 import { EssPortalPage } from "./modules/ess/EssPortalPage";
+import { MobileGeoPunchPage } from "./modules/ess/MobileGeoPunchPage";
+import { BranchGeofencePage } from "./modules/org/BranchGeofencePage";
 import { PlaceholderPage } from "./modules/common/PlaceholderPage";
 import { NotFoundPage } from "./modules/common/NotFoundPage";
 
@@ -31,6 +33,7 @@ export function App() {
 
           {/* Operations */}
           <Route path="/ess" element={<EssPortalPage />} />
+          <Route path="/ess/mobile-punch" element={<MobileGeoPunchPage />} />
           <Route path="/attendance" element={<DailyAttendancePage />} />
           <Route path="/attendance/daily" element={<Navigate to="/attendance" replace />} />
           <Route path="/punches" element={<PunchStreamPage />} />
@@ -106,6 +109,7 @@ export function App() {
 
           {/* Administration & IAM */}
           <Route path="/admin/branches" element={<BranchesPage />} />
+          <Route path="/admin/branches/geofence" element={<BranchGeofencePage />} />
           <Route path="/admin/roles" element={<RolesPage />} />
           <Route path="/admin/users" element={<UsersPage />} />
 

@@ -27,6 +27,7 @@ import {
   Calendar,
   ClipboardCheck,
   Settings,
+  MapPin,
   LucideIcon,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
@@ -52,6 +53,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: UserIcon,
     items: [
       { label: "My Portal (ESS)", to: "/ess", icon: UserCheck },
+      { label: "Mobile Punch", to: "/ess/mobile-punch", icon: MapPin },
     ],
   },
   {
@@ -97,6 +99,7 @@ const NAV_GROUPS: NavGroup[] = [
     icon: Settings,
     items: [
       { label: "Locations", to: "/admin/branches", icon: Building2 },
+      { label: "Branch Geofence", to: "/admin/branches/geofence", icon: MapPin },
       { label: "Roles", to: "/admin/roles", icon: Shield, permission: "iam.role.read" },
       { label: "Users", to: "/admin/users", icon: UserCheck, permission: "iam.role.read" },
     ],

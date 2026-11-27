@@ -16,6 +16,10 @@ def branch_to_out(branch: Branch) -> BranchOut:
         name=branch.name,
         code=branch.code,
         registration_number=branch.registration_number,
+        geofence_latitude=branch.geofence_latitude,
+        geofence_longitude=branch.geofence_longitude,
+        geofence_radius_m=branch.geofence_radius_m,
+        allowed_bssids=branch.allowed_bssids,
         is_active=branch.is_active,
     )
 
@@ -32,6 +36,10 @@ async def create_branch(session: AsyncSession, tenant_id: UUID, payload: BranchC
         name=payload.name,
         code=payload.code,
         registration_number=payload.registration_number,
+        geofence_latitude=payload.geofence_latitude,
+        geofence_longitude=payload.geofence_longitude,
+        geofence_radius_m=payload.geofence_radius_m,
+        allowed_bssids=payload.allowed_bssids,
         is_active=True,
         created_at=datetime.now(UTC),
     )
@@ -61,6 +69,11 @@ async def update_branch(
             is_active=payload.is_active,
             registration_number=payload.registration_number,
             update_registration="registration_number" in payload.model_fields_set,
+            geofence_latitude=payload.geofence_latitude,
+            geofence_longitude=payload.geofence_longitude,
+            geofence_radius_m=payload.geofence_radius_m,
+            allowed_bssids=payload.allowed_bssids,
+            update_geofence_fields=payload.model_fields_set,
         )
     except IntegrityError as exc:
         raise ProblemError(409, "Branch already exists", "A branch with this code already exists.") from exc
