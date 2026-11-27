@@ -113,7 +113,7 @@ export function EssPortalPage() {
   if (profileMissing) {
     return (
       <div style={{ maxWidth: "640px", margin: "2rem auto" }}>
-        <div className="card" style={{ padding: "2rem", textAlign: "center" }}>
+        <div className="card-panel" style={{ padding: "2rem", textAlign: "center" }}>
           <EmptyState
             icon={<UserCheck size={40} />}
             title="No Employee Profile Linked"
@@ -182,7 +182,7 @@ export function EssPortalPage() {
       ) : null}
 
       {/* Today's Attendance Hero Card */}
-      <div className="card" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
+      <div className="card-panel" style={{ padding: "1.25rem", marginBottom: "1rem" }}>
         <div
           style={{
             display: "flex",
@@ -256,16 +256,16 @@ export function EssPortalPage() {
       >
         <button
           type="button"
-          className="card"
+          className="card-panel"
           onClick={() => setLeaveModalOpen(true)}
           style={{
             padding: "1rem",
+            marginBottom: 0,
             display: "flex",
             alignItems: "center",
             gap: "0.75rem",
             cursor: "pointer",
             textAlign: "left",
-            border: "1px solid var(--border-default)",
           }}
         >
           <Calendar size={20} color="var(--color-primary)" />
@@ -277,16 +277,16 @@ export function EssPortalPage() {
 
         <button
           type="button"
-          className="card"
+          className="card-panel"
           onClick={() => setRegModalOpen(true)}
           style={{
             padding: "1rem",
+            marginBottom: 0,
             display: "flex",
             alignItems: "center",
             gap: "0.75rem",
             cursor: "pointer",
             textAlign: "left",
-            border: "1px solid var(--border-default)",
           }}
         >
           <Clock size={20} color="var(--color-warning)" />
@@ -298,16 +298,16 @@ export function EssPortalPage() {
 
         <button
           type="button"
-          className="card"
+          className="card-panel"
           onClick={() => setWorkModeModalOpen(true)}
           style={{
             padding: "1rem",
+            marginBottom: 0,
             display: "flex",
             alignItems: "center",
             gap: "0.75rem",
             cursor: "pointer",
             textAlign: "left",
-            border: "1px solid var(--border-default)",
           }}
         >
           <Laptop size={20} color="var(--color-success)" />
@@ -347,7 +347,7 @@ export function EssPortalPage() {
       {activeTab === "overview" ? (
         <div style={{ display: "grid", gap: "1rem" }}>
           {/* Monthly Summary & Leave Balances */}
-          <div className="card" style={{ padding: "1.1rem" }}>
+          <div className="card-panel" style={{ padding: "1.1rem", marginBottom: 0 }}>
             <div style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.65rem" }}>
               This Month Summary &amp; Leave Balances
             </div>
@@ -368,7 +368,7 @@ export function EssPortalPage() {
           </div>
 
           {/* Recent Requests */}
-          <div className="card" style={{ padding: "1.1rem" }}>
+          <div className="card-panel" style={{ padding: "1.1rem", marginBottom: 0 }}>
             <div style={{ fontSize: "0.8rem", fontWeight: 600, textTransform: "uppercase", color: "var(--text-muted)", marginBottom: "0.65rem" }}>
               Recent Requests
             </div>
@@ -443,8 +443,8 @@ export function EssPortalPage() {
           </div>
         </div>
       ) : activeTab === "calendar" ? (
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <table className="table">
+        <div className="table-container">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Date</th>
@@ -470,8 +470,8 @@ export function EssPortalPage() {
           </table>
         </div>
       ) : (
-        <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-          <table className="table">
+        <div className="table-container">
+          <table className="data-table">
             <thead>
               <tr>
                 <th>Date</th>

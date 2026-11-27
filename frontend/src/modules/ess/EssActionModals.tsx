@@ -107,7 +107,7 @@ export function ApplyLeaveModal({
           </select>
         </Field>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem", marginTop: "0.75rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.65rem", marginTop: "0.75rem" }}>
           <Field label="Start Date" required>
             <input
               type="date"
@@ -233,7 +233,7 @@ export function ApplyRegularizationModal({
       <form id="ess-reg-form" onSubmit={handleSubmit}>
         {error ? <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{error}</div> : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.65rem" }}>
           <Field label="Date" required>
             <input
               type="date"
@@ -256,7 +256,7 @@ export function ApplyRegularizationModal({
           </Field>
         </div>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem", marginTop: "0.75rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.65rem", marginTop: "0.75rem" }}>
           <Field label="Actual In Time">
             <input
               type="time"
@@ -364,7 +364,7 @@ export function ApplyWorkModeModal({
       <form id="ess-workmode-form" onSubmit={handleSubmit}>
         {error ? <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{error}</div> : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.65rem" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "0.65rem" }}>
           <Field label="Mode" required>
             <select
               className="select"
